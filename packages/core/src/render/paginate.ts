@@ -12,14 +12,14 @@ export interface Page {
 export const COMMENT_LANE_WIDTH_PT = 168;
 type RenderBlock = (block: Block, pageNumber?: number, decoration?: boolean) => HTMLElement;
 
-function addHeaderFooter(
+const addHeaderFooter = (
   doc: DocxDocument,
   properties: SectionProperties,
   page: HTMLElement,
   pageNumber: number,
   firstPage: boolean,
   renderBlock: RenderBlock,
-): void {
+): void => {
   const { margins: margin, width } = properties;
   const usableWidth = Math.max(1, width - margin.left - margin.right);
   const parityEven = pageNumber % 2 === 0;
@@ -53,9 +53,9 @@ function addHeaderFooter(
     for (const block of footer) element.append(renderBlock(block, pageNumber, true));
     page.append(element);
   }
-}
+};
 
-function applyPageGeometry(page: Page, properties: SectionProperties): Page {
+const applyPageGeometry = (page: Page, properties: SectionProperties): Page => {
   const { width, height, margins: margin } = properties;
   const usableWidth = Math.max(1, width - margin.left - margin.right);
   const usableHeight = Math.max(1, height - margin.top - margin.bottom);
@@ -71,16 +71,16 @@ function applyPageGeometry(page: Page, properties: SectionProperties): Page {
     page.content.style.setProperty("--orim-pitch", `${properties.linePitch}pt`);
   else page.content.style.removeProperty("--orim-pitch");
   return { ...page, properties };
-}
+};
 
-function createPage(
+const createPage = (
   pagesRoot: HTMLElement,
   pages: Page[],
   doc: DocxDocument,
   properties: SectionProperties,
   includeComments: boolean,
   renderBlock: RenderBlock,
-): Page {
+): Page => {
   const wrapper = document.createElement("div");
   wrapper.className = "orim-page-wrap";
   const pageElement = document.createElement("div");
@@ -104,18 +104,18 @@ function createPage(
   pagesRoot.append(wrapper);
   pages.push(page);
   return page;
-}
+};
 
-function overflows(element: HTMLElement, page: Page): boolean {
+const overflows = (element: HTMLElement, page: Page): boolean => {
   const bounds = page.content.getBoundingClientRect();
   const blockBounds = element.getBoundingClientRect();
   return (
     page.content.scrollHeight > page.content.clientHeight + 1 ||
     blockBounds.bottom > bounds.bottom + 1
   );
-}
+};
 
-function splitTable(table: HTMLTableElement, page: Page, newPage: () => Page): Page {
+const splitTable = (table: HTMLTableElement, page: Page, newPage: () => Page): Page => {
   if (!overflows(table, page)) return page;
   const originalRows = Array.from(table.rows);
   const headerRows = originalRows.filter((row) => row.dataset.orimHeader === "true");
@@ -147,16 +147,16 @@ function splitTable(table: HTMLTableElement, page: Page, newPage: () => Page): P
   continuation.append(body);
   next.content.append(continuation);
   return splitTable(continuation, next, newPage);
-}
+};
 
-export function paginate(
+export const paginate = (
   root: HTMLElement,
   doc: DocxDocument,
   mode: string,
   renderBlock: (block: Block, pageNumber?: number, decoration?: boolean) => HTMLElement,
   includeComments: boolean,
   fields: readonly PendingField[],
-): Page[] {
+): Page[] => {
   root.replaceChildren();
   root.className = `orim-root orim-${mode}`;
   root.style.setProperty(
@@ -224,4 +224,4 @@ export function paginate(
     }
   }
   return pages;
-}
+};

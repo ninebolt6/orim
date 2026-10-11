@@ -3,6 +3,9 @@ import { playwright } from "vite-plus/test/browser-playwright";
 
 export default defineConfig({
   lint: {
+    rules: {
+      "func-style": ["error", "expression"],
+    },
     overrides: [
       {
         files: ["packages/react/**", "apps/demo/**"],

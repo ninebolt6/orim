@@ -8,17 +8,17 @@ import type {
 } from "../docx/model";
 import type { ChangesMode } from "./document";
 
-export function revisionVisibility(
+export const revisionVisibility = (
   kind: ChangeKind,
   mode: ChangesMode,
-): "hidden" | "marked" | "plain" {
+): "hidden" | "marked" | "plain" => {
   if (mode === "markup") return "marked";
   const accepted = kind === "ins" || kind === "moveTo";
   if (mode === "final") return accepted ? "plain" : "hidden";
   return accepted ? "hidden" : "plain";
-}
+};
 
-function resolveTable(table: Table, mode: ChangesMode): Table {
+const resolveTable = (table: Table, mode: ChangesMode): Table => {
   return {
     ...table,
     rows: table.rows.map((row) => ({
@@ -29,9 +29,9 @@ function resolveTable(table: Table, mode: ChangesMode): Table {
       })),
     })),
   };
-}
+};
 
-export function resolveParagraphMarks(blocks: readonly Block[], mode: ChangesMode): Block[] {
+export const resolveParagraphMarks = (blocks: readonly Block[], mode: ChangesMode): Block[] => {
   const resolved = blocks.map((block) =>
     block.type === "table" ? resolveTable(block, mode) : block,
   );
@@ -68,13 +68,16 @@ export function resolveParagraphMarks(blocks: readonly Block[], mode: ChangesMod
     } else output.push(block);
   }
   return output;
-}
+};
 
-function resolveDecoration(blocks: readonly Block[] | undefined, mode: ChangesMode) {
+const resolveDecoration = (blocks: readonly Block[] | undefined, mode: ChangesMode) => {
   return blocks ? resolveParagraphMarks(blocks, mode) : undefined;
-}
+};
 
-export function resolveDocumentParagraphMarks(doc: DocxDocument, mode: ChangesMode): DocxDocument {
+export const resolveDocumentParagraphMarks = (
+  doc: DocxDocument,
+  mode: ChangesMode,
+): DocxDocument => {
   const resolveProperties = (properties: SectionProperties): SectionProperties => ({
     ...properties,
     header: resolveDecoration(properties.header, mode),
@@ -92,4 +95,4 @@ export function resolveDocumentParagraphMarks(doc: DocxDocument, mode: ChangesMo
       properties: resolveProperties(section.properties),
     })),
   };
-}
+};

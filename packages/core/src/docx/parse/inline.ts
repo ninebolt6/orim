@@ -5,46 +5,46 @@ import type { ParseContext } from "./context";
 import { fieldHref, fieldName, isPageField, type FieldState } from "./fields";
 import { parseRunProperties } from "../styles";
 
-export function revisionInfoFrom(element: Element): RevisionInfo {
+export const revisionInfoFrom = (element: Element): RevisionInfo => {
   return {
     author: attr(element, "author") ?? "Unknown",
     date: attr(element, "date") ?? "",
   };
-}
+};
 
-export function changeFrom(element: Element, kind: ChangeKind): ChangeMark {
+export const changeFrom = (element: Element, kind: ChangeKind): ChangeMark => {
   return { ...revisionInfoFrom(element), kind };
-}
+};
 
-export function relationshipId(element: Element): string | undefined {
+export const relationshipId = (element: Element): string | undefined => {
   return attr(element, "id", R) ?? attr(element, "embed", R) ?? attr(element, "link", R);
-}
+};
 
-function imagePart(
+const imagePart = (
   element: Element,
   rels: ReadonlyMap<string, Relationship>,
   source: string,
   opc: OpcPackage,
-): string | undefined {
+): string | undefined => {
   const blip = descendants(element, "blip")[0];
   const id = blip && relationshipId(blip);
   const relation = id && rels.get(id);
   return relation && !relation.external ? opc.resolve(source, relation.target) : undefined;
-}
+};
 
-function liveField(field: FieldState): boolean {
+const liveField = (field: FieldState): boolean => {
   return isPageField(field);
-}
+};
 
 type EmitInline = (inline: Inline) => void;
 
-function textInline(
+const textInline = (
   node: Element,
   style: TextStyle | undefined,
   change: ChangeMark | undefined,
   formattingChange: RevisionInfo | undefined,
   context: ParseContext,
-): Inline | undefined {
+): Inline | undefined => {
   let text: string;
   switch (node.localName) {
     case "tab":
@@ -78,16 +78,16 @@ function textInline(
     formattingChange,
     comments: context.state.commentRanges.snapshot(),
   };
-}
+};
 
-function collectNode(
+const collectNode = (
   node: Element,
   context: ParseContext,
   change: ChangeMark | undefined,
   emit: EmitInline,
   style?: TextStyle,
   formattingChange?: RevisionInfo,
-): void {
+): void => {
   const emitText = (element: Element) => {
     const inline = textInline(element, style, change, formattingChange, context);
     if (inline) emit(inline);
@@ -200,13 +200,13 @@ function collectNode(
       }
     }
   }
-}
+};
 
-export function collectInline(
+export const collectInline = (
   parent: ParentNode,
   context: ParseContext,
   inheritedChange?: ChangeMark,
-): Inline[] {
+): Inline[] => {
   const out: Inline[] = [];
   const emit = (inline: Inline) => {
     const inlineStyle =
@@ -226,4 +226,4 @@ export function collectInline(
   };
   for (const node of children(parent)) collectNode(node, context, inheritedChange, emit);
   return out;
-}
+};

@@ -1,10 +1,10 @@
 import { attr } from "../xml";
 
-function safeColor(value: string | undefined): string | undefined {
+const safeColor = (value: string | undefined): string | undefined => {
   return value && /^[\da-f]{6}$/i.test(value) ? `#${value}` : undefined;
-}
+};
 
-export function border(element: Element | undefined): string | undefined {
+export const border = (element: Element | undefined): string | undefined => {
   if (!element) return undefined;
   const value = attr(element, "val");
   if (value === "nil" || value === "none") return "none";
@@ -20,4 +20,4 @@ export function border(element: Element | undefined): string | undefined {
           : "solid";
   const color = safeColor(attr(element, "color")) ?? "currentColor";
   return `${size}pt ${style} ${color}`;
-}
+};

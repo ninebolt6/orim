@@ -12,7 +12,7 @@ import { relationshipId } from "./inline";
 import { parseParagraph } from "./paragraph";
 import { parseTable } from "./table";
 
-function sectionProperties(node: Element | undefined): SectionProperties {
+const sectionProperties = (node: Element | undefined): SectionProperties => {
   const pageSize = first(node, "pgSz");
   const pageMargins = first(node, "pgMar");
   const grid = first(node, "docGrid");
@@ -40,7 +40,7 @@ function sectionProperties(node: Element | undefined): SectionProperties {
         ? twips(attr(grid, "linePitch"), 0) || undefined
         : undefined,
   };
-}
+};
 
 interface ParsedSection {
   properties: SectionProperties;
@@ -48,7 +48,7 @@ interface ParsedSection {
   blocks: readonly Block[];
 }
 
-function sectionReferences(node: Element): Readonly<Record<string, string>> {
+const sectionReferences = (node: Element): Readonly<Record<string, string>> => {
   return Object.fromEntries(
     [...descendants(node, "headerReference"), ...descendants(node, "footerReference")].flatMap(
       (reference) => {
@@ -58,18 +58,18 @@ function sectionReferences(node: Element): Readonly<Record<string, string>> {
       },
     ),
   );
-}
+};
 
-function parseBlocks(nodes: readonly Element[], context: ParseContext): Block[] {
+const parseBlocks = (nodes: readonly Element[], context: ParseContext): Block[] => {
   const blocks: Block[] = [];
   for (const node of blockNodes([...nodes])) {
     if (node.localName === "p") blocks.push(...splitAtPageBreaks(parseParagraph(node, context)));
     else if (node.localName === "tbl") blocks.push(parseTable(node, context));
   }
   return applyContextualSpacing(blocks);
-}
+};
 
-function parseSections(nodes: readonly Element[], context: ParseContext): ParsedSection[] {
+const parseSections = (nodes: readonly Element[], context: ParseContext): ParsedSection[] => {
   const sections: ParsedSection[] = [];
   let blocks: Block[] = [];
   const pushSection = (
@@ -101,15 +101,15 @@ function parseSections(nodes: readonly Element[], context: ParseContext): Parsed
     pushSection(previous?.properties ?? sectionProperties(undefined), previous?.references ?? {});
   }
   return sections;
-}
+};
 
-async function sectionDecorations(
+const sectionDecorations = async (
   opc: OpcPackage,
   source: string,
   rels: Map<string, Relationship>,
   refs: Readonly<Record<string, string>>,
   base: Omit<ParseConfig, "source" | "rels">,
-): Promise<Partial<SectionProperties>> {
+): Promise<Partial<SectionProperties>> => {
   const parsed = await Promise.all(
     [...rels.values()].map(async (rel) => {
       const type = rel.type.slice(rel.type.lastIndexOf("/") + 1);
@@ -141,9 +141,9 @@ async function sectionDecorations(
     firstFooter: footers.first,
     evenFooter: footers.even,
   };
-}
+};
 
-export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<DocxDocument> {
+export const parseDocxModel = async (input: ArrayBuffer | Uint8Array): Promise<DocxDocument> => {
   const opc = openOpc(input);
   const packageRels = await opc.relationships("");
   const officeDocument = [...packageRels.values()].find(
@@ -246,12 +246,12 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
     defaultTabStop,
     imageParts,
   };
-}
+};
 
-function collectImagePaths(
+const collectImagePaths = (
   sections: readonly DocxSection[],
   comments: readonly DocxDocument["comments"][number][],
-): string[] {
+): string[] => {
   const paths = new Set<string>();
   const visit = (blocks: readonly Block[]) => {
     for (const block of blocks) {
@@ -273,4 +273,4 @@ function collectImagePaths(
   }
   for (const comment of comments) visit(comment.paragraphs);
   return [...paths];
-}
+};

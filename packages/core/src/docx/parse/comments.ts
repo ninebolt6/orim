@@ -6,11 +6,11 @@ import { createParseState } from "./context";
 
 type ParseBlocks = (nodes: Element[], context: ParseContext) => Block[];
 
-export async function parseComments(
+export const parseComments = async (
   opc: OpcPackage,
   context: ParseContext,
   parseBlocks: ParseBlocks,
-): Promise<DocxComment[]> {
+): Promise<DocxComment[]> => {
   const config = context.config;
   const relatedPath = (suffix: string): string | undefined => {
     const relation = [...config.rels.values()].find(
@@ -84,4 +84,4 @@ export async function parseComments(
       },
     ];
   });
-}
+};

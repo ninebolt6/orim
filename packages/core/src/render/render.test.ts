@@ -3,7 +3,7 @@ import { renderDocx, renderDocument } from "./document";
 import type { DocxDocument, Inline } from "../docx/model";
 import { splitAtPageBreaks } from "../docx/parse/blocks";
 
-function model(text: string): DocxDocument {
+const model = (text: string): DocxDocument => {
   return {
     sections: [
       {
@@ -51,7 +51,7 @@ function model(text: string): DocxDocument {
     ],
     imageParts: {},
   };
-}
+};
 
 describe("DOCX renderer", () => {
   it("renders a parsed model synchronously", () => {

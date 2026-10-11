@@ -4,7 +4,7 @@ import { safeHref } from "./sanitize";
 import { applyTextStyle, changeColor } from "./text-style";
 import { revisionVisibility } from "./revisions";
 
-export function renderInline(inline: Inline, context: RenderContext): Node {
+export const renderInline = (inline: Inline, context: RenderContext): Node => {
   if (inline.type === "break") {
     return inline.page ? document.createTextNode("") : document.createElement("br");
   }
@@ -120,4 +120,4 @@ export function renderInline(inline: Inline, context: RenderContext): Node {
     return anchor;
   }
   return textNode;
-}
+};

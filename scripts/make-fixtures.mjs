@@ -2,14 +2,14 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 import { strToU8, zipSync } from "fflate";
 
-function crc32(bytes) {
+const crc32 = (bytes) => {
   let checksum = 0xffffffff;
   for (const byte of bytes) {
     checksum ^= byte;
     for (let bit = 0; bit < 8; bit++) checksum = (checksum >>> 1) ^ (0xedb88320 & -(checksum & 1));
   }
   return (checksum ^ 0xffffffff) >>> 0;
-}
+};
 
 const esc = (text) =>
   String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
@@ -23,7 +23,7 @@ const f = (type) => `<w:fldSimple w:instr="${type}"><w:r><w:t>1</w:t></w:r></w:f
 const cell = (text, props = "") =>
   `<w:tc><w:tcPr>${props}</w:tcPr>${paragraph(text, "Normal")}</w:tc>`;
 
-function png() {
+const png = () => {
   const chunk = (type, content) => {
     const name = Buffer.from(type);
     const payload = Buffer.concat([name, Buffer.from(content)]);
@@ -49,7 +49,7 @@ function png() {
       chunk("IEND", new Uint8Array()),
     ]),
   );
-}
+};
 
 const body = [];
 body.push(paragraph("orim document rendering sample", "Title"));

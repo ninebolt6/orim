@@ -5,7 +5,7 @@ import * as core from "@orim/core";
 import { DocxViewer } from "./DocxViewer";
 import type { DocxDocument, RenderedDocument } from "@orim/core";
 
-function createDocumentModel(text: string): DocxDocument {
+const createDocumentModel = (text: string): DocxDocument => {
   return {
     sections: [
       {
@@ -27,7 +27,7 @@ function createDocumentModel(text: string): DocxDocument {
     comments: [],
     imageParts: {},
   };
-}
+};
 
 describe("DocxViewer", () => {
   afterEach(() => {

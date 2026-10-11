@@ -4,13 +4,13 @@ import { parseDocx } from "./parse";
 import type { Block, Inline } from "./model";
 import { renderDocument } from "../render/document";
 
-function collectInlines(blocks: readonly Block[]): Inline[] {
+const collectInlines = (blocks: readonly Block[]): Inline[] => {
   return blocks.flatMap((block) =>
     block.type === "paragraph"
       ? block.runs
       : block.rows.flatMap((row) => row.cells.flatMap((cell) => collectInlines(cell.blocks))),
   );
-}
+};
 
 describe("sample DOCX model", () => {
   it("retains TOC links and footer page fields", async () => {

@@ -33,11 +33,11 @@ export interface StyleSheet {
   table(styleId?: string): TableStyleProperties;
 }
 
-function safeColor(val: string | undefined): string | undefined {
+const safeColor = (val: string | undefined): string | undefined => {
   return val && /^[\da-f]{6}$/i.test(val) ? `#${val}` : undefined;
-}
+};
 
-function tableStyleProperties(node: Element): TableStyleProperties {
+const tableStyleProperties = (node: Element): TableStyleProperties => {
   const tableProperties = first(node, "tblPr");
   const borderProperties = first(tableProperties, "tblBorders");
   const borders = Object.fromEntries(
@@ -56,11 +56,11 @@ function tableStyleProperties(node: Element): TableStyleProperties {
   const shading = first(first(node, "tcPr"), "shd");
   const fill = attr(shading, "fill");
   return { borders, margins, cellShading: fill && fill !== "auto" ? safeColor(fill) : undefined };
-}
+};
 
 type Theme = ThemeFonts;
 
-function runProperties(parent: Element | undefined, theme: Theme): RawRunProperties {
+const runProperties = (parent: Element | undefined, theme: Theme): RawRunProperties => {
   if (!parent) return {};
   const fonts = first(parent, "rFonts");
   const latinTheme = attr(fonts, "asciiTheme") ?? attr(fonts, "hAnsiTheme");
@@ -99,18 +99,18 @@ function runProperties(parent: Element | undefined, theme: Theme): RawRunPropert
     hidden: boolValue(first(parent, "vanish")),
     ...(fill && fill !== "auto" ? { backgroundColor: safeColor(fill) } : {}),
   };
-}
+};
 
-function composeRunProperties(props: RawRunProperties, theme: Theme): TextStyle {
+const composeRunProperties = (props: RawRunProperties, theme: Theme): TextStyle => {
   const { fontLatin, fontEastAsia, ...style } = props;
   const explicit = [fontLatin, fontEastAsia].filter(
     (item, index, all): item is string => !!item && all.indexOf(item) === index,
   );
   const fontFamily = explicit.length > 0 ? explicit.join(",") : (style.fontFamily ?? theme.minor);
   return { ...style, fontFamily };
-}
+};
 
-export function paragraphProperties(parent: Element | undefined): Partial<ParagraphProperties> {
+export const paragraphProperties = (parent: Element | undefined): Partial<ParagraphProperties> => {
   if (!parent) return {};
   const spacingNode = first(parent, "spacing");
   const indent = first(parent, "ind");
@@ -154,16 +154,16 @@ export function paragraphProperties(parent: Element | undefined): Partial<Paragr
     ...(Object.keys(values).length ? { borders: values } : {}),
     ...(Object.keys(spacing).length ? { borderSpacing: spacing } : {}),
   };
-}
+};
 
-function isObject(value: unknown): value is object {
+const isObject = (value: unknown): value is object => {
   return typeof value === "object" && value !== null;
-}
+};
 
-export function mergeLayers<T extends object>(
+export const mergeLayers = <T extends object>(
   layers: readonly (Partial<T> | undefined)[],
   nestedKeys: readonly (keyof T)[],
-): Partial<T> {
+): Partial<T> => {
   const merged: { -readonly [Key in keyof T]?: T[Key] } = {};
   for (const layer of layers) {
     if (!layer) continue;
@@ -179,9 +179,9 @@ export function mergeLayers<T extends object>(
     }
   }
   return merged;
-}
+};
 
-export function parseStyles(doc: Document | undefined, theme: Theme = {}): StyleSheet {
+export const parseStyles = (doc: Document | undefined, theme: Theme = {}): StyleSheet => {
   const styles = new Map<string, Style>();
   const tableStyles = new Map<string, { basedOn?: string; properties: TableStyleProperties }>();
   let defaultTableStyle: string | undefined;
@@ -217,7 +217,7 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
   }
 
   const chainCache = new Map<string, readonly Style[]>();
-  function chain(id?: string): readonly Style[] {
+  const chain = (id?: string): readonly Style[] => {
     const key = id ?? "";
     const cached = chainCache.get(key);
     if (cached) return cached;
@@ -234,9 +234,9 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
     const result = reversed.reverse();
     chainCache.set(key, result);
     return result;
-  }
+  };
 
-  function tableChain(id?: string): TableStyleProperties {
+  const tableChain = (id?: string): TableStyleProperties => {
     const resolved: TableStyleProperties = { borders: {}, margins: {} };
     const visited = new Set<string>();
     let current = id ?? defaultTableStyle;
@@ -254,7 +254,7 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
       current = style.basedOn;
     }
     return resolved;
-  }
+  };
 
   const paragraphCache = new Map<string, Partial<ParagraphProperties>>();
   const runCache = new Map<string, RawRunProperties>();
@@ -314,11 +314,11 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
       return tableChain(styleId);
     },
   };
-}
+};
 
-export function parseRunProperties(
+export const parseRunProperties = (
   parent: Element | undefined,
   theme: Theme = {},
-): RawRunProperties {
+): RawRunProperties => {
   return runProperties(parent, theme);
-}
+};

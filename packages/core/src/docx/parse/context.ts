@@ -30,14 +30,14 @@ export interface CommentRangeState {
   snapshot(): string[];
 }
 
-export function createParseState(): ParseState {
+export const createParseState = (): ParseState => {
   return {
     fields: createFieldStack(),
     commentRanges: createCommentRangeState(),
   };
-}
+};
 
-export function createCommentRangeState(): CommentRangeState {
+export const createCommentRangeState = (): CommentRangeState => {
   const open = new Set<string>();
   return {
     start(id) {
@@ -50,4 +50,4 @@ export function createCommentRangeState(): CommentRangeState {
       return [...open];
     },
   };
-}
+};

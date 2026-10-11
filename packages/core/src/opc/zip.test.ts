@@ -69,9 +69,9 @@ describe("ZIP reader", () => {
   });
 });
 
-function findSignature(bytes: Uint8Array, signature: number): number {
+const findSignature = (bytes: Uint8Array, signature: number): number => {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   for (let offset = 0; offset <= bytes.byteLength - 4; offset++)
     if (view.getUint32(offset, true) === signature) return offset;
   throw new Error("Signature not found.");
-}
+};

@@ -2,13 +2,13 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-function assets(directory) {
+const assets = (directory) => {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
     if (entry.isDirectory()) return assets(path);
     return /\.(?:js|css)$/.test(entry.name) ? [path] : [];
   });
-}
+};
 
 const packages = [
   { name: "@orim/core", directory: "packages/core/dist", budget: 20 * 1024 },

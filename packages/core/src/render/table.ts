@@ -6,11 +6,11 @@ import { revisionVisibility } from "./revisions";
 
 type RenderBlock = (block: Block, context: RenderContext) => HTMLElement;
 
-export function renderTable(
+export const renderTable = (
   block: Table,
   context: RenderContext,
   renderBlock: RenderBlock,
-): HTMLTableElement {
+): HTMLTableElement => {
   const table = document.createElement("table");
   table.className = "orim-table";
   if (block.width) table.style.width = block.width;
@@ -79,4 +79,4 @@ export function renderTable(
   }
   table.append(body);
   return table;
-}
+};

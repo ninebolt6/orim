@@ -1,8 +1,8 @@
-export function validColor(value: string | undefined): string | undefined {
+export const validColor = (value: string | undefined): string | undefined => {
   return value && /^#[\da-f]{6}$/i.test(value) ? value : undefined;
-}
+};
 
-export function safeHref(value: string | undefined): string | undefined {
+export const safeHref = (value: string | undefined): string | undefined => {
   if (!value) return undefined;
   if (value.startsWith("#") && /^#[\w.-]+$/.test(value)) return value;
   try {
@@ -11,4 +11,4 @@ export function safeHref(value: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
-}
+};

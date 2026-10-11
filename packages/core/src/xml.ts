@@ -5,28 +5,28 @@ export const W15 = "http://schemas.microsoft.com/office/word/2012/wordml";
 export const WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
 export const A = "http://schemas.openxmlformats.org/drawingml/2006/main";
 
-export function attr(
+export const attr = (
   element: Element | undefined,
   name: string,
   namespace: string | null = W,
-): string | undefined {
+): string | undefined => {
   if (!element) return undefined;
   const namespaced = element.getAttributeNS(namespace, name);
   if (namespaced !== null) return namespaced;
   const unprefixed = element.getAttributeNode(name);
   return unprefixed && unprefixed.namespaceURI === null ? unprefixed.value : undefined;
-}
+};
 
-export function children(parent: ParentNode): Element[] {
+export const children = (parent: ParentNode): Element[] => {
   return Array.from(parent.childNodes).filter((node): node is Element => node.nodeType === 1);
-}
+};
 
-export function elements(parent: ParentNode | undefined, name: string): Element[] {
+export const elements = (parent: ParentNode | undefined, name: string): Element[] => {
   if (!parent) return [];
   return children(parent).filter((element) => element.localName === name);
-}
+};
 
-export function descendants(parent: ParentNode, name: string): Element[] {
+export const descendants = (parent: ParentNode, name: string): Element[] => {
   const result: Element[] = [];
   const visit = (node: ParentNode): void => {
     for (const element of children(node)) {
@@ -36,22 +36,22 @@ export function descendants(parent: ParentNode, name: string): Element[] {
   };
   visit(parent);
   return result;
-}
+};
 
-export function first(parent: ParentNode | undefined, name: string): Element | undefined {
+export const first = (parent: ParentNode | undefined, name: string): Element | undefined => {
   return elements(parent, name)[0];
-}
+};
 
-export function textValue(element: Element | undefined): string {
+export const textValue = (element: Element | undefined): string => {
   return element?.textContent ?? "";
-}
+};
 
-export function value(element: Element | undefined): string | undefined {
+export const value = (element: Element | undefined): string | undefined => {
   return attr(element, "val");
-}
+};
 
-export function boolValue(element: Element | undefined): boolean | undefined {
+export const boolValue = (element: Element | undefined): boolean | undefined => {
   const item = value(element);
   if (item === undefined) return element ? true : undefined;
   return !["0", "false", "off", "no"].includes(item.toLowerCase());
-}
+};

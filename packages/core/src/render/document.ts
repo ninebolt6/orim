@@ -26,18 +26,18 @@ export interface RenderedDocument {
   destroy(): void;
 }
 
-function renderBlock(
+const renderBlock = (
   block: Block,
   context: RenderContext,
   pageNumber?: number,
   decoration = false,
-): HTMLElement {
+): HTMLElement => {
   const scopedContext = decoration ? { ...context, decorationPageNumber: pageNumber } : context;
   if (block.type === "paragraph") return renderParagraph(block, scopedContext);
   return renderTable(block, scopedContext, (nested, nestedContext) =>
     renderBlock(nested, nestedContext, pageNumber, decoration),
   );
-}
+};
 
 interface RenderLease {
   cancel(): void;
@@ -45,7 +45,7 @@ interface RenderLease {
 
 const renderLeases = new WeakMap<HTMLElement, RenderLease>();
 
-function acquireContainerLease(container: HTMLElement, onCancel: () => void): RenderLease {
+const acquireContainerLease = (container: HTMLElement, onCancel: () => void): RenderLease => {
   let cancelled = false;
   const lease: RenderLease = {
     cancel() {
@@ -59,17 +59,17 @@ function acquireContainerLease(container: HTMLElement, onCancel: () => void): Re
   renderLeases.set(container, lease);
   previous?.cancel();
   return lease;
-}
+};
 
-function abortError(): DOMException {
+const abortError = (): DOMException => {
   return new DOMException("Rendering was aborted.", "AbortError");
-}
+};
 
-export function renderDocument(
+export const renderDocument = (
   doc: DocxDocument,
   container: HTMLElement,
   options: RenderDocumentOptions = {},
-): RenderedDocument {
+): RenderedDocument => {
   const objectUrls = new Set<string>();
   const objectUrlsByPart = new Map<string, string>();
   const fields: RenderContext["fields"] = [];
@@ -153,13 +153,13 @@ export function renderDocument(
     lease.cancel();
     throw error;
   }
-}
+};
 
-export async function renderDocx(
+export const renderDocx = async (
   input: ArrayBuffer | Uint8Array | Blob,
   container: HTMLElement,
   options: RenderOptions = {},
-): Promise<RenderedDocument> {
+): Promise<RenderedDocument> => {
   const controller = new AbortController();
   let cancelled = false;
   let lease: RenderLease;
@@ -193,4 +193,4 @@ export async function renderDocx(
     changes: options.changes,
     comments: options.comments,
   });
-}
+};

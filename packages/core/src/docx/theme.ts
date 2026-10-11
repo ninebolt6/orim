@@ -7,7 +7,7 @@ export interface ThemeFonts {
   readonly minorEastAsia?: string;
 }
 
-export function parseThemeFonts(doc: Document | undefined): ThemeFonts {
+export const parseThemeFonts = (doc: Document | undefined): ThemeFonts => {
   if (!doc) return {};
   const major = descendants(doc, "majorFont")[0];
   const minor = descendants(doc, "minorFont")[0];
@@ -19,4 +19,4 @@ export function parseThemeFonts(doc: Document | undefined): ThemeFonts {
     majorEastAsia: typeface(major, "ea"),
     minorEastAsia: typeface(minor, "ea"),
   };
-}
+};
