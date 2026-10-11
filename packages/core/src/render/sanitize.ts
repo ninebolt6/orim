@@ -1,0 +1,14 @@
+export function validColor(value: string | undefined): string | undefined {
+  return value && /^#[\da-f]{6}$/i.test(value) ? value : undefined;
+}
+
+export function safeHref(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (value.startsWith("#") && /^#[\w.-]+$/.test(value)) return value;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:", "mailto:"].includes(url.protocol) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
