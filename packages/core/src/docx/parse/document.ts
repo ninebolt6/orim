@@ -3,6 +3,7 @@ import { openOpc, type OpcPackage, type Relationship } from "../../opc/package";
 import type { Block, DocxDocument, DocxSection, SectionProperties } from "../model";
 import { parseNumbering } from "../numbering";
 import { parseStyles } from "../styles";
+import { parseThemeFonts } from "../theme";
 import { twips } from "../units";
 import { applyContextualSpacing, blockNodes, splitAtPageBreaks } from "./blocks";
 import { parseComments } from "./comments";
@@ -35,7 +36,10 @@ function sectionProperties(node: Element | undefined): SectionProperties {
     },
     titlePage: !!first(node, "titlePg"),
     breakType: attr(first(node, "type"), "val") ?? "nextPage",
-    linePitch: grid ? twips(attr(grid, "linePitch"), 0) || undefined : undefined,
+    linePitch:
+      grid && ["lines", "linesAndChars"].includes(attr(grid, "type") ?? "")
+        ? twips(attr(grid, "linePitch"), 0) || undefined
+        : undefined,
   };
 }
 
@@ -111,16 +115,16 @@ function parseSections(nodes: readonly Element[], context: ParseContext): Parsed
     { sections: [] as ParsedSection[], blocks: [] as Block[] },
   );
 
-  return grouped.blocks.length || !grouped.sections.length
-    ? [
-        ...grouped.sections,
-        {
-          properties: sectionProperties(undefined),
-          references: {},
-          blocks: applyContextualSpacing(grouped.blocks),
-        },
-      ]
-    : grouped.sections;
+  if (!grouped.blocks.length) return grouped.sections;
+  const previous = grouped.sections.at(-1);
+  return [
+    ...grouped.sections,
+    {
+      properties: previous?.properties ?? sectionProperties(undefined),
+      references: previous?.references ?? {},
+      blocks: applyContextualSpacing(grouped.blocks),
+    },
+  ];
 }
 
 async function sectionDecorations(
@@ -168,14 +172,31 @@ async function sectionDecorations(
 
 export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<DocxDocument> {
   const opc = openOpc(input);
-  const documentPath = "word/document.xml";
+  const packageRels = await opc.relationships("");
+  const officeDocument = [...packageRels.values()].find(
+    (relation) => !relation.external && relation.type.endsWith("/officeDocument"),
+  );
+  const documentPath = officeDocument
+    ? opc.resolve("", officeDocument.target)
+    : "word/document.xml";
   const doc = await opc.xml(documentPath);
   const rels = await opc.relationships(documentPath);
-  const theme = await opc.themeFonts();
-  const stylesDoc = opc.zip.has("word/styles.xml") ? await opc.xml("word/styles.xml") : undefined;
-  const numberingDoc = opc.zip.has("word/numbering.xml")
-    ? await opc.xml("word/numbering.xml")
-    : undefined;
+  const relatedPart = (suffix: string): string | undefined => {
+    const relation = [...rels.values()].find(
+      (item) => !item.external && item.type.endsWith(`/${suffix}`),
+    );
+    return relation ? opc.resolve(documentPath, relation.target) : undefined;
+  };
+  const themePath = relatedPart("theme");
+  const stylesPath = relatedPart("styles");
+  const numberingPath = relatedPart("numbering");
+  const settingsPath = relatedPart("settings") ?? "word/settings.xml";
+  const theme = parseThemeFonts(
+    themePath && opc.zip.has(themePath) ? await opc.xml(themePath) : undefined,
+  );
+  const stylesDoc = stylesPath && opc.zip.has(stylesPath) ? await opc.xml(stylesPath) : undefined;
+  const numberingDoc =
+    numberingPath && opc.zip.has(numberingPath) ? await opc.xml(numberingPath) : undefined;
   const styles = parseStyles(stylesDoc, theme);
   const numbering = parseNumbering(numberingDoc);
   const commentRanges = createCommentRangeState();
@@ -229,9 +250,7 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
       }),
     ),
   );
-  const settings = opc.zip.has("word/settings.xml")
-    ? await opc.xml("word/settings.xml")
-    : undefined;
+  const settings = opc.zip.has(settingsPath) ? await opc.xml(settingsPath) : undefined;
   const defaultTabStop = settings
     ? twips(attr(descendants(settings, "defaultTabStop")[0], "val"), 36)
     : undefined;

@@ -98,9 +98,9 @@ export function paginate(
       return result;
     };
 
-    const previousBreak = doc.sections[sectionIndex - 1]?.properties.breakType ?? "nextPage";
+    const breakType = props.breakType ?? "nextPage";
     let current: Page;
-    if (sectionIndex > 0 && previousBreak === "continuous" && pages.length) {
+    if (sectionIndex > 0 && breakType === "continuous" && pages.length) {
       current = pages[pages.length - 1];
       current.properties = props;
       current.wrapper.style.width = `${width + (includeComments ? 168 : 0)}pt`;
@@ -120,8 +120,8 @@ export function paginate(
       const firstPage = !pages.some((item) => item !== current && item.properties === props);
       addHeaderFooter(current.page, current.number, firstPage);
     } else {
-      if (sectionIndex > 0 && previousBreak === "oddPage" && pages.length % 2 === 1) newPage();
-      if (sectionIndex > 0 && previousBreak === "evenPage" && pages.length % 2 === 0) newPage();
+      if (sectionIndex > 0 && breakType === "oddPage" && pages.length % 2 === 1) newPage();
+      if (sectionIndex > 0 && breakType === "evenPage" && pages.length % 2 === 0) newPage();
       current = newPage();
     }
     const overflows = (element: HTMLElement, page: Page): boolean => {

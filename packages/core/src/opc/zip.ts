@@ -1,4 +1,5 @@
 const decoder = new TextDecoder();
+const MAX_ENTRY_SIZE = 64 * 1024 * 1024;
 
 function u16(view: DataView, offset: number): number {
   return view.getUint16(offset, true);
@@ -8,18 +9,44 @@ function u32(view: DataView, offset: number): number {
   return view.getUint32(offset, true);
 }
 
-async function inflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
+async function inflateRaw(bytes: Uint8Array, declaredSize: number): Promise<Uint8Array> {
   if (typeof DecompressionStream === "undefined") {
     throw new Error("This browser does not support ZIP deflate decompression.");
   }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const limit = Math.min(declaredSize, MAX_ENTRY_SIZE);
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
     const stream = new Blob([new Uint8Array(bytes).buffer])
       .stream()
       .pipeThrough(new DecompressionStream("deflate-raw" as CompressionFormat));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  } catch {
+    reader = stream.getReader();
+    for (;;) {
+      const result = await reader.read();
+      if (result.done) break;
+      total += result.value.byteLength;
+      if (total > limit) {
+        try {
+          await reader.cancel();
+        } catch {
+          // The stream is already being rejected.
+        }
+        throw new Error("ZIP entry exceeds its declared uncompressed size.");
+      }
+      chunks.push(result.value);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("ZIP entry exceeds")) throw error;
     throw new Error("Unable to decompress this ZIP entry with deflate-raw.");
   }
+  const output = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return output;
 }
 
 export interface ZipArchive {
@@ -83,6 +110,8 @@ export function openZip(input: ArrayBuffer | Uint8Array): ZipArchive {
     async read(path) {
       const entry = entries.get(path);
       if (!entry) throw new Error(`ZIP entry not found: ${path}`);
+      if (entry.size > MAX_ENTRY_SIZE)
+        throw new Error(`ZIP entry exceeds the 64 MiB limit: ${path}`);
       const local = entry.offset;
       if (u32(view, local) !== 0x04034b50) throw new Error(`Invalid ZIP local header: ${path}`);
       const nameLength = u16(view, local + 26);
@@ -91,7 +120,7 @@ export function openZip(input: ArrayBuffer | Uint8Array): ZipArchive {
       const compressed = bytes.subarray(start, start + entry.compressedSize);
       let content: Uint8Array;
       if (entry.method === 0) content = compressed.slice();
-      else if (entry.method === 8) content = await inflateRaw(compressed);
+      else if (entry.method === 8) content = await inflateRaw(compressed, entry.size);
       else throw new Error(`Unsupported ZIP compression method ${entry.method}: ${path}`);
       if (content.byteLength !== entry.size) throw new Error(`Invalid ZIP entry size: ${path}`);
       return content;

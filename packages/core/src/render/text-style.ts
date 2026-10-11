@@ -36,8 +36,10 @@ export function fontStack(name: string | undefined): string | undefined {
     ...new Set(
       name
         .split(",")
-        .map((item) => item.replace(/["'`;{}<>]/g, "").trim())
-        .filter(Boolean),
+        .map((item) => item.trim())
+        .filter(
+          (item) => Boolean(item) && !/["'\\;@<>]|\/\*|\b(?:url|image|expression)\s*\(/i.test(item),
+        ),
     ),
   ];
   if (!names.length) return undefined;
@@ -97,7 +99,4 @@ export function applyTextStyle(element: HTMLElement, style: TextStyle | undefine
   if (style.caps) element.style.textTransform = "uppercase";
   if (style.smallCaps) element.style.fontVariant = "small-caps";
   if (style.hidden) element.style.display = "none";
-  for (const [key, value] of Object.entries(style.style ?? {})) {
-    if (/^[a-z-]+$/i.test(key) && typeof value === "string") element.style.setProperty(key, value);
-  }
 }

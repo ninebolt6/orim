@@ -1,6 +1,7 @@
 import { attr, boolValue, descendants, first, value as xmlValue } from "../xml";
 import { border } from "./borders";
 import { halfPoints, points, twips } from "./units";
+import type { ThemeFonts } from "./theme";
 import type { ParagraphProperties, TextStyle } from "./model";
 
 type Props = Record<string, unknown>;
@@ -54,22 +55,18 @@ function tableStyleProperties(node: Element): TableStyleProperties {
   return { borders, margins, cellShading: fill && fill !== "auto" ? safeColor(fill) : undefined };
 }
 
-type Theme = { major?: string; minor?: string; majorEastAsia?: string; minorEastAsia?: string };
+type Theme = ThemeFonts;
+
+type ParsedRunProperties = Partial<TextStyle> & {
+  readonly fontLatin?: string;
+  readonly fontEastAsia?: string;
+};
 
 function runProperties(parent: Element | undefined, theme: Theme): Props {
   if (!parent) return {};
   const fonts = first(parent, "rFonts");
   const latinTheme = attr(fonts, "asciiTheme") ?? attr(fonts, "hAnsiTheme");
   const eastAsiaTheme = attr(fonts, "eastAsiaTheme");
-  const family = [
-    attr(fonts, "ascii") ??
-      attr(fonts, "hAnsi") ??
-      (latinTheme?.startsWith("major") ? theme.major : theme.minor),
-    attr(fonts, "eastAsia") ??
-      (eastAsiaTheme?.startsWith("major") ? theme.majorEastAsia : theme.minorEastAsia),
-  ]
-    .filter((item, index, all): item is string => !!item && all.indexOf(item) === index)
-    .join(",");
   const size = halfPoints(xmlValue(first(parent, "sz")));
   const color = xmlValue(first(parent, "color"));
   const highlight = xmlValue(first(parent, "highlight"));
@@ -86,7 +83,17 @@ function runProperties(parent: Element | undefined, theme: Theme): Props {
     doubleStrike: boolValue(first(parent, "dstrike")),
     color: color === "auto" ? undefined : safeColor(color),
     highlight: highlight && highlight !== "none" ? highlight : undefined,
-    fontFamily: family || undefined,
+    fontLatin:
+      attr(fonts, "ascii") ??
+      attr(fonts, "hAnsi") ??
+      (latinTheme ? (latinTheme.startsWith("major") ? theme.major : theme.minor) : undefined),
+    fontEastAsia:
+      attr(fonts, "eastAsia") ??
+      (eastAsiaTheme
+        ? eastAsiaTheme.startsWith("major")
+          ? theme.majorEastAsia
+          : theme.minorEastAsia
+        : undefined),
     fontSize: size,
     verticalAlign: vertAlign === "superscript" || vertAlign === "subscript" ? vertAlign : undefined,
     caps: boolValue(first(parent, "caps")),
@@ -94,6 +101,23 @@ function runProperties(parent: Element | undefined, theme: Theme): Props {
     hidden: boolValue(first(parent, "vanish")),
     ...(fill && fill !== "auto" ? { backgroundColor: safeColor(fill) } : {}),
   };
+}
+
+function composeRunProperties(props: Props, theme: Theme): TextStyle {
+  const { fontLatin, fontEastAsia, ...style } = props as Props & {
+    fontLatin?: string;
+    fontEastAsia?: string;
+  };
+  const explicit = [fontLatin, fontEastAsia].filter(
+    (item, index, all): item is string => !!item && all.indexOf(item) === index,
+  );
+  const fontFamily =
+    explicit.length > 0
+      ? explicit.join(",")
+      : typeof style.fontFamily === "string"
+        ? style.fontFamily
+        : theme.minor;
+  return { ...style, fontFamily };
 }
 
 export function paragraphProperties(parent: Element | undefined): Partial<ParagraphProperties> {
@@ -235,7 +259,10 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
     run(paragraphStyle, runStyle, direct = {}) {
       const pRun = chain(paragraphStyle).map((item) => item.run);
       const rRun = chain(runStyle).map((item) => item.run);
-      return merge<TextStyle>(defaultRun, ...pRun, ...rRun, direct as Props);
+      return composeRunProperties(
+        merge<Props>(defaultRun, ...pRun, ...rRun, direct as Props),
+        theme,
+      );
     },
     numbering(styleId) {
       return chain(styleId).reduce(
@@ -252,6 +279,9 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
   };
 }
 
-export function parseRunProperties(parent: Element | undefined, theme: Theme = {}): TextStyle {
-  return runProperties(parent, theme) as TextStyle;
+export function parseRunProperties(
+  parent: Element | undefined,
+  theme: Theme = {},
+): ParsedRunProperties {
+  return runProperties(parent, theme) as ParsedRunProperties;
 }

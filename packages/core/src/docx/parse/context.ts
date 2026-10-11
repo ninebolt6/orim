@@ -1,6 +1,7 @@
-import type { OpcPackage, Relationship, ThemeFonts } from "../../opc/package";
+import type { OpcPackage, Relationship } from "../../opc/package";
 import type { Numbering } from "../numbering";
 import type { StyleSheet } from "../styles";
+import type { ThemeFonts } from "../theme";
 import type { FieldStack } from "./fields";
 
 export interface ParseContext {

@@ -22,7 +22,6 @@ export interface TextStyle {
   readonly smallCaps?: boolean;
   readonly hidden?: boolean;
   readonly backgroundColor?: string;
-  readonly style?: Readonly<Record<string, string>>;
 }
 
 export type Inline =
@@ -40,6 +39,7 @@ export type Inline =
       readonly path: string;
       readonly width?: number;
       readonly height?: number;
+      readonly change?: ChangeMark;
     }
   | {
       readonly type: "field";

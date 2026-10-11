@@ -145,7 +145,7 @@ export function collectInline(
         const extent = descendants(node, "extent")[0];
         const width = extent ? Number(attr(extent, "cx") ?? 0) / 12700 : undefined;
         const height = extent ? Number(attr(extent, "cy") ?? 0) / 12700 : undefined;
-        emit({ type: "image", path, width, height });
+        emit({ type: "image", path, width, height, change: inheritedChange });
       }
       continue;
     }
@@ -185,6 +185,11 @@ export function collectInline(
       const formattingChange = rChange ? changeFrom(rChange, "ins") : undefined;
       for (const child of children(node)) {
         if (child.localName === "rPr") continue;
+        if (child.localName === "commentReference") {
+          const id = attr(child, "id");
+          if (id) emit({ type: "comment-reference", id });
+          continue;
+        }
         if (child.localName === "fldChar") {
           handleFieldChar(child, base);
           continue;

@@ -81,6 +81,11 @@
   color: #137333;
   text-decoration: line-through double;
 }
+.orim-image.orim-change--ins,
+.orim-image.orim-change--del {
+  outline: 1px dotted var(--orim-change-color, #e89b2d);
+  outline-offset: 1px;
+}
 .orim-final .orim-change--del,
 .orim-final .orim-change--moveFrom,
 .orim-original .orim-change--ins,

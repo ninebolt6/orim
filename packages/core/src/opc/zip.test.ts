@@ -25,6 +25,18 @@ describe("ZIP reader", () => {
     );
   });
 
+  it("rejects deflated output larger than its declared size", async () => {
+    const bytes = new Uint8Array(
+      zipSync({ "file.txt": strToU8("expanded content") }, { level: 6 }),
+    );
+    const central = findSignature(bytes, 0x02014b50);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    view.setUint32(central + 24, 1, true);
+    await expect(openZip(bytes).read("file.txt")).rejects.toThrow(
+      "ZIP entry exceeds its declared uncompressed size.",
+    );
+  });
+
   it("rejects encrypted entries", () => {
     const bytes = new Uint8Array(zipSync({ "file.txt": strToU8("content") }, { level: 0 }));
     const central = findSignature(bytes, 0x02014b50);

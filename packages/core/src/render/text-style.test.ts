@@ -9,4 +9,21 @@ describe("font fallbacks", () => {
     expect(fontStack("Georgia")).toMatch(/Georgia.*serif$/);
     expect(fontStack("Arial")).toMatch(/Arial.*sans-serif$/);
   });
+
+  it("drops unsafe family names instead of serializing CSS", () => {
+    expect(fontStack('Good, "bad')).toContain("Good");
+    expect(fontStack('bad";color:red')).toBeUndefined();
+    for (const value of [
+      "url(x)",
+      "image(x)",
+      "expression(x)",
+      "bad\\family",
+      "@import",
+      "bad;display:none",
+      "<tag>",
+      "bad/*comment*/",
+    ])
+      expect(fontStack(value)).toBeUndefined();
+    expect(fontStack("Fancy Name")).toBe('"Fancy Name", sans-serif');
+  });
 });

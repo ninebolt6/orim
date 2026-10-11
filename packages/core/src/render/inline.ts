@@ -21,8 +21,19 @@ export function renderInline(inline: Inline, context: RenderContext): Node {
     return marker;
   }
   if (inline.type === "image") {
+    const change = inline.change;
+    const hidden =
+      change &&
+      ((context.changes === "final" && (change.kind === "del" || change.kind === "moveFrom")) ||
+        (context.changes === "original" && (change.kind === "ins" || change.kind === "moveTo")));
+    if (hidden) return document.createTextNode("");
     const image = document.createElement("img");
     image.className = "orim-image";
+    if (change) {
+      image.classList.add(`orim-change--${change.kind}`);
+      if (context.changes === "markup" && change.kind !== "moveTo" && change.kind !== "moveFrom")
+        image.style.setProperty("--orim-change-color", changeColor(change, context.colors));
+    }
     const part = context.doc.imageParts[inline.path];
     if (part && typeof URL.createObjectURL === "function") {
       let url = context.objectUrlsByPart.get(inline.path);

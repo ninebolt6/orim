@@ -81,6 +81,26 @@ describe("DOCX renderer", () => {
     expect(container.textContent).toContain("<img src=x onerror=alert(1)>");
   });
 
+  it("renders comment references as superscript markers", async () => {
+    const source = model("text");
+    const doc: DocxDocument = {
+      ...source,
+      sections: source.sections.map((section) => ({
+        ...section,
+        blocks: [
+          {
+            type: "paragraph",
+            properties: {},
+            runs: [{ type: "comment-reference", id: "0" }],
+          },
+        ],
+      })),
+    };
+    const container = document.createElement("div");
+    await renderDocx(doc, container);
+    expect(container.querySelector("sup.orim-comment-reference")?.textContent).toBe("1");
+  });
+
   it("rejects aborted renders without leaving content behind", async () => {
     const container = document.createElement("div");
     const controller = new AbortController();
@@ -131,6 +151,125 @@ describe("DOCX renderer", () => {
     expect(pages).toHaveLength(2);
     expect(pages[0].textContent).toContain("A");
     expect(pages[1].textContent).toContain("B");
+  });
+
+  it("uses the entering section break type for continuous sections", async () => {
+    const source = model("first");
+    const doc: DocxDocument = {
+      ...source,
+      sections: [
+        {
+          ...source.sections[0],
+          properties: { ...source.sections[0].properties, breakType: "nextPage" },
+        },
+        {
+          ...source.sections[0],
+          properties: { ...source.sections[0].properties, breakType: "continuous" },
+          blocks: [
+            {
+              type: "paragraph",
+              properties: {},
+              runs: [{ type: "text", text: "second" }],
+            },
+          ],
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    await renderDocx(doc, container);
+    expect(container.querySelectorAll(".orim-page")).toHaveLength(1);
+    expect(container.textContent).toContain("first");
+    expect(container.textContent).toContain("second");
+  });
+
+  it("starts an odd-page section on the next odd page", async () => {
+    const source = model("first");
+    const doc: DocxDocument = {
+      ...source,
+      sections: [
+        {
+          ...source.sections[0],
+          properties: { ...source.sections[0].properties, breakType: "nextPage" },
+        },
+        {
+          ...source.sections[0],
+          properties: { ...source.sections[0].properties, breakType: "oddPage" },
+          blocks: [
+            {
+              type: "paragraph",
+              properties: {},
+              runs: [{ type: "text", text: "odd section" }],
+            },
+          ],
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    await renderDocx(doc, container);
+    expect(container.querySelectorAll(".orim-page")).toHaveLength(3);
+    expect(container.querySelectorAll(".orim-page")[2].textContent).toContain("odd section");
+  });
+
+  it("sets grid pitch only when a section supplies one", async () => {
+    const source = model("grid");
+    const withPitch: DocxDocument = {
+      ...source,
+      sections: [
+        {
+          ...source.sections[0],
+          properties: { ...source.sections[0].properties, linePitch: 18 },
+        },
+      ],
+    };
+    const pitchContainer = document.createElement("div");
+    await renderDocx(withPitch, pitchContainer);
+    expect(
+      pitchContainer
+        .querySelector<HTMLElement>(".orim-content")
+        ?.style.getPropertyValue("--orim-pitch"),
+    ).toBe("18pt");
+
+    const autoContainer = document.createElement("div");
+    await renderDocx(source, autoContainer);
+    expect(
+      autoContainer
+        .querySelector<HTMLElement>(".orim-content")
+        ?.style.getPropertyValue("--orim-pitch"),
+    ).toBe("");
+  });
+
+  it("updates grid pitch when a continuous section reuses its current page", async () => {
+    const source = model("grid");
+    const doc: DocxDocument = {
+      ...source,
+      sections: [
+        {
+          ...source.sections[0],
+          properties: { ...source.sections[0].properties, linePitch: 18 },
+        },
+        {
+          ...source.sections[0],
+          properties: {
+            ...source.sections[0].properties,
+            breakType: "continuous",
+            linePitch: 24,
+          },
+          blocks: [
+            {
+              type: "paragraph",
+              properties: {},
+              runs: [{ type: "text", text: "continuous grid" }],
+            },
+          ],
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    await renderDocx(doc, container);
+    expect(container.querySelectorAll(".orim-page")).toHaveLength(1);
+    expect(
+      container.querySelector<HTMLElement>(".orim-content")?.style.getPropertyValue("--orim-pitch"),
+    ).toBe("24pt");
   });
 
   it("keeps moved text green regardless of its run color", async () => {

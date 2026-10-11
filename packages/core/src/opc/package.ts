@@ -1,5 +1,5 @@
 import { openZip, type ZipArchive } from "./zip";
-import { descendants, elements } from "../xml";
+import { descendants } from "../xml";
 
 export interface Relationship {
   id: string;
@@ -8,20 +8,12 @@ export interface Relationship {
   external: boolean;
 }
 
-export interface ThemeFonts {
-  major?: string;
-  minor?: string;
-  majorEastAsia?: string;
-  minorEastAsia?: string;
-}
-
 export interface OpcPackage {
   zip: ZipArchive;
   xml(path: string): Promise<Document>;
   bytes(path: string): Promise<Uint8Array>;
   relationships(path: string): Promise<Map<string, Relationship>>;
   resolve(source: string, target: string): string;
-  themeFonts(): Promise<ThemeFonts>;
   mime(path: string): Promise<string>;
 }
 
@@ -105,23 +97,6 @@ export function openOpc(input: ArrayBuffer | Uint8Array): OpcPackage {
         relCache.set(source, pending);
       }
       return pending;
-    },
-    async themeFonts() {
-      for (const path of zip.paths()) {
-        if (!path.startsWith("word/theme/") || !path.endsWith(".xml")) continue;
-        const doc = await this.xml(path);
-        const major = descendants(doc, "majorFont")[0];
-        const minor = descendants(doc, "minorFont")[0];
-        const typeface = (font: Element | undefined, name: string) =>
-          font ? (elements(font, name)[0]?.getAttribute("typeface") ?? undefined) : undefined;
-        return {
-          major: typeface(major, "latin"),
-          minor: typeface(minor, "latin"),
-          majorEastAsia: typeface(major, "ea"),
-          minorEastAsia: typeface(minor, "ea"),
-        };
-      }
-      return {};
     },
     async mime(path) {
       await types;

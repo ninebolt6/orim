@@ -12,9 +12,17 @@ export async function parseComments(
   context: ParseContext,
   parseBlocks: ParseBlocks,
 ): Promise<DocxComment[]> {
-  const extended = opc.zip.has("word/commentsExtended.xml")
-    ? await opc.xml("word/commentsExtended.xml")
-    : undefined;
+  const relatedPath = (suffix: string): string | undefined => {
+    const relation = [...context.rels.values()].find(
+      (item) => !item.external && item.type.endsWith(`/${suffix}`),
+    );
+    return relation ? opc.resolve(context.source, relation.target) : undefined;
+  };
+  const commentsExtendedPath = relatedPath("commentsExtended");
+  const extended =
+    commentsExtendedPath && opc.zip.has(commentsExtendedPath)
+      ? await opc.xml(commentsExtendedPath)
+      : undefined;
   const extensionByParaId = new Map(
     (extended ? descendants(extended, "commentEx") : []).flatMap((node) => {
       const paraId = attr(node, "paraId");
@@ -31,9 +39,9 @@ export async function parseComments(
         : [];
     }),
   );
-  if (!opc.zip.has("word/comments.xml")) return [];
+  const commentsPath = relatedPath("comments");
+  if (!commentsPath || !opc.zip.has(commentsPath)) return [];
 
-  const commentsPath = "word/comments.xml";
   const commentsDoc = await opc.xml(commentsPath);
   const nodes = descendants(commentsDoc, "comment");
   const nodesByParaId = new Map(

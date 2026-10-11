@@ -32,7 +32,7 @@ describe("DOCX styles", () => {
         majorEastAsia: "Yu Gothic",
         minorEastAsia: "Noto Sans JP",
       }).run(undefined, "Theme").fontFamily,
-    ).toBe("Aptos Display,Noto Sans JP");
+    ).toBe("Aptos Display");
     expect(
       parseStyles(
         new DOMParser().parseFromString(
@@ -42,6 +42,28 @@ describe("DOCX styles", () => {
         { minorEastAsia: "Noto Sans JP" },
       ).run(undefined, "EastAsia").fontFamily,
     ).toBe("Noto Sans JP");
+  });
+
+  it("cascades Latin and East Asian fonts independently", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+        <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri"/></w:rPr></w:rPrDefault></w:docDefaults>
+        <w:style w:type="character" w:styleId="EastAsia"><w:rPr><w:rFonts w:eastAsia="MS Mincho"/></w:rPr></w:style>
+      </w:styles>`,
+      "application/xml",
+    );
+    expect(parseStyles(doc, { minor: "Aptos" }).run(undefined, "EastAsia").fontFamily).toBe(
+      "Calibri,MS Mincho",
+    );
+    expect(
+      parseStyles(
+        new DOMParser().parseFromString(
+          `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="character" w:styleId="Empty"><w:rPr><w:b/></w:rPr></w:style></w:styles>`,
+          "application/xml",
+        ),
+        { minor: "Aptos" },
+      ).run(undefined, "Empty").fontFamily,
+    ).toBe("Aptos");
   });
 
   it("preserves inherited paragraph attributes and defaults a line to auto", () => {

@@ -2,24 +2,41 @@ import { strToU8, zipSync } from "fflate";
 
 export interface BuildDocxOptions {
   document: string;
+  mainPath?: string;
   styles?: string;
+  stylesPath?: string;
   numbering?: string;
+  numberingPath?: string;
   comments?: string;
+  commentsPath?: string;
   commentsExtended?: string;
+  commentsExtendedPath?: string;
+  theme?: string;
+  themePath?: string;
   relationships?: string;
   media?: Record<string, { bytes: Uint8Array; mime: string }>;
 }
 
 export function buildDocx(options: BuildDocxOptions): Uint8Array {
+  const mainPath = options.mainPath ?? "word/document.xml";
+  const mainDir = mainPath.slice(0, mainPath.lastIndexOf("/"));
+  const relativeTarget = (path: string) =>
+    mainDir && path.startsWith(`${mainDir}/`) ? path.slice(mainDir.length + 1) : path;
   const parts: Record<string, string> = {
-    "word/document.xml": options.document,
+    [mainPath]: options.document,
   };
-  if (options.styles) parts["word/styles.xml"] = options.styles;
-  if (options.numbering) parts["word/numbering.xml"] = options.numbering;
-  if (options.comments) parts["word/comments.xml"] = options.comments;
-  if (options.commentsExtended) parts["word/commentsExtended.xml"] = options.commentsExtended;
+  const stylesPath = options.stylesPath ?? "word/styles.xml";
+  const numberingPath = options.numberingPath ?? "word/numbering.xml";
+  const commentsPath = options.commentsPath ?? "word/comments.xml";
+  const commentsExtendedPath = options.commentsExtendedPath ?? "word/commentsExtended.xml";
+  const themePath = options.themePath ?? "word/theme/theme1.xml";
+  if (options.styles) parts[stylesPath] = options.styles;
+  if (options.numbering) parts[numberingPath] = options.numbering;
+  if (options.comments) parts[commentsPath] = options.comments;
+  if (options.commentsExtended) parts[commentsExtendedPath] = options.commentsExtended;
+  if (options.theme) parts[themePath] = options.theme;
   const overrides = Object.keys(parts)
-    .filter((path) => path !== "word/document.xml")
+    .filter((path) => path !== mainPath)
     .map((path) => `<Override PartName="/${path}" ContentType="application/xml"/>`)
     .join("");
   const media = Object.entries(options.media ?? {});
@@ -31,25 +48,27 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
     .join("");
   const relationships = [
     options.styles &&
-      '<Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>',
+      `<Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="${relativeTarget(stylesPath)}"/>`,
     options.numbering &&
-      '<Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>',
+      `<Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="${relativeTarget(numberingPath)}"/>`,
     options.comments &&
-      '<Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>',
+      `<Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="${relativeTarget(commentsPath)}"/>`,
     options.commentsExtended &&
-      '<Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/word/2018/wordml/commentsExtended" Target="commentsExtended.xml"/>',
+      `<Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/word/2018/wordml/commentsExtended" Target="${relativeTarget(commentsExtendedPath)}"/>`,
+    options.theme &&
+      `<Relationship Id="rTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="${relativeTarget(themePath)}"/>`,
   ]
     .filter(Boolean)
     .concat(options.relationships ?? "")
     .join("");
   const archive: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(
-      `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${mediaDefaults}<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>${overrides}</Types>`,
+      `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${mediaDefaults}<Override PartName="/${mainPath}" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>${overrides}</Types>`,
     ),
     "_rels/.rels": strToU8(
-      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="${mainPath}"/></Relationships>`,
     ),
-    "word/_rels/document.xml.rels": strToU8(
+    [`${mainDir}/_rels/${mainPath.slice(mainDir.length + 1)}.rels`]: strToU8(
       `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relationships}</Relationships>`,
     ),
   };

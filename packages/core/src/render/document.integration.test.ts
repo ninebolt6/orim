@@ -53,4 +53,31 @@ describe("DOCX rendering integration", () => {
     expect(container.querySelector(".orim-comment-anchor")).not.toBeNull();
     rendered.destroy();
   });
+
+  it("filters images in tracked changes by mode", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:revision-image");
+    const drawing = (id: string) =>
+      `<w:r><w:drawing><wp:inline><wp:extent cx="12700" cy="12700"/><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="${id}"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    const data = buildDocx({
+      document: documentXml(
+        `<w:p><w:del w:author="A">${drawing("deleted")}</w:del><w:ins w:author="B">${drawing("inserted")}</w:ins></w:p>`,
+      ),
+      relationships:
+        '<Relationship Id="deleted" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/deleted.png"/><Relationship Id="inserted" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/inserted.png"/>',
+      media: {
+        "word/media/deleted.png": { bytes: new Uint8Array([1]), mime: "image/png" },
+        "word/media/inserted.png": { bytes: new Uint8Array([2]), mime: "image/png" },
+      },
+    });
+    const container = document.createElement("div");
+    const rendered = await renderDocx(data, container);
+    expect(container.querySelectorAll("img")).toHaveLength(2);
+    rendered.update({ changes: "final" });
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+    expect(container.querySelector(".orim-change--ins")).not.toBeNull();
+    rendered.update({ changes: "original" });
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+    expect(container.querySelector(".orim-change--del")).not.toBeNull();
+    rendered.destroy();
+  });
 });
