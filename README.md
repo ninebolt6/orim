@@ -1,20 +1,39 @@
 # orim
 
-orim is a small TypeScript DOCX reader for modern browsers. It reads `.docx` files directly in Chrome without a runtime dependency or server conversion.
+orim is a small TypeScript DOCX reader for modern browsers. It reads `.docx` files directly in the browser without server conversion or runtime dependencies.
+
+## Packages
+
+- `@orim/core` parses OOXML and renders paginated documents into a DOM container.
+- `@orim/react` provides the `DocxViewer` React component and treats React as a peer dependency.
+
+The workspace demo in `apps/demo` shows the renderer with the generated sample document.
+
+## Vanilla JavaScript
 
 ```ts
-import { renderDocx } from "orim";
+import { parseDocx, renderDocx } from "@orim/core";
 
 const rendered = await renderDocx(file, document.querySelector("#document")!, {
   changes: "markup",
   comments: true,
 });
 
-rendered.setChanges("final");
+rendered.update({ changes: "final" });
 rendered.destroy();
+
+const model = await parseDocx(file);
 ```
 
-`parseDocx` can also open a document as a lightweight model. Page dimensions and margins come from section properties; text, tables, images, comments, basic lists, headers/footers, hyperlinks and tracked insertions/deletions are rendered from OOXML parts.
+## React
+
+```tsx
+import { DocxViewer } from "@orim/react";
+
+<DocxViewer src={file} changes="markup" comments />;
+```
+
+Pass an `ArrayBuffer`, `Uint8Array`, `Blob`, parsed `DocxDocument`, or `null` to `src`. Page dimensions and margins come from section properties; text, tables, images, comments, basic lists, headers/footers, hyperlinks and tracked changes are rendered from OOXML parts.
 
 ## Limitations
 
@@ -31,10 +50,10 @@ This repository uses Vite+ and pnpm. The project-local CLI works with `pnpm exec
 pnpm install
 pnpm exec vp check
 pnpm exec vp test
-pnpm exec vp pack
+pnpm run build
 pnpm run size
-pnpm exec vp build
+pnpm --filter @orim/demo dev
 pnpm run fixtures
 ```
 
-The demo loads the committed sample document by default. The fixture generator uses `fflate` as a development-only dependency; the library has no runtime dependencies.
+The demo loads the committed sample document by default. The fixture generator uses `fflate` as a development-only dependency; the core package has no runtime dependencies.

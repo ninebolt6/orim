@@ -1,0 +1,202 @@
+.orim-root {
+  color: #202124;
+  font-family: Arial, "Noto Sans", sans-serif;
+  line-height: 1.35;
+  tab-size: var(--orim-tab-size, 36pt);
+}
+.orim-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 24px;
+}
+.orim-page-wrap {
+  position: relative;
+  flex: none;
+}
+.orim-page {
+  position: relative;
+  box-sizing: border-box;
+  background: #fff;
+  color: #111;
+  font-size: 10pt;
+  box-shadow: 0 2px 12px #0002;
+  overflow: hidden;
+}
+.orim-content {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: normal;
+}
+.orim-header,
+.orim-footer {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+.orim-content > *,
+.orim-header > *,
+.orim-footer > * {
+  flex: none;
+}
+.orim-header p,
+.orim-footer p {
+  margin: 0;
+}
+.orim-paragraph {
+  position: relative;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.orim-paragraph--change {
+  border-left: 2px solid var(--orim-change-color, #e89b2d);
+  padding-left: 5px;
+}
+.orim-list-marker {
+  display: inline-block;
+  min-width: 1.4em;
+  white-space: pre;
+}
+.orim-change--ins {
+  color: var(--orim-change-color, #188038);
+  text-decoration: underline;
+}
+.orim-change--del {
+  color: var(--orim-change-color, #c5221f);
+  text-decoration: line-through;
+}
+.orim-change--moveTo {
+  color: #137333;
+  text-decoration: underline double;
+}
+.orim-change--moveFrom {
+  color: #137333;
+  text-decoration: line-through double;
+}
+.orim-final .orim-change--del,
+.orim-final .orim-change--moveFrom,
+.orim-original .orim-change--ins,
+.orim-original .orim-change--moveTo {
+  display: none;
+}
+.orim-final .orim-change--ins,
+.orim-original .orim-change--del,
+.orim-final .orim-change--moveTo,
+.orim-original .orim-change--moveFrom {
+  color: inherit;
+  text-decoration: none;
+}
+.orim-final .orim-paragraph--change-del,
+.orim-original .orim-paragraph--change-ins,
+.orim-final .orim-table-row--del,
+.orim-original .orim-table-row--ins {
+  display: none;
+}
+.orim-final .orim-paragraph--change-ins,
+.orim-original .orim-paragraph--change-del {
+  border-left: 0;
+  padding-left: 0;
+}
+.orim-final .orim-paragraph-mark,
+.orim-original .orim-paragraph-mark {
+  display: none;
+}
+.orim-final .orim-table-row--ins > .orim-table-cell,
+.orim-original .orim-table-row--del > .orim-table-cell {
+  color: inherit;
+  text-decoration: none;
+}
+.orim-format-change {
+  outline: 1px dotted #b06000;
+  outline-offset: 1px;
+}
+.orim-paragraph-mark {
+  color: #888;
+  font-size: 0.8em;
+}
+.orim-comment-anchor {
+  background: #fff2ac;
+  cursor: pointer;
+}
+.orim-comment-reference {
+  font-size: 0.7em;
+  vertical-align: super;
+  color: #2457a7;
+}
+.orim-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  max-width: 100%;
+}
+.orim-table-cell {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.orim-table-row--change {
+  border-left: 2px solid var(--orim-change-color, #188038);
+}
+.orim-table-row--del > .orim-table-cell {
+  color: var(--orim-change-color, #c5221f);
+  text-decoration: line-through;
+}
+.orim-image {
+  max-width: 100%;
+  object-fit: contain;
+  vertical-align: middle;
+}
+.orim-page-comments {
+  position: absolute;
+  top: 0;
+  left: calc(100% - 224px);
+  width: 210px;
+  height: 100%;
+  margin-left: 14px;
+}
+.orim-comment {
+  position: absolute;
+  left: 0;
+  right: 0;
+  padding: 8px 10px;
+  background: #fff8d8;
+  border: 1px solid #e0d28f;
+  border-radius: 4px;
+  font:
+    12px/1.4 Arial,
+    sans-serif;
+  box-shadow: 0 1px 4px #0002;
+}
+.orim-comment--done {
+  opacity: 0.65;
+}
+.orim-comment-author {
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.orim-comment p {
+  margin: 0 0 4px;
+}
+.orim-comment-replies {
+  margin: 6px 0 0 10px;
+  padding-left: 8px;
+  border-left: 2px solid #e0d28f;
+}
+.orim-comment-replies .orim-comment {
+  position: static;
+  box-shadow: none;
+  margin: 5px 0;
+}
+.orim-comment-active,
+.orim-comment-pinned {
+  outline: 2px solid #fbbc04 !important;
+}
+.orim-link {
+  color: #1558d6;
+}

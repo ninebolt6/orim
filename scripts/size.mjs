@@ -2,7 +2,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const budget = 20 * 1024;
 function assets(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
@@ -10,22 +9,20 @@ function assets(directory) {
     return /\.(?:js|css)$/.test(entry.name) ? [path] : [];
   });
 }
-const files = assets("dist");
-if (!files.some((file) => file.endsWith(".js"))) {
-  throw new Error("No packed JavaScript found in dist/. Run vp pack first.");
-}
-const sizes = files.map((file) => ({
-  file,
-  raw: readFileSync(file).byteLength,
-  gzip: gzipSync(readFileSync(file)).byteLength,
-}));
-const total = sizes.reduce((sum, item) => sum + item.gzip, 0);
-for (const item of sizes) {
+
+const packages = [
+  { name: "@orim/core", directory: "packages/core/dist", budget: 20 * 1024 },
+  { name: "@orim/react", directory: "packages/react/dist", budget: 2 * 1024 },
+];
+let failed = false;
+for (const pkg of packages) {
+  const files = assets(pkg.directory);
+  if (!files.some((file) => file.endsWith(".js")))
+    throw new Error(`No packed JavaScript found in ${pkg.directory}; run pnpm run build first.`);
+  const total = files.reduce((sum, file) => sum + gzipSync(readFileSync(file)).byteLength, 0);
   console.log(
-    `${item.file}: ${item.raw.toLocaleString()} bytes, ${item.gzip.toLocaleString()} bytes gzip`,
+    `${pkg.name}: ${total.toLocaleString()} bytes gzip (budget ${pkg.budget.toLocaleString()})`,
   );
+  if (total > pkg.budget) failed = true;
 }
-console.log(
-  `Total packed JS + CSS: ${total.toLocaleString()} bytes gzip (budget ${budget.toLocaleString()})`,
-);
-if (total > budget) process.exitCode = 1;
+if (failed) process.exitCode = 1;

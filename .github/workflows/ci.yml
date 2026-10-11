@@ -15,9 +15,10 @@ jobs:
           node-version: "24"
           cache: true
           run-install: false
-      - run: vp install
-      - run: vp check
-      - run: vp test
-      - run: vp pack
-      - run: vp run size
-      - run: vp build
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec vp check
+      - run: pnpm exec vp test
+      - run: pnpm run build
+      - run: pnpm run size
+      - run: pnpm --filter @orim/demo build

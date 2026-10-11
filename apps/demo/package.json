@@ -1,0 +1,15 @@
+{
+  "name": "@orim/demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build"
+  },
+  "dependencies": {
+    "@orim/core": "workspace:^",
+    "@orim/react": "workspace:^",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}

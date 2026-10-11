@@ -3,8 +3,8 @@
 This project uses Vite+, a unified toolchain for the web. Vite+ is available locally as `pnpm exec vp`; use it for development, checking, testing, building and packing.
 
 - Run `pnpm exec vp check` and `pnpm exec vp test` before handing off changes.
-- Use `pnpm exec vp build` for the demo and `pnpm exec vp pack` for the library.
-- Keep the single root `vite.config.ts` as the source of Vite+, test, pack and staged-file configuration.
+- Use `pnpm exec vp run -r build` for workspace packages and the demo. Package-local `vite.config.ts` files define pack settings.
+- Keep shared test, lint, and staged-file configuration in the root `vite.config.ts`.
 
 # orim notes
 
