@@ -29,7 +29,7 @@
   flex-direction: column;
   position: absolute;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible clip;
   white-space: normal;
 }
 .orim-header,
@@ -39,7 +39,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  overflow: hidden;
+  overflow: visible clip;
 }
 .orim-content > *,
 .orim-header > *,
@@ -100,8 +100,8 @@
 .orim-original .orim-table-row--ins {
   display: none;
 }
-.orim-final .orim-paragraph--change-ins,
-.orim-original .orim-paragraph--change-del {
+.orim-final .orim-paragraph--change,
+.orim-original .orim-paragraph--change {
   border-left: 0;
   padding-left: 0;
 }
@@ -117,6 +117,10 @@
 .orim-format-change {
   outline: 1px dotted #b06000;
   outline-offset: 1px;
+}
+.orim-final .orim-format-change,
+.orim-original .orim-format-change {
+  outline: none;
 }
 .orim-paragraph-mark {
   color: #888;

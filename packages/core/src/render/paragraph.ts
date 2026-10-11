@@ -38,7 +38,7 @@ export function renderParagraph(block: Paragraph, context: RenderContext): HTMLE
     if (padding !== undefined) paragraph.style.setProperty(`padding-${side}`, `${padding}pt`);
   }
   if (props.snapToGrid === false) paragraph.style.setProperty("--orim-pitch", "initial");
-  if (props.change) {
+  if (props.change && context.changes === "markup") {
     paragraph.classList.add(
       "orim-paragraph--change",
       `orim-paragraph--change-${props.change.kind}`,
@@ -47,7 +47,7 @@ export function renderParagraph(block: Paragraph, context: RenderContext): HTMLE
       `Paragraph mark ${props.change.kind === "del" ? "deleted" : "inserted"} by ${props.change.author}${props.change.date ? ` on ${props.change.date}` : ""}`,
     );
   }
-  if (props.formattingChange) {
+  if (props.formattingChange && context.changes === "markup") {
     paragraph.classList.add("orim-format-change");
     titles.push(
       `Formatted: ${props.formattingChange.author}${props.formattingChange.date ? ` ${props.formattingChange.date}` : ""}`,
@@ -82,7 +82,7 @@ export function renderParagraph(block: Paragraph, context: RenderContext): HTMLE
     applyTextStyle(spacer, block.markStyle);
     paragraph.append(spacer);
   }
-  if (props.change) {
+  if (props.change && context.changes === "markup") {
     const mark = document.createElement("span");
     mark.className = "orim-paragraph-mark";
     mark.textContent = " ¶";

@@ -175,13 +175,13 @@ export function collectInline(
     }
     if (name === "r") {
       const rPr = first(node, "rPr");
-      const styleId = attr(first(rPr ?? node, "rStyle"), "val");
+      const styleId = attr(first(rPr, "rStyle"), "val");
       const base = context.styles.run(
         context.paragraphStyle,
         styleId,
         parseRunProperties(rPr, context.theme),
       );
-      const rChange = first(rPr ?? node, "rPrChange");
+      const rChange = first(rPr, "rPrChange");
       const formattingChange = rChange ? changeFrom(rChange, "ins") : undefined;
       for (const child of children(node)) {
         if (child.localName === "rPr") continue;

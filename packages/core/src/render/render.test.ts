@@ -164,6 +164,66 @@ describe("DOCX renderer", () => {
     expect(move?.style.textDecoration).toBe("underline double");
   });
 
+  it("renders accepted moves plainly and removes revision decoration outside Markup", async () => {
+    const source = model("text");
+    const doc: DocxDocument = {
+      ...source,
+      sections: source.sections.map((section) => ({
+        ...section,
+        blocks: [
+          {
+            type: "paragraph",
+            properties: { change: { kind: "del", author: "Aiko", date: "" } },
+            runs: [{ type: "text", text: "deleted paragraph mark" }],
+          },
+          {
+            type: "paragraph",
+            properties: {
+              formattingChange: { kind: "ins", author: "Morgan", date: "" },
+              change: { kind: "ins", author: "Morgan", date: "" },
+            },
+            runs: [
+              {
+                type: "text",
+                text: "move to",
+                change: { kind: "moveTo", author: "Morgan", date: "" },
+              },
+              {
+                type: "text",
+                text: "move from",
+                change: { kind: "moveFrom", author: "Aiko", date: "" },
+              },
+            ],
+          },
+        ],
+      })),
+    };
+    const container = document.createElement("div");
+    const rendered = await renderDocx(doc, container);
+    rendered.update({ changes: "final" });
+    expect(container.querySelectorAll(".orim-paragraph")).toHaveLength(1);
+    expect(container.querySelector(".orim-paragraph-mark")).toBeNull();
+    expect(container.querySelector(".orim-format-change")).toBeNull();
+    expect(container.querySelector<HTMLElement>(".orim-change--moveTo")?.style.color).toBe(
+      "inherit",
+    );
+    expect(container.querySelector<HTMLElement>(".orim-change--moveTo")?.style.textDecoration).toBe(
+      "none",
+    );
+
+    rendered.update({ changes: "original" });
+    expect(container.querySelectorAll(".orim-paragraph")).toHaveLength(2);
+    expect(container.querySelector(".orim-paragraph-mark")).toBeNull();
+    expect(container.querySelector(".orim-format-change")).toBeNull();
+    expect(container.querySelector<HTMLElement>(".orim-change--moveFrom")?.style.color).toBe(
+      "inherit",
+    );
+    expect(
+      container.querySelector<HTMLElement>(".orim-change--moveFrom")?.style.textDecoration,
+    ).toBe("none");
+    rendered.destroy();
+  });
+
   it("nests comment replies without rendering a second top-level balloon", async () => {
     const source = model("anchored text");
     const doc: DocxDocument = {

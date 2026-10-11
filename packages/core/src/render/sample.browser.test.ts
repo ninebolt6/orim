@@ -74,6 +74,26 @@ describe("sample DOCX in Chromium", () => {
     container.remove();
   });
 
+  it("keeps the bullet marker visible inside the page", async () => {
+    const container = createContainer();
+    const rendered = await renderDocx(await sampleDocument(), container);
+    const paragraph = Array.from(container.querySelectorAll<HTMLElement>(".orim-paragraph")).find(
+      (item) => item.textContent?.includes("Bullet item"),
+    )!;
+    const marker = paragraph.querySelector<HTMLElement>(".orim-list-marker")!;
+    const page = paragraph.closest<HTMLElement>(".orim-page")!;
+    const markerRect = marker.getBoundingClientRect();
+    const pageRect = page.getBoundingClientRect();
+    expect(markerRect.width).toBeGreaterThan(0);
+    expect(markerRect.height).toBeGreaterThan(0);
+    expect(markerRect.right).toBeGreaterThan(pageRect.left);
+    expect(markerRect.left).toBeLessThan(pageRect.right);
+    expect(markerRect.bottom).toBeGreaterThan(pageRect.top);
+    expect(markerRect.top).toBeLessThan(pageRect.bottom);
+    rendered.destroy();
+    container.remove();
+  });
+
   it("keeps comment balloons near their anchors inside their page", async () => {
     const container = createContainer();
     const rendered = await renderDocx(await sampleDocument(), container);

@@ -50,6 +50,56 @@ describe("DOCX parser integration", () => {
     });
   });
 
+  it("does not treat a run-level deletion as a paragraph-mark revision", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document: xml(
+          '<w:p><w:del w:author="Aiko"><w:r><w:delText>deleted run</w:delText></w:r></w:del></w:p>',
+        ),
+      }),
+    );
+    const paragraph = doc.sections[0].blocks[0];
+    expect(paragraph.type).toBe("paragraph");
+    if (paragraph.type !== "paragraph") return;
+    expect(paragraph.properties.change).toBeUndefined();
+    const deleted = paragraph.runs.find((run) => run.type === "text" && run.text === "deleted run");
+    expect(deleted?.type === "text" ? deleted.change?.kind : undefined).toBe("del");
+    expect(deleted?.type === "text" ? deleted.change?.author : undefined).toBe("Aiko");
+  });
+
+  it("keeps inserted run properties scoped to the run when rPr is absent", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document: xml(
+          '<w:p><w:ins w:author="Morgan"><w:r><w:t>inserted run</w:t></w:r></w:ins></w:p>',
+        ),
+      }),
+    );
+    const paragraph = doc.sections[0].blocks[0];
+    expect(paragraph.type).toBe("paragraph");
+    if (paragraph.type !== "paragraph") return;
+    const inserted = paragraph.runs.find((run) => run.type === "text");
+    expect(inserted).toMatchObject({
+      text: "inserted run",
+      change: { kind: "ins", author: "Morgan" },
+    });
+    expect(inserted?.type === "text" ? inserted.style?.bold : undefined).toBeUndefined();
+  });
+
+  it("ignores cell formatting outside tcPr", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document: xml(
+          '<w:tbl><w:tr><w:tc><w:shd w:fill="FF0000"/><w:p><w:r><w:t>cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl>',
+        ),
+      }),
+    );
+    const table = doc.sections[0].blocks[0];
+    expect(table.type).toBe("table");
+    if (table.type !== "table") return;
+    expect(table.rows[0].cells[0].shading).toBeUndefined();
+  });
+
   it("resolves grid spans and vertical merges by grid column", async () => {
     const doc = await parseDocx(
       buildDocx({

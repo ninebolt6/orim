@@ -6,6 +6,7 @@ import { renderParagraph } from "./paragraph";
 import { renderTable } from "./table";
 import { parseDocx } from "../docx/parse";
 import { paginate } from "./paginate";
+import { resolveDocumentParagraphMarks } from "./revisions";
 
 export type ChangesMode = "markup" | "final" | "original";
 
@@ -101,9 +102,10 @@ export async function renderDocx(
       root.style.setProperty("--orim-tab-size", `${doc.defaultTabStop}pt`);
     const draw = () => {
       root!.className = `orim-root orim-${context.changes}`;
+      const resolvedDoc = resolveDocumentParagraphMarks(doc, context.changes);
       const pages = paginate(
         root!,
-        doc,
+        resolvedDoc,
         context.changes,
         (block) => renderBlock(block, context),
         context.comments,

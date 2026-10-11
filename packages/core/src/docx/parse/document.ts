@@ -13,9 +13,9 @@ import { parseParagraph } from "./paragraph";
 import { parseTable } from "./table";
 
 function sectionProperties(node: Element | undefined): SectionProperties {
-  const pageSize = first(node ?? document, "pgSz");
-  const pageMargins = first(node ?? document, "pgMar");
-  const grid = first(node ?? document, "docGrid");
+  const pageSize = first(node, "pgSz");
+  const pageMargins = first(node, "pgMar");
+  const grid = first(node, "docGrid");
   const orientation = attr(pageSize, "orient") === "landscape" ? "landscape" : "portrait";
   const rawWidth = twips(attr(pageSize, "w"), 595.3);
   const rawHeight = twips(attr(pageSize, "h"), 841.9);
@@ -33,8 +33,8 @@ function sectionProperties(node: Element | undefined): SectionProperties {
       header: twips(attr(pageMargins, "header"), 720 / 20),
       footer: twips(attr(pageMargins, "footer"), 720 / 20),
     },
-    titlePage: !!first(node ?? document, "titlePg"),
-    breakType: attr(first(node ?? document, "type"), "val") ?? "nextPage",
+    titlePage: !!first(node, "titlePg"),
+    breakType: attr(first(node, "type"), "val") ?? "nextPage",
     linePitch: grid ? twips(attr(grid, "linePitch"), 0) || undefined : undefined,
   };
 }
@@ -93,10 +93,8 @@ function parseSections(nodes: readonly Element[], context: ParseContext): Parsed
           ? splitAtPageBreaks(parseParagraph(node, context))
           : [parseTable(node, context)]),
       ];
-      const paragraphSection = first(
-        node.localName === "p" ? (first(node, "pPr") ?? node) : node,
-        "sectPr",
-      );
+      const paragraphSection =
+        node.localName === "p" ? first(first(node, "pPr"), "sectPr") : undefined;
       if (!paragraphSection) return { ...state, blocks };
       return {
         sections: [

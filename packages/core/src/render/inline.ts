@@ -66,16 +66,22 @@ export function renderInline(inline: Inline, context: RenderContext): Node {
     const { kind, author, date } = inline.change;
     textNode.classList.add(`orim-change--${kind}`);
     if (kind === "moveTo" || kind === "moveFrom") {
-      textNode.style.color = "#137333";
-      textNode.style.textDecoration =
-        kind === "moveTo" ? "underline double" : "line-through double";
+      const accepted =
+        (kind === "moveTo" && context.changes === "final") ||
+        (kind === "moveFrom" && context.changes === "original");
+      textNode.style.color = accepted ? "inherit" : "#137333";
+      textNode.style.textDecoration = accepted
+        ? "none"
+        : kind === "moveTo"
+          ? "underline double"
+          : "line-through double";
     } else
       textNode.style.setProperty("--orim-change-color", changeColor(inline.change, context.colors));
     titles.push(
       `${kind === "ins" || kind === "moveTo" ? "Inserted" : "Deleted"} by ${author}${date ? ` on ${date}` : ""}`,
     );
   }
-  if (inline.formattingChange) {
+  if (inline.formattingChange && context.changes === "markup") {
     textNode.classList.add("orim-format-change");
     titles.push(
       `Formatted: ${inline.formattingChange.author}${inline.formattingChange.date ? ` ${inline.formattingChange.date}` : ""}`,

@@ -6,22 +6,20 @@ import { changeFrom, collectInline } from "./inline";
 
 export function parseParagraph(node: Element, context: ParseContext): Paragraph {
   const pPr = first(node, "pPr");
-  const pStyle = attr(first(pPr ?? node, "pStyle"), "val");
+  const pStyle = attr(first(pPr, "pStyle"), "val");
   const directProperties = paragraphProperties(pPr) as Partial<ParagraphProperties>;
-  const markChange = first(pPr ?? node, "ins") ?? first(pPr ?? node, "del");
-  const formattingChange = first(pPr ?? node, "pPrChange");
+  const markChange = first(pPr, "ins") ?? first(pPr, "del");
+  const formattingChange = first(pPr, "pPrChange");
   const properties: ParagraphProperties = {
     ...context.styles.paragraph(pStyle, directProperties),
     styleId: pStyle,
-    ...(markChange
-      ? { change: changeFrom(markChange, first(pPr ?? node, "del") ? "del" : "ins") }
-      : {}),
+    ...(markChange ? { change: changeFrom(markChange, first(pPr, "del") ? "del" : "ins") } : {}),
     ...(formattingChange ? { formattingChange: changeFrom(formattingChange, "ins") } : {}),
   };
-  const numPr = first(pPr ?? node, "numPr");
+  const numPr = first(pPr, "numPr");
   const inheritedNumbering = context.styles.numbering(pStyle);
-  const numId = attr(first(numPr ?? node, "numId"), "val") ?? inheritedNumbering.numId;
-  const level = Number(attr(first(numPr ?? node, "ilvl"), "val") ?? inheritedNumbering.level ?? 0);
+  const numId = attr(first(numPr, "numId"), "val") ?? inheritedNumbering.numId;
+  const level = Number(attr(first(numPr, "ilvl"), "val") ?? inheritedNumbering.level ?? 0);
   const runs = collectInline(node, { ...context, paragraphStyle: pStyle });
   const marker = numId && numId !== "0" ? context.numbering.marker(numId, level) : undefined;
   const inheritedProperties = context.styles.paragraph(pStyle);
@@ -32,7 +30,7 @@ export function parseParagraph(node: Element, context: ParseContext): Paragraph 
     markStyle: context.styles.run(
       pStyle,
       undefined,
-      parseRunProperties(first(pPr ?? node, "rPr"), context.theme),
+      parseRunProperties(first(pPr, "rPr"), context.theme),
     ),
     list: marker
       ? {

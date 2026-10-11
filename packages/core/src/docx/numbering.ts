@@ -25,8 +25,8 @@ export interface Numbering {
 
 function readLevel(node: Element): NumberLevel {
   const pPr = first(node, "pPr");
-  const ind = first(pPr ?? node, "ind");
-  const rFonts = first(first(node, "rPr") ?? node, "rFonts");
+  const ind = first(pPr, "ind");
+  const rFonts = first(first(node, "rPr"), "rFonts");
   const left = attr(ind, "left") ?? attr(ind, "start");
   const hanging = attr(ind, "hanging");
   const suffix = attr(first(node, "suff"), "val");

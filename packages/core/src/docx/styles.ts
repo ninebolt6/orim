@@ -35,21 +35,21 @@ function safeColor(val: string | undefined): string | undefined {
 
 function tableStyleProperties(node: Element): TableStyleProperties {
   const tableProperties = first(node, "tblPr");
-  const borderProperties = first(tableProperties ?? node, "tblBorders");
+  const borderProperties = first(tableProperties, "tblBorders");
   const borders = Object.fromEntries(
     (["top", "right", "bottom", "left", "insideH", "insideV"] as const).flatMap((side) => {
-      const value = border(first(borderProperties ?? node, side));
+      const value = border(first(borderProperties, side));
       return value === undefined ? [] : [[side, value] as const];
     }),
   );
-  const marginProperties = first(tableProperties ?? node, "tblCellMar");
+  const marginProperties = first(tableProperties, "tblCellMar");
   const margins = Object.fromEntries(
     (["top", "right", "bottom", "left"] as const).flatMap((side) => {
-      const amount = twips(attr(first(marginProperties ?? node, side), "w"));
+      const amount = twips(attr(first(marginProperties, side), "w"));
       return amount === undefined ? [] : [[side, amount] as const];
     }),
   );
-  const shading = first(first(node, "tcPr") ?? node, "shd");
+  const shading = first(first(node, "tcPr"), "shd");
   const fill = attr(shading, "fill");
   return { borders, margins, cellShading: fill && fill !== "auto" ? safeColor(fill) : undefined };
 }
@@ -170,12 +170,10 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
   const tableStyles = new Map<string, { basedOn?: string; properties: TableStyleProperties }>();
   let defaultTableStyle: string | undefined;
   const defaults = doc && descendants(doc, "docDefaults")[0];
-  const defaultParagraph: Props = doc
-    ? (paragraphProperties(first(first(defaults ?? doc, "pPrDefault") ?? doc, "pPr")) as Props)
-    : {};
-  const defaultRun: Props = doc
-    ? runProperties(first(first(defaults ?? doc, "rPrDefault") ?? doc, "rPr"), theme)
-    : {};
+  const defaultParagraph: Props = paragraphProperties(
+    first(first(defaults, "pPrDefault"), "pPr"),
+  ) as Props;
+  const defaultRun = runProperties(first(first(defaults, "rPrDefault"), "rPr"), theme);
   if (doc) {
     for (const node of descendants(doc, "style")) {
       const id = attr(node, "styleId") ?? node.getAttribute("styleId");
@@ -192,9 +190,9 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
         paragraph: paragraphProperties(first(node, "pPr")) as unknown as Props,
         run: runProperties(first(node, "rPr"), theme),
         numbering: (() => {
-          const numPr = first(first(node, "pPr") ?? node, "numPr");
-          const id = attr(first(numPr ?? node, "numId"), "val");
-          const level = attr(first(numPr ?? node, "ilvl"), "val");
+          const numPr = first(first(node, "pPr"), "numPr");
+          const id = attr(first(numPr, "numId"), "val");
+          const level = attr(first(numPr, "ilvl"), "val");
           return {
             numId: id,
             level: level === undefined ? undefined : Number(level),
