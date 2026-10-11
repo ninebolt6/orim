@@ -37,6 +37,19 @@ describe("ZIP reader", () => {
     );
   });
 
+  it("does not apply the deflate cap to stored entries", async () => {
+    const bytes = new Uint8Array(zipSync({ "file.txt": strToU8("content") }, { level: 0 }));
+    const central = findSignature(bytes, 0x02014b50);
+    new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).setUint32(
+      central + 24,
+      64 * 1024 * 1024 + 1,
+      true,
+    );
+    await expect(openZip(bytes).read("file.txt")).rejects.toThrow(
+      "Invalid ZIP entry size: file.txt",
+    );
+  });
+
   it("rejects encrypted entries", () => {
     const bytes = new Uint8Array(zipSync({ "file.txt": strToU8("content") }, { level: 0 }));
     const central = findSignature(bytes, 0x02014b50);

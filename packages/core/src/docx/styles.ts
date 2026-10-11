@@ -103,7 +103,7 @@ function runProperties(parent: Element | undefined, theme: Theme): Props {
   };
 }
 
-function composeRunProperties(props: Props, theme: Theme): TextStyle {
+function composeRunProperties(props: Props, theme: Theme, directFontFamily?: string): TextStyle {
   const { fontLatin, fontEastAsia, ...style } = props as Props & {
     fontLatin?: string;
     fontEastAsia?: string;
@@ -112,11 +112,12 @@ function composeRunProperties(props: Props, theme: Theme): TextStyle {
     (item, index, all): item is string => !!item && all.indexOf(item) === index,
   );
   const fontFamily =
-    explicit.length > 0
+    directFontFamily ??
+    (explicit.length > 0
       ? explicit.join(",")
       : typeof style.fontFamily === "string"
         ? style.fontFamily
-        : theme.minor;
+        : theme.minor);
   return { ...style, fontFamily };
 }
 
@@ -259,9 +260,13 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
     run(paragraphStyle, runStyle, direct = {}) {
       const pRun = chain(paragraphStyle).map((item) => item.run);
       const rRun = chain(runStyle).map((item) => item.run);
+      const hasDirectScriptFont = Object.entries(direct).some(
+        ([key, value]) => (key === "fontLatin" || key === "fontEastAsia") && value !== undefined,
+      );
       return composeRunProperties(
         merge<Props>(defaultRun, ...pRun, ...rRun, direct as Props),
         theme,
+        hasDirectScriptFont ? undefined : direct.fontFamily,
       );
     },
     numbering(styleId) {

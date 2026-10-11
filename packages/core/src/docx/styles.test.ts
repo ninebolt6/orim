@@ -66,6 +66,16 @@ describe("DOCX styles", () => {
     ).toBe("Aptos");
   });
 
+  it("lets a direct fontFamily override inherited script fonts", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>`,
+      "application/xml",
+    );
+    expect(parseStyles(doc).run(undefined, undefined, { fontFamily: "Arial" }).fontFamily).toBe(
+      "Arial",
+    );
+  });
+
   it("preserves inherited paragraph attributes and defaults a line to auto", () => {
     const doc = new DOMParser().parseFromString(
       `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Normal"><w:pPr><w:spacing w:before="100" w:after="120" w:line="300"/></w:pPr></w:style></w:styles>`,

@@ -110,7 +110,7 @@ export function openZip(input: ArrayBuffer | Uint8Array): ZipArchive {
     async read(path) {
       const entry = entries.get(path);
       if (!entry) throw new Error(`ZIP entry not found: ${path}`);
-      if (entry.size > MAX_ENTRY_SIZE)
+      if (entry.method === 8 && entry.size > MAX_ENTRY_SIZE)
         throw new Error(`ZIP entry exceeds the 64 MiB limit: ${path}`);
       const local = entry.offset;
       if (u32(view, local) !== 0x04034b50) throw new Error(`Invalid ZIP local header: ${path}`);

@@ -40,6 +40,7 @@ Pass an `ArrayBuffer`, `Uint8Array`, `Blob`, parsed `DocxDocument`, or `null` to
 - Layout is page-level rather than line-level: a single block taller than a page can overflow that page. Tables split at row boundaries.
 - Floating objects render inline. VML, charts, SmartArt, conditional table-style formatting, paragraph-mark merging and exact Word font metrics are not implemented.
 - The ZIP reader supports stored and deflate entries, not ZIP64, encryption or multi-disk archives. Deflated files require `DecompressionStream('deflate-raw')`.
+- Deflated parts are limited to 64 MiB uncompressed and must not exceed their declared size.
 - Page geometry and typography approximate Word; detailed pagination should be checked in Chrome.
 
 ## Development
