@@ -19,8 +19,7 @@ const textRun = (text, props = "") =>
 const p = (text, props = "", style = "") =>
   `<w:p>${style ? `<w:pPr><w:pStyle w:val="${style}"/>${props}</w:pPr>` : props ? `<w:pPr>${props}</w:pPr>` : ""}${text}</w:p>`;
 const paragraph = (text, style, props = "") => p(textRun(text), props, style);
-const f = (type) =>
-  `<w:fldSimple w:instr="${type}"><w:r><w:rPr><w:sz w:val="28"/></w:rPr><w:t>1</w:t></w:r></w:fldSimple>`;
+const f = (type) => `<w:fldSimple w:instr="${type}"><w:r><w:t>1</w:t></w:r></w:fldSimple>`;
 const cell = (text, props = "") =>
   `<w:tc><w:tcPr>${props}</w:tcPr>${paragraph(text, "Normal")}</w:tc>`;
 
@@ -179,7 +178,7 @@ body.push(
 );
 body.push(
   p(
-    `<w:r><w:rPr><w:sz w:val="30"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:sz w:val="30"/></w:rPr><w:t>2</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`,
+    `${textRun("Styled PAGE field: ")}<w:r><w:rPr><w:sz w:val="30"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:sz w:val="30"/></w:rPr><w:t>2</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`,
   ),
 );
 body.push(
@@ -216,7 +215,7 @@ body.push(paragraph("Table continuation", "Heading1"));
 for (let i = 1; i <= 9; i++) {
   body.push(
     paragraph(
-      `Landscape content paragraph ${i}. This wide section shows that document section formatting can switch orientation while keeping the same parsed model and renderer.`,
+      `Portrait content paragraph ${i}. This section uses A4 portrait geometry before the landscape section break.`,
       "Normal",
     ),
   );

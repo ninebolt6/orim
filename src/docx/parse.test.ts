@@ -62,7 +62,7 @@ describe("DOCX parser", () => {
     );
     const pageFields = runs.filter((run) => run.type === "field" && run.name === "PAGE");
     expect(pageFields).toHaveLength(3);
-    expect(pageFields.map((run) => run.style?.fontSize).sort()).toEqual([14, 14, 15]);
+    expect(pageFields.map((run) => run.style?.fontSize).sort()).toEqual([10, 10, 15]);
     expect(doc.sections[0].properties.linePitch).toBe(18);
     expect(doc.defaultTabStop).toBe(36);
     const inheritedNormal = all.find(

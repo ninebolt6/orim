@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { renderDocx } from "./render";
 import type { DocxDocument } from "../docx/model";
+import { splitAtPageBreaks } from "../docx/parse";
 
 function model(text: string): DocxDocument {
   return {
@@ -78,6 +79,31 @@ describe("DOCX renderer", () => {
     await renderDocx(model("<img src=x onerror=alert(1)>"), container);
     expect(container.querySelector("img")).toBeNull();
     expect(container.textContent).toContain("<img src=x onerror=alert(1)>");
+  });
+
+  it("does not add a blank page before a paragraph after an explicit page break", async () => {
+    const doc = model("unused");
+    doc.sections[0].blocks = [
+      ...splitAtPageBreaks({
+        type: "paragraph",
+        properties: {},
+        runs: [
+          { type: "text", text: "A" },
+          { type: "break", page: true },
+        ],
+      }),
+      {
+        type: "paragraph",
+        properties: { pageBreakBefore: true },
+        runs: [{ type: "text", text: "B" }],
+      },
+    ];
+    const container = document.createElement("div");
+    await renderDocx(doc, container);
+    const pages = Array.from(container.querySelectorAll(".orim-page"));
+    expect(pages).toHaveLength(2);
+    expect(pages[0].textContent).toContain("A");
+    expect(pages[1].textContent).toContain("B");
   });
 
   it("keeps moved text green regardless of its run color", async () => {

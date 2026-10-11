@@ -169,7 +169,12 @@ export function paginate(
 
     for (let blockIndex = 0; blockIndex < section.blocks.length; blockIndex++) {
       const block = section.blocks[blockIndex];
-      if (block.type === "paragraph" && block.properties.pageBreakBefore) current = newPage();
+      if (
+        block.type === "paragraph" &&
+        block.properties.pageBreakBefore &&
+        current.content.childElementCount
+      )
+        current = newPage();
       const element = renderBlock(block);
       current.content.append(element);
       if (element instanceof HTMLTableElement) {
