@@ -89,7 +89,7 @@ export async function renderDocx(
     const doc = isModel(input) ? input : await parseDocx(input);
     check();
     root = document.createElement("div");
-    const context: RenderContext = {
+    let context: RenderContext = {
       doc,
       comments: options.comments !== false,
       changes: options.changes ?? "markup",
@@ -123,8 +123,7 @@ export async function renderDocx(
         const changes = next.changes ?? context.changes;
         const comments = next.comments ?? context.comments;
         if (changes === context.changes && comments === context.comments) return;
-        context.changes = changes;
-        context.comments = comments;
+        context = { ...context, changes, comments };
         draw();
       },
     };

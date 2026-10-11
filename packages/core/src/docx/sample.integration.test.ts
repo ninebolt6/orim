@@ -3,7 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { parseDocx } from "./parse";
 import type { Block, Inline } from "./model";
 
-function collectInlines(blocks: Block[]): Inline[] {
+function collectInlines(blocks: readonly Block[]): Inline[] {
   return blocks.flatMap((block) =>
     block.type === "paragraph"
       ? block.runs

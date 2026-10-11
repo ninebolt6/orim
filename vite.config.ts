@@ -12,6 +12,12 @@ export default defineConfig({
           "react-hooks/exhaustive-deps": "error",
         },
       },
+      {
+        files: ["packages/core/src/docx/**", "packages/core/src/opc/**"],
+        rules: {
+          "no-param-reassign": ["error", { props: true }],
+        },
+      },
     ],
   },
   test: {

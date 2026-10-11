@@ -36,23 +36,19 @@ function liveField(field: FieldState): boolean {
 export function collectInline(
   parent: ParentNode,
   context: ParseContext,
-  comments: Set<string>,
   inheritedChange?: ChangeMark,
 ): Inline[] {
   const out: Inline[] = [];
   const emit = (inline: Inline) => {
     const style = inline.type === "text" || inline.type === "field" ? inline.style : undefined;
-    let suppressed = false;
-    for (const field of context.fields.stack) {
-      if (liveField(field) && field.stage === "result" && !field.style && style)
-        field.style = style;
-      if (field.stage === "instruction" || (liveField(field) && field.stage === "result"))
-        suppressed = true;
-    }
+    if (style) context.fields.captureStyle(style);
+    const suppressed = context.fields.some(
+      (field) => field.stage === "instruction" || (liveField(field) && field.stage === "result"),
+    );
     if (suppressed) return;
-    const hyperlink = [...context.fields.stack]
-      .reverse()
-      .find((field) => field.stage === "result" && fieldName(field.instruction) === "HYPERLINK");
+    const hyperlink = context.fields.findLast(
+      (field) => field.stage === "result" && fieldName(field.instruction) === "HYPERLINK",
+    );
     const href = hyperlink && fieldHref(hyperlink.instruction);
     out.push(href && inline.type === "text" ? { ...inline, href } : inline);
   };
@@ -71,12 +67,12 @@ export function collectInline(
     const name = node.localName;
     if (name === "commentRangeStart") {
       const id = attr(node, "id");
-      if (id) comments.add(id);
+      if (id) context.commentRanges.start(id);
       continue;
     }
     if (name === "commentRangeEnd") {
       const id = attr(node, "id");
-      if (id) comments.delete(id);
+      if (id) context.commentRanges.end(id);
       continue;
     }
     if (name === "bookmarkStart") {
@@ -93,13 +89,12 @@ export function collectInline(
       const instruction = attr(node, "instr") ?? "";
       const currentName = fieldName(instruction);
       if (currentName === "PAGE" || currentName === "NUMPAGES") {
-        const state: FieldState = { instruction, stage: "result" };
-        context.fields.push(state);
-        collectInline(node, context, comments, inheritedChange);
-        context.fields.end();
-        emit({ type: "field", name: currentName, style: state.style });
+        context.fields.push({ instruction, stage: "result" });
+        collectInline(node, context, inheritedChange);
+        const field = context.fields.end();
+        emit({ type: "field", name: currentName, style: field?.style });
       } else {
-        const nested = collectInline(node, context, comments, inheritedChange);
+        const nested = collectInline(node, context, inheritedChange);
         const href = fieldHref(instruction);
         for (const item of nested) emit(href && item.type === "text" ? { ...item, href } : item);
       }
@@ -109,7 +104,7 @@ export function collectInline(
       handleFieldChar(node);
       continue;
     }
-    if (name === "instrText" && context.fields.stack.at(-1)?.stage === "instruction") {
+    if (name === "instrText" && context.fields.current()?.stage === "instruction") {
       context.fields.append(textValue(node));
       continue;
     }
@@ -117,7 +112,7 @@ export function collectInline(
     if (name === "AlternateContent") {
       const fallback = elements(node, "Fallback")[0];
       if (fallback)
-        for (const item of collectInline(fallback, context, comments, inheritedChange)) emit(item);
+        for (const item of collectInline(fallback, context, inheritedChange)) emit(item);
       continue;
     }
     if (name === "hyperlink") {
@@ -125,7 +120,7 @@ export function collectInline(
       const target = rel ? context.rels.get(rel) : undefined;
       const anchor = attr(node, "anchor");
       const href = anchor ? `#${anchor}` : target?.external ? target.target : undefined;
-      for (const item of collectInline(node, context, comments, inheritedChange))
+      for (const item of collectInline(node, context, inheritedChange))
         emit(href && item.type === "text" ? { ...item, href } : item);
       continue;
     }
@@ -140,13 +135,13 @@ export function collectInline(
               ? "moveTo"
               : undefined;
     if (kind) {
-      for (const item of collectInline(node, context, comments, changeFrom(node, kind))) emit(item);
+      for (const item of collectInline(node, context, changeFrom(node, kind))) emit(item);
       continue;
     }
     if (name === "drawing" || name === "anchor" || name === "inline") {
       const path = imagePart(node, context.rels, context.source, context.opc);
       if (path) {
-        context.images.add(path);
+        context.imageParts.add(path);
         const extent = descendants(node, "extent")[0];
         const width = extent ? Number(attr(extent, "cx") ?? 0) / 12700 : undefined;
         const height = extent ? Number(attr(extent, "cy") ?? 0) / 12700 : undefined;
@@ -155,7 +150,12 @@ export function collectInline(
       continue;
     }
     if (name === "tab") {
-      emit({ type: "text", text: "\t", comments: [...comments], change: inheritedChange });
+      emit({
+        type: "text",
+        text: "\t",
+        comments: context.commentRanges.snapshot(),
+        change: inheritedChange,
+      });
       continue;
     }
     if (name === "br" || name === "cr") {
@@ -168,7 +168,7 @@ export function collectInline(
         emit({
           type: "text",
           text: String.fromCharCode(parseInt(code, 16)),
-          comments: [...comments],
+          comments: context.commentRanges.snapshot(),
           change: inheritedChange,
         });
       continue;
@@ -189,10 +189,7 @@ export function collectInline(
           handleFieldChar(child, base);
           continue;
         }
-        if (
-          child.localName === "instrText" &&
-          context.fields.stack.at(-1)?.stage === "instruction"
-        ) {
+        if (child.localName === "instrText" && context.fields.current()?.stage === "instruction") {
           context.fields.append(textValue(child));
           continue;
         }
@@ -203,7 +200,7 @@ export function collectInline(
             style: base,
             change: inheritedChange,
             formattingChange,
-            comments: [...comments],
+            comments: context.commentRanges.snapshot(),
           });
         } else if (child.localName === "tab")
           emit({
@@ -212,7 +209,7 @@ export function collectInline(
             style: base,
             change: inheritedChange,
             formattingChange,
-            comments: [...comments],
+            comments: context.commentRanges.snapshot(),
           });
         else if (child.localName === "br" || child.localName === "cr")
           emit({ type: "break", page: attr(child, "type") === "page" });
@@ -223,7 +220,7 @@ export function collectInline(
             style: base,
             change: inheritedChange,
             formattingChange,
-            comments: [...comments],
+            comments: context.commentRanges.snapshot(),
           });
         else if (child.localName === "softHyphen")
           emit({
@@ -232,13 +229,12 @@ export function collectInline(
             style: base,
             change: inheritedChange,
             formattingChange,
-            comments: [...comments],
+            comments: context.commentRanges.snapshot(),
           });
         else if (child.localName === "drawing") {
           const nested = collectInline(
             { childNodes: [child] } as unknown as ParentNode,
             context,
-            comments,
             inheritedChange,
           );
           for (const item of nested) emit(item);
@@ -253,7 +249,7 @@ export function collectInline(
       name === "customXml" ||
       name === "Fallback"
     ) {
-      for (const item of collectInline(node, context, comments, inheritedChange)) emit(item);
+      for (const item of collectInline(node, context, inheritedChange)) emit(item);
     }
   }
   return out;

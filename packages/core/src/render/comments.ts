@@ -19,7 +19,7 @@ function renderCommentAuthor(comment: DocxComment): string {
   })}`;
 }
 
-export function addComments(pages: Page[], comments: DocxComment[]): void {
+export function addComments(pages: Page[], comments: readonly DocxComment[]): void {
   const scope = pages[0]?.wrapper.parentElement;
   if (!scope) return;
   const byId = new Map(comments.map((comment) => [comment.id, comment]));

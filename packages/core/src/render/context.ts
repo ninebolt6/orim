@@ -2,10 +2,10 @@ import type { DocxDocument } from "../docx/model";
 import type { ChangesMode } from "./document";
 
 export interface RenderContext {
-  doc: DocxDocument;
-  comments: boolean;
-  changes: ChangesMode;
-  objectUrls: Set<string>;
-  objectUrlsByPart: Map<string, string>;
-  colors: Map<string, string>;
+  readonly doc: DocxDocument;
+  readonly comments: boolean;
+  readonly changes: ChangesMode;
+  readonly objectUrls: Set<string>;
+  readonly objectUrlsByPart: Map<string, string>;
+  readonly colors: Map<string, string>;
 }

@@ -3,19 +3,31 @@ import { children, elements, first } from "../../xml";
 
 export function splitAtPageBreaks(paragraph: Paragraph): Paragraph[] {
   if (!paragraph.runs.some((run) => run.type === "break" && run.page)) return [paragraph];
-  const segments: Array<{ runs: Inline[]; pageBreakAfter: boolean }> = [];
-  let runs: Inline[] = [];
-  let leadingBreak = false;
-  for (const run of paragraph.runs) {
-    if (run.type === "break" && run.page) {
-      if (runs.length) {
-        segments.push({ runs, pageBreakAfter: true });
-        runs = [];
-      } else if (!segments.length) leadingBreak = true;
-      else segments.at(-1)!.pageBreakAfter = true;
-    } else runs.push(run);
-  }
-  if (runs.length) segments.push({ runs, pageBreakAfter: false });
+  const split = paragraph.runs.reduce(
+    (state, run) => {
+      if (run.type !== "break" || !run.page) return { ...state, current: [...state.current, run] };
+      if (state.current.length)
+        return {
+          ...state,
+          segments: [...state.segments, { runs: state.current, pageBreakAfter: true }],
+          current: [],
+        };
+      if (!state.segments.length) return { ...state, leadingBreak: true };
+      const last = state.segments.at(-1)!;
+      return {
+        ...state,
+        segments: [...state.segments.slice(0, -1), { ...last, pageBreakAfter: true }],
+      };
+    },
+    {
+      segments: [] as Array<{ runs: Inline[]; pageBreakAfter: boolean }>,
+      current: [] as Inline[],
+      leadingBreak: false,
+    },
+  );
+  const segments = split.current.length
+    ? [...split.segments, { runs: split.current, pageBreakAfter: false }]
+    : split.segments;
   if (!segments.length)
     return [
       {
@@ -30,7 +42,11 @@ export function splitAtPageBreaks(paragraph: Paragraph): Paragraph[] {
       ...paragraph.properties,
       before: index ? 0 : paragraph.properties.before,
       pageBreakBefore:
-        index === 0 && leadingBreak ? true : index ? false : paragraph.properties.pageBreakBefore,
+        index === 0 && split.leadingBreak
+          ? true
+          : index
+            ? false
+            : paragraph.properties.pageBreakBefore,
       pageBreakAfter,
     },
     runs: segmentRuns,
@@ -38,20 +54,24 @@ export function splitAtPageBreaks(paragraph: Paragraph): Paragraph[] {
   }));
 }
 
-export function applyContextualSpacing(blocks: Block[]): Block[] {
-  let previous: Paragraph | undefined;
-  for (const block of blocks) {
-    if (block.type !== "paragraph") {
-      previous = undefined;
-      continue;
-    }
-    if (previous && previous.properties.styleId === block.properties.styleId) {
-      if (block.properties.contextualSpacing) block.properties.before = 0;
-      if (previous.properties.contextualSpacing) previous.properties.after = 0;
-    }
-    previous = block;
-  }
-  return blocks;
+export function applyContextualSpacing(blocks: readonly Block[]): Block[] {
+  return blocks.map((block, index) => {
+    if (block.type !== "paragraph") return block;
+    const previous = blocks[index - 1];
+    const next = blocks[index + 1];
+    const sameAsPrevious =
+      previous?.type === "paragraph" && previous.properties.styleId === block.properties.styleId;
+    const sameAsNext =
+      next?.type === "paragraph" && next.properties.styleId === block.properties.styleId;
+    return {
+      ...block,
+      properties: {
+        ...block.properties,
+        ...(sameAsPrevious && block.properties.contextualSpacing ? { before: 0 } : {}),
+        ...(sameAsNext && block.properties.contextualSpacing ? { after: 0 } : {}),
+      },
+    };
+  });
 }
 
 export function blockNodes(nodes: Element[]): Element[] {

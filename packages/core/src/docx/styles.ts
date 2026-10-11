@@ -36,18 +36,19 @@ function safeColor(val: string | undefined): string | undefined {
 function tableStyleProperties(node: Element): TableStyleProperties {
   const tableProperties = first(node, "tblPr");
   const borderProperties = first(tableProperties ?? node, "tblBorders");
-  const borders: BorderSides = {};
-  for (const side of ["top", "right", "bottom", "left", "insideH", "insideV"] as const) {
-    const value = border(first(borderProperties ?? node, side));
-    if (value !== undefined) borders[side] = value;
-  }
+  const borders = Object.fromEntries(
+    (["top", "right", "bottom", "left", "insideH", "insideV"] as const).flatMap((side) => {
+      const value = border(first(borderProperties ?? node, side));
+      return value === undefined ? [] : [[side, value] as const];
+    }),
+  );
   const marginProperties = first(tableProperties ?? node, "tblCellMar");
-  const margins: CellMargins = {};
-  for (const side of ["top", "right", "bottom", "left"] as const) {
-    const value = first(marginProperties ?? node, side);
-    const amount = twips(attr(value, "w"));
-    if (amount !== undefined) margins[side] = amount;
-  }
+  const margins = Object.fromEntries(
+    (["top", "right", "bottom", "left"] as const).flatMap((side) => {
+      const amount = twips(attr(first(marginProperties ?? node, side), "w"));
+      return amount === undefined ? [] : [[side, amount] as const];
+    }),
+  );
   const shading = first(first(node, "tcPr") ?? node, "shd");
   const fill = attr(shading, "fill");
   return { borders, margins, cellShading: fill && fill !== "auto" ? safeColor(fill) : undefined };
@@ -74,7 +75,9 @@ function runProperties(parent: Element | undefined, theme: Theme): Props {
   const highlight = xmlValue(first(parent, "highlight"));
   const vertAlign = xmlValue(first(parent, "vertAlign"));
   const underline = xmlValue(first(parent, "u"));
-  const props: Props = {
+  const shading = first(parent, "shd");
+  const fill = attr(shading, "fill");
+  return {
     bold: boolValue(first(parent, "b")),
     italic: boolValue(first(parent, "i")),
     underline:
@@ -89,26 +92,23 @@ function runProperties(parent: Element | undefined, theme: Theme): Props {
     caps: boolValue(first(parent, "caps")),
     smallCaps: boolValue(first(parent, "smallCaps")),
     hidden: boolValue(first(parent, "vanish")),
+    ...(fill && fill !== "auto" ? { backgroundColor: safeColor(fill) } : {}),
   };
-  const shading = first(parent, "shd");
-  const fill = attr(shading, "fill");
-  if (fill && fill !== "auto") props.backgroundColor = safeColor(fill);
-  return props;
 }
 
 export function paragraphProperties(parent: Element | undefined): Partial<ParagraphProperties> {
   if (!parent) return {};
-  const spacing = first(parent, "spacing");
+  const spacingNode = first(parent, "spacing");
   const indent = first(parent, "ind");
   const jc = xmlValue(first(parent, "jc"));
   const shading = first(parent, "shd");
   const fill = attr(shading, "fill");
-  const line = attr(spacing, "line");
-  const lineRule = attr(spacing, "lineRule") ?? (line === undefined ? undefined : "auto");
-  const props: Partial<ParagraphProperties> = {
+  const line = attr(spacingNode, "line");
+  const lineRule = attr(spacingNode, "lineRule") ?? (line === undefined ? undefined : "auto");
+  const base: Partial<ParagraphProperties> = {
     align: jc,
-    before: twips(attr(spacing, "before")),
-    after: twips(attr(spacing, "after")),
+    before: twips(attr(spacingNode, "before")),
+    after: twips(attr(spacingNode, "after")),
     line: lineRule === "auto" ? points(line, 240) : twips(line),
     lineRule,
     left: twips(attr(indent, "left") ?? attr(indent, "start")),
@@ -122,48 +122,61 @@ export function paragraphProperties(parent: Element | undefined): Partial<Paragr
     shading: fill && fill !== "auto" ? safeColor(fill) : undefined,
   };
   const borders = first(parent, "pBdr");
-  if (borders) {
-    const values: NonNullable<ParagraphProperties["borders"]> = {};
-    const spacing: NonNullable<ParagraphProperties["borderSpacing"]> = {};
-    for (const side of ["top", "right", "bottom", "left"] as const) {
-      const value = first(borders, side);
-      const parsed = border(value);
-      if (parsed !== undefined) values[side] = parsed;
-      const amount = points(attr(value, "space"), 1);
-      if (amount !== undefined) spacing[side] = amount;
-    }
-    if (Object.keys(values).length) props.borders = values;
-    if (Object.keys(spacing).length) props.borderSpacing = spacing;
-  }
-  return props;
+  const sides = ["top", "right", "bottom", "left"] as const;
+  const values = Object.fromEntries(
+    sides.flatMap((side) => {
+      const value = border(first(borders, side));
+      return value === undefined ? [] : [[side, value] as const];
+    }),
+  );
+  const spacing = Object.fromEntries(
+    sides.flatMap((side) => {
+      const amount = points(attr(first(borders, side), "space"), 1);
+      return amount === undefined ? [] : [[side, amount] as const];
+    }),
+  );
+  return {
+    ...base,
+    ...(Object.keys(values).length ? { borders: values } : {}),
+    ...(Object.keys(spacing).length ? { borderSpacing: spacing } : {}),
+  };
 }
 
 function merge<T>(...layers: Array<Props | undefined>): T {
-  const out: Props = {};
-  for (const layer of layers) {
-    if (!layer) continue;
-    for (const [key, item] of Object.entries(layer)) {
-      if (item === undefined) continue;
-      if ((key === "borders" || key === "borderSpacing") && item && typeof item === "object")
-        out[key] = Object.assign({}, out[key], item);
-      else out[key] = item;
-    }
-  }
-  return out as T;
+  return layers
+    .filter((layer): layer is Props => !!layer)
+    .reduce<Props>(
+      (merged, layer) =>
+        Object.entries(layer).reduce<Props>((next, [key, value]) => {
+          if (value === undefined) return next;
+          const previous = next[key];
+          return {
+            ...next,
+            [key]:
+              (key === "borders" || key === "borderSpacing") && value && typeof value === "object"
+                ? {
+                    ...(previous && typeof previous === "object" ? previous : {}),
+                    ...value,
+                  }
+                : value,
+          };
+        }, merged),
+      {},
+    ) as T;
 }
 
 export function parseStyles(doc: Document | undefined, theme: Theme = {}): StyleSheet {
   const styles = new Map<string, Style>();
   const tableStyles = new Map<string, { basedOn?: string; properties: TableStyleProperties }>();
   let defaultTableStyle: string | undefined;
-  let defaultParagraph: Props = {};
-  let defaultRun: Props = {};
+  const defaults = doc && descendants(doc, "docDefaults")[0];
+  const defaultParagraph: Props = doc
+    ? (paragraphProperties(first(first(defaults ?? doc, "pPrDefault") ?? doc, "pPr")) as Props)
+    : {};
+  const defaultRun: Props = doc
+    ? runProperties(first(first(defaults ?? doc, "rPrDefault") ?? doc, "rPr"), theme)
+    : {};
   if (doc) {
-    const defaults = descendants(doc, "docDefaults")[0];
-    defaultParagraph = paragraphProperties(
-      first(first(defaults ?? doc, "pPrDefault") ?? doc, "pPr"),
-    ) as unknown as Props;
-    defaultRun = runProperties(first(first(defaults ?? doc, "rPrDefault") ?? doc, "rPr"), theme);
     for (const node of descendants(doc, "style")) {
       const id = attr(node, "styleId") ?? node.getAttribute("styleId");
       if (!id) continue;
@@ -191,34 +204,28 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
     }
   }
 
-  function chain(id?: string): Style[] {
-    const result: Style[] = [];
-    const seen = new Set<string>();
-    let current = id;
-    while (current && !seen.has(current)) {
-      seen.add(current);
-      const style = styles.get(current);
-      if (!style) break;
-      result.unshift(style);
-      current = style.basedOn;
-    }
-    return result;
+  function chain(id?: string, visited: readonly string[] = []): Style[] {
+    if (!id || visited.includes(id)) return [];
+    const style = styles.get(id);
+    return style ? [...chain(style.basedOn, [...visited, id]), style] : [];
   }
 
   function tableChain(id?: string): TableStyleProperties {
-    const result: TableStyleProperties = { borders: {}, margins: {} };
-    const seen = new Set<string>();
-    let current = id ?? defaultTableStyle;
-    while (current && !seen.has(current)) {
-      seen.add(current);
+    const resolve = (current?: string, visited: readonly string[] = []): TableStyleProperties[] => {
+      if (!current || visited.includes(current)) return [];
       const style = tableStyles.get(current);
-      if (!style) break;
-      result.borders = { ...style.properties.borders, ...result.borders };
-      result.margins = { ...style.properties.margins, ...result.margins };
-      result.cellShading ??= style.properties.cellShading;
-      current = style.basedOn;
-    }
-    return result;
+      return style ? [style.properties, ...resolve(style.basedOn, [...visited, current])] : [];
+    };
+    return resolve(id ?? defaultTableStyle).reduce<TableStyleProperties>(
+      (resolved, properties) => {
+        return {
+          borders: { ...properties.borders, ...resolved.borders },
+          margins: { ...properties.margins, ...resolved.margins },
+          cellShading: resolved.cellShading ?? properties.cellShading,
+        };
+      },
+      { borders: {}, margins: {} },
+    );
   }
 
   return {
@@ -233,12 +240,13 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
       return merge<TextStyle>(defaultRun, ...pRun, ...rRun, direct as Props);
     },
     numbering(styleId) {
-      const resolved: { numId?: string; level?: number } = {};
-      for (const style of chain(styleId)) {
-        if (style.numbering.numId !== undefined) resolved.numId = style.numbering.numId;
-        if (style.numbering.level !== undefined) resolved.level = style.numbering.level;
-      }
-      return resolved;
+      return chain(styleId).reduce(
+        (resolved, style) => ({
+          numId: style.numbering.numId ?? resolved.numId,
+          level: style.numbering.level ?? resolved.level,
+        }),
+        {} as { numId?: string; level?: number },
+      );
     },
     table(styleId) {
       return tableChain(styleId);

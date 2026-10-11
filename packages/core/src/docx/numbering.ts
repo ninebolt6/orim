@@ -65,14 +65,13 @@ function roman(number: number): string {
     [4, "IV"],
     [1, "I"],
   ];
-  let out = "";
-  for (const [value, symbol] of digits) {
-    while (number >= value) {
-      out += symbol;
-      number -= value;
-    }
-  }
-  return out;
+  return digits.reduce(
+    (state, [value, symbol]) => ({
+      remaining: state.remaining % value,
+      output: state.output + symbol.repeat(Math.floor(state.remaining / value)),
+    }),
+    { remaining: number, output: "" },
+  ).output;
 }
 
 function formatNumber(number: number, format: string): string {

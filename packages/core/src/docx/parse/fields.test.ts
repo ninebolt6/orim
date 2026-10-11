@@ -10,23 +10,23 @@ describe("complex field state", () => {
     fields.begin();
     fields.append(' HYPERLINK \\l "_TocOverview" ');
     expect(fields.separate()?.stage).toBe("result");
-    expect(fieldName(fields.stack.at(-1)!.instruction)).toBe("HYPERLINK");
-    expect(fieldHref(fields.stack.at(-1)!.instruction)).toBe("#_TocOverview");
+    expect(fieldName(fields.current()!.instruction)).toBe("HYPERLINK");
+    expect(fieldHref(fields.current()!.instruction)).toBe("#_TocOverview");
     fields.end();
-    expect(fields.stack).toHaveLength(1);
-    expect(isPageField(fields.stack[0])).toBe(false);
+    expect(fields.some((field) => fieldName(field.instruction) === "TOC")).toBe(true);
+    expect(isPageField(fields.current()!)).toBe(false);
     fields.end();
     fields.end();
   });
 
   it("recognizes PAGE and NUMPAGES as live fields", () => {
     const fields = createFieldStack();
-    const page = fields.begin();
+    fields.begin();
     fields.append(" PAGE ");
-    expect(isPageField(page)).toBe(true);
+    expect(isPageField(fields.current()!)).toBe(true);
     fields.end();
-    const total = fields.begin();
+    fields.begin();
     fields.append(" NUMPAGES ");
-    expect(isPageField(total)).toBe(true);
+    expect(isPageField(fields.current()!)).toBe(true);
   });
 });

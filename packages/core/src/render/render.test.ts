@@ -103,22 +103,28 @@ describe("DOCX renderer", () => {
   });
 
   it("does not add a blank page before a paragraph after an explicit page break", async () => {
-    const doc = model("unused");
-    doc.sections[0].blocks = [
-      ...splitAtPageBreaks({
-        type: "paragraph",
-        properties: {},
-        runs: [
-          { type: "text", text: "A" },
-          { type: "break", page: true },
+    const source = model("unused");
+    const doc: DocxDocument = {
+      ...source,
+      sections: source.sections.map((section) => ({
+        ...section,
+        blocks: [
+          ...splitAtPageBreaks({
+            type: "paragraph",
+            properties: {},
+            runs: [
+              { type: "text", text: "A" },
+              { type: "break", page: true },
+            ],
+          }),
+          {
+            type: "paragraph",
+            properties: { pageBreakBefore: true },
+            runs: [{ type: "text", text: "B" }],
+          },
         ],
-      }),
-      {
-        type: "paragraph",
-        properties: { pageBreakBefore: true },
-        runs: [{ type: "text", text: "B" }],
-      },
-    ];
+      })),
+    };
     const container = document.createElement("div");
     await renderDocx(doc, container);
     const pages = Array.from(container.querySelectorAll(".orim-page"));
@@ -128,15 +134,29 @@ describe("DOCX renderer", () => {
   });
 
   it("keeps moved text green regardless of its run color", async () => {
-    const doc = model("moved");
-    const paragraph = doc.sections[0].blocks[0];
-    if (paragraph.type === "paragraph")
-      paragraph.runs.push({
-        type: "text",
-        text: "move",
-        style: { color: "#ff0000" },
-        change: { kind: "moveTo", author: "Aiko", date: "" },
-      });
+    const source = model("moved");
+    const doc: DocxDocument = {
+      ...source,
+      sections: source.sections.map((section) => ({
+        ...section,
+        blocks: section.blocks.map((block) =>
+          block.type === "paragraph"
+            ? {
+                ...block,
+                runs: [
+                  ...block.runs,
+                  {
+                    type: "text",
+                    text: "move",
+                    style: { color: "#ff0000" },
+                    change: { kind: "moveTo", author: "Aiko", date: "" },
+                  },
+                ],
+              }
+            : block,
+        ),
+      })),
+    };
     const container = document.createElement("div");
     await renderDocx(doc, container);
     const move = container.querySelector<HTMLElement>(".orim-change--moveTo");
@@ -145,14 +165,19 @@ describe("DOCX renderer", () => {
   });
 
   it("nests comment replies without rendering a second top-level balloon", async () => {
-    const doc = model("anchored text");
-    doc.comments[0].date = "2025-02-01T09:15:00Z";
-    doc.comments.push({
-      id: "1",
-      parentId: "0",
-      author: "Morgan",
-      paragraphs: [],
-    });
+    const source = model("anchored text");
+    const doc: DocxDocument = {
+      ...source,
+      comments: [
+        { ...source.comments[0], date: "2025-02-01T09:15:00Z" },
+        {
+          id: "1",
+          parentId: "0",
+          author: "Morgan",
+          paragraphs: [],
+        },
+      ],
+    };
     const container = document.createElement("div");
     await renderDocx(doc, container);
     expect(container.querySelectorAll(".orim-page-comments > .orim-comment")).toHaveLength(1);

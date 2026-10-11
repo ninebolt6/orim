@@ -4,14 +4,52 @@ import type { StyleSheet } from "../styles";
 import type { FieldStack } from "./fields";
 
 export interface ParseContext {
-  opc: OpcPackage;
-  source: string;
-  rels: Map<string, Relationship>;
-  styles: StyleSheet;
-  theme: ThemeFonts;
-  numbering: Numbering;
-  commentsOpen: Set<string>;
-  images: Set<string>;
-  fields: FieldStack;
-  paragraphStyle?: string;
+  readonly opc: OpcPackage;
+  readonly source: string;
+  readonly rels: Map<string, Relationship>;
+  readonly styles: StyleSheet;
+  readonly theme: ThemeFonts;
+  readonly numbering: Numbering;
+  readonly commentRanges: CommentRangeState;
+  readonly imageParts: ImagePathState;
+  readonly fields: FieldStack;
+  readonly paragraphStyle?: string;
+}
+
+export interface CommentRangeState {
+  start(id: string): void;
+  end(id: string): void;
+  snapshot(): string[];
+}
+
+export interface ImagePathState {
+  add(path: string): void;
+  values(): readonly string[];
+}
+
+export function createCommentRangeState(): CommentRangeState {
+  const open = new Set<string>();
+  return {
+    start(id) {
+      open.add(id);
+    },
+    end(id) {
+      open.delete(id);
+    },
+    snapshot() {
+      return [...open];
+    },
+  };
+}
+
+export function createImagePathState(): ImagePathState {
+  const paths = new Set<string>();
+  return {
+    add(path) {
+      paths.add(path);
+    },
+    values() {
+      return [...paths];
+    },
+  };
 }
