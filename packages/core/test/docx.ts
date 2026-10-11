@@ -7,6 +7,7 @@ export interface BuildDocxOptions {
   comments?: string;
   commentsExtended?: string;
   relationships?: string;
+  media?: Record<string, { bytes: Uint8Array; mime: string }>;
 }
 
 export function buildDocx(options: BuildDocxOptions): Uint8Array {
@@ -20,6 +21,13 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
   const overrides = Object.keys(parts)
     .filter((path) => path !== "word/document.xml")
     .map((path) => `<Override PartName="/${path}" ContentType="application/xml"/>`)
+    .join("");
+  const media = Object.entries(options.media ?? {});
+  const mediaTypes = new Map(
+    media.map(([path, part]) => [path.slice(path.lastIndexOf(".") + 1), part.mime]),
+  );
+  const mediaDefaults = [...mediaTypes]
+    .map(([extension, mime]) => `<Default Extension="${extension}" ContentType="${mime}"/>`)
     .join("");
   const relationships = [
     options.styles &&
@@ -36,7 +44,7 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
     .join("");
   const archive: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(
-      `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>${overrides}</Types>`,
+      `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${mediaDefaults}<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>${overrides}</Types>`,
     ),
     "_rels/.rels": strToU8(
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
@@ -46,5 +54,6 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
     ),
   };
   for (const [path, xml] of Object.entries(parts)) archive[path] = strToU8(xml);
+  for (const [path, part] of media) archive[path] = part.bytes;
   return zipSync(archive, { level: 0 });
 }

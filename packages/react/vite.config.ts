@@ -9,7 +9,12 @@ export default defineConfig({
     outDir: "dist",
     platform: "browser",
     target: "es2022",
-    external: ["react", "react-dom", "@orim/core"],
+    inputOptions: {
+      external: ["react", "react-dom", "react/jsx-runtime", "@orim/core"],
+    },
+    deps: {
+      neverBundle: true,
+    },
     jsx: "react-jsx",
   },
 });

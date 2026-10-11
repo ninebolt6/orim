@@ -6,5 +6,6 @@ export interface RenderContext {
   comments: boolean;
   changes: ChangesMode;
   objectUrls: Set<string>;
+  objectUrlsByPart: Map<string, string>;
   colors: Map<string, string>;
 }

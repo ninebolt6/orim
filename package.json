@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "vp run -r build",
+    "typecheck": "pnpm exec tsc --noEmit -p packages/core/tsconfig.json && pnpm exec tsc --noEmit -p packages/react/tsconfig.json && pnpm exec tsc --noEmit -p apps/demo/tsconfig.json",
     "size": "node scripts/size.mjs",
     "fixtures": "node scripts/make-fixtures.mjs"
   },

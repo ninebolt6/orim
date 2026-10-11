@@ -55,6 +55,7 @@ export async function renderDocx(
 ): Promise<RenderedDocument> {
   ensureStyles();
   const objectUrls = new Set<string>();
+  const objectUrlsByPart = new Map<string, string>();
   const controller = new AbortController();
   let cancelled = false;
   let root: HTMLDivElement | undefined;
@@ -68,6 +69,7 @@ export async function renderDocx(
       if (root?.parentElement === container) container.replaceChildren();
       for (const url of objectUrls) URL.revokeObjectURL(url);
       objectUrls.clear();
+      objectUrlsByPart.clear();
       if (renderLeases.get(container) === lease) renderLeases.delete(container);
     },
   };
@@ -92,6 +94,7 @@ export async function renderDocx(
       comments: options.comments !== false,
       changes: options.changes ?? "markup",
       objectUrls,
+      objectUrlsByPart,
       colors: new Map(),
     };
     if (doc.defaultTabStop !== undefined)
@@ -120,11 +123,6 @@ export async function renderDocx(
         const changes = next.changes ?? context.changes;
         const comments = next.comments ?? context.comments;
         if (changes === context.changes && comments === context.comments) return;
-        if (comments === context.comments) {
-          context.changes = changes;
-          root!.className = `orim-root orim-${changes}`;
-          return;
-        }
         context.changes = changes;
         context.comments = comments;
         draw();

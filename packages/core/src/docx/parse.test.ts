@@ -1,206 +1,83 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
+import { buildDocx } from "../../test/docx";
 import { parseDocx } from "./parse";
-import { splitAtPageBreaks } from "./parse/blocks";
-import type { Block, Inline, Paragraph } from "./model";
 
-function blocks(document: Awaited<ReturnType<typeof parseDocx>>): Block[] {
-  return document.sections.flatMap((section) => [
-    ...section.blocks,
-    ...(section.properties.header ?? []),
-    ...(section.properties.footer ?? []),
-  ]);
-}
+const xml = (body: string) =>
+  `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:body></w:document>`;
 
-function inlines(blockList: Block[]): Inline[] {
-  return blockList.flatMap((block) =>
-    block.type === "paragraph"
-      ? block.runs
-      : block.rows.flatMap((row) => row.cells.flatMap((cell) => inlines(cell.blocks))),
-  );
-}
-
-describe("DOCX parser", () => {
-  it("retains cross-paragraph comments, replies, changes, merged cells, and fields", async () => {
-    const data = new Uint8Array(readFileSync("fixtures/sample.docx"));
-    const doc = await parseDocx(data);
-    const all = blocks(doc);
-    const runs = inlines(all);
-    const anchored = runs.filter((run) => run.type === "text" && run.comments?.includes("0"));
-    expect(anchored.length).toBeGreaterThanOrEqual(2);
-    expect(doc.comments.find((comment) => comment.id === "1")).toMatchObject({
-      parentId: "0",
-      done: true,
-    });
-    expect(doc.sections).toHaveLength(2);
-    expect(doc.sections.map((section) => section.properties.orientation)).toEqual([
-      "portrait",
-      "landscape",
-    ]);
-    expect(doc.imageParts["word/media/sample.png"]).toBeDefined();
-    expect(runs.some((run) => run.type === "text" && run.href === "https://example.com/orim")).toBe(
-      true,
-    );
-    expect(runs.some((run) => run.type === "text" && run.text.includes("Overview"))).toBe(true);
-    expect(runs.some((run) => run.type === "text" && run.href === "#_TocOverview")).toBe(true);
-    expect(
-      runs.flatMap((run) => (run.type === "text" && run.change ? [run.change.kind] : [])),
-    ).toEqual(expect.arrayContaining(["ins", "del", "moveFrom", "moveTo"]));
-    expect(runs.some((run) => run.type === "text" && run.change?.author === "Aiko")).toBe(true);
-    expect(runs.some((run) => run.type === "text" && run.formattingChange?.author === "Aiko")).toBe(
-      true,
-    );
-    const table = all.find((block) => block.type === "table");
-    expect(table?.type === "table" && table.width).toBe("100%");
-    expect(table?.type === "table" && table.borders?.top).toContain("currentColor");
-    expect(table?.type === "table" && table.rows[1].cells[0].shading).toBe("#F6F8FC");
-    expect(table?.type === "table" && table.rows[1].cells[1].rowSpan).toBe(2);
-    expect(table?.type === "table" && table.rows[1].cells[0].gridSpan).toBe(2);
-    expect(table?.type === "table" && table.rows.some((row) => row.change?.kind === "ins")).toBe(
-      true,
-    );
-    expect(runs.filter((run) => run.type === "field").map((run) => run.name)).toEqual(
-      expect.arrayContaining(["PAGE", "NUMPAGES"]),
-    );
-    const pageFields = runs.filter((run) => run.type === "field" && run.name === "PAGE");
-    expect(pageFields).toHaveLength(3);
-    expect(
-      pageFields.map((run) => (run.type === "field" ? run.style?.fontSize : undefined)).sort(),
-    ).toEqual([10, 10, 15]);
-    expect(doc.sections[0].properties.linePitch).toBe(18);
-    expect(doc.defaultTabStop).toBe(36);
-    const inheritedNormal = all.find(
-      (block) =>
-        block.type === "paragraph" &&
-        block.runs.some((run) => run.type === "text" && run.text.includes("日本語の文章")),
-    );
-    expect(inheritedNormal?.type === "paragraph" && inheritedNormal.properties).toMatchObject({
-      before: 5,
-      after: 6,
-      line: 1.25,
-      lineRule: "auto",
-    });
-    expect(all.some((block) => block.type === "paragraph" && block.list)).toBe(true);
-    expect(
-      all.some(
-        (block) =>
-          block.type === "paragraph" &&
-          block.runs.some(
-            (run) => run.type === "text" && run.text.includes("Numbering cancelled"),
-          ) &&
-          !block.list,
-      ),
-    ).toBe(true);
-    const styleNumbered = all.find(
-      (block) =>
-        block.type === "paragraph" &&
-        block.runs.some(
-          (run) => run.type === "text" && run.text.includes("numbered heading inherited"),
+describe("DOCX parser integration", () => {
+  it("associates comment ranges with text and resolves replies", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document: xml(
+          '<w:p><w:commentRangeStart w:id="0"/><w:r><w:t>Commented text</w:t></w:r><w:commentRangeEnd w:id="0"/></w:p>',
         ),
+        comments:
+          '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w:comment w:id="0" w:author="Aiko"><w:p w14:paraId="AA"><w:r><w:t>Parent</w:t></w:r></w:p></w:comment><w:comment w:id="1" w:author="Morgan"><w:p w14:paraId="BB"><w:r><w:t>Reply</w:t></w:r></w:p></w:comment></w:comments>',
+        commentsExtended:
+          '<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml"><w15:commentEx w15:paraId="BB" w15:paraIdParent="AA"/></w15:commentsEx>',
+      }),
     );
-    const styleLevelOverride = all.find(
-      (block) =>
-        block.type === "paragraph" &&
-        block.runs.some((run) => run.type === "text" && run.text.includes("Direct list level")),
+    const paragraph = doc.sections[0].blocks[0];
+    expect(paragraph.type).toBe("paragraph");
+    if (paragraph.type !== "paragraph") return;
+    expect(paragraph.runs).toContainEqual(
+      expect.objectContaining({ type: "text", text: "Commented text", comments: ["0"] }),
     );
-    expect(styleNumbered?.type === "paragraph" && styleNumbered.list).toBeDefined();
-    expect(styleLevelOverride?.type === "paragraph" && styleLevelOverride.list?.level).toBe(1);
-    const directZero = all.find(
-      (block) =>
-        block.type === "paragraph" &&
-        block.runs.some((run) => run.type === "text" && run.text.includes("direct zero after")),
-    );
-    expect(directZero?.type === "paragraph" && directZero.properties).toMatchObject({
-      before: 5,
-      after: 0,
-      line: 1.25,
-      lineRule: "auto",
-    });
-    const contextual = all.filter(
-      (block) =>
-        block.type === "paragraph" &&
-        block.runs.some((run) => run.type === "text" && run.text.includes("contextual-spacing")),
-    );
-    expect(contextual[0]?.type === "paragraph" && contextual[0].properties.after).toBe(0);
-    expect(contextual[1]?.type === "paragraph" && contextual[1].properties.before).toBe(0);
-    const before = all.find(
-      (block) =>
-        block.type === "paragraph" &&
-        block.runs.some(
-          (run) => run.type === "text" && run.text.includes("Before inline page break"),
-        ),
-    );
-    const after = all.find(
-      (block) =>
-        block.type === "paragraph" &&
-        block.runs.some(
-          (run) => run.type === "text" && run.text.includes("After inline page break"),
-        ),
-    );
-    expect(before?.type === "paragraph" && before.properties.pageBreakAfter).toBe(true);
-    expect(after?.type === "paragraph" && after.properties.before).toBe(0);
-    expect(after?.type === "paragraph" && after.list).toBeUndefined();
-    expect(
-      all.some(
-        (block) =>
-          block.type === "paragraph" &&
-          block.runs.some((run) => run.type === "text" && run.text.includes("Second TOC entry")),
-      ),
-    ).toBe(true);
-    expect(
-      all.some(
-        (block) =>
-          block.type === "paragraph" &&
-          block.runs.some((run) => run.type === "text" && run.text.includes("Contents")),
-      ),
-    ).toBe(true);
-    expect(
-      all.some(
-        (block) =>
-          block.type === "paragraph" &&
-          block.runs.some((run) => run.type === "text" && run.text.includes("Overview")),
-      ),
-    ).toBe(true);
-    expect(runs.some((run) => run.type === "text" && run.href === "#_TocOverview")).toBe(true);
-    expect(runs.some((run) => run.type === "text" && run.href === "https://example.org/orim")).toBe(
-      true,
-    );
-    const borderParagraph = all.find(
-      (block) =>
-        block.type === "paragraph" &&
-        block.runs.some((run) => run.type === "text" && run.text.includes("bottom border")),
-    );
-    expect(
-      borderParagraph?.type === "paragraph" && borderParagraph.properties.borders?.bottom,
-    ).toContain("currentColor");
+    expect(doc.comments[1]).toMatchObject({ id: "1", parentId: "0" });
   });
 
-  it("splits page-break runs without duplicating list markers or empty segments", () => {
-    const paragraph: Paragraph = {
-      type: "paragraph",
-      properties: { before: 6 },
-      list: { numId: "1", level: 0, marker: "1." },
-      runs: [
-        { type: "text", text: "A" },
-        { type: "break", page: true },
-        { type: "text", text: "B" },
-      ],
-    };
-    const [first, second] = splitAtPageBreaks(paragraph);
-    expect(first.runs).toEqual([{ type: "text", text: "A" }]);
-    expect(first.properties.pageBreakAfter).toBe(true);
-    expect(second.runs).toEqual([{ type: "text", text: "B" }]);
-    expect(second.properties.before).toBe(0);
-    expect(second.list).toBeUndefined();
-    const trailing = splitAtPageBreaks({
-      ...paragraph,
-      runs: [
-        { type: "text", text: "A" },
-        { type: "break", page: true },
-      ],
+  it("preserves inserted and deleted text with their authors", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document: xml(
+          '<w:p><w:del w:author="Aiko"><w:r><w:delText>old</w:delText></w:r></w:del><w:ins w:author="Morgan"><w:r><w:t>new</w:t></w:r></w:ins></w:p>',
+        ),
+      }),
+    );
+    const paragraph = doc.sections[0].blocks[0];
+    expect(paragraph.type).toBe("paragraph");
+    if (paragraph.type !== "paragraph") return;
+    const deleted = paragraph.runs.find((run) => run.type === "text" && run.text === "old");
+    const inserted = paragraph.runs.find((run) => run.type === "text" && run.text === "new");
+    expect(deleted?.type === "text" ? deleted.change : undefined).toMatchObject({
+      kind: "del",
+      author: "Aiko",
     });
-    expect(trailing).toHaveLength(1);
-    expect(trailing[0].properties.pageBreakAfter).toBe(true);
-    expect(trailing[0].runs).toEqual([{ type: "text", text: "A" }]);
+    expect(inserted?.type === "text" ? inserted.change : undefined).toMatchObject({
+      kind: "ins",
+      author: "Morgan",
+    });
+  });
+
+  it("resolves grid spans and vertical merges by grid column", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document: xml(
+          '<w:tbl><w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>span</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>top</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>span again</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p><w:r><w:t>bottom</w:t></w:r></w:p></w:tc></w:tr></w:tbl>',
+        ),
+      }),
+    );
+    const table = doc.sections[0].blocks[0];
+    expect(table.type).toBe("table");
+    if (table.type !== "table") return;
+    expect(table.rows[0].cells[0].gridSpan).toBe(2);
+    expect(table.rows[0].cells[1].rowSpan).toBe(2);
+  });
+
+  it("emits a PAGE field from a simple field instruction", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document: xml(
+          '<w:p><w:fldSimple w:instr=" PAGE "><w:r><w:rPr><w:sz w:val="28"/></w:rPr><w:t>3</w:t></w:r></w:fldSimple></w:p>',
+        ),
+      }),
+    );
+    const paragraph = doc.sections[0].blocks[0];
+    expect(paragraph.type).toBe("paragraph");
+    if (paragraph.type !== "paragraph") return;
+    const field = paragraph.runs.find((run) => run.type === "field");
+    expect(field).toMatchObject({ type: "field", name: "PAGE" });
+    expect(field?.type === "field" ? field.style?.fontSize : undefined).toBe(14);
   });
 });

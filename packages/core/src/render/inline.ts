@@ -25,9 +25,13 @@ export function renderInline(inline: Inline, context: RenderContext): Node {
     image.className = "orim-image";
     const part = context.doc.imageParts[inline.path];
     if (part && typeof URL.createObjectURL === "function") {
-      const blob = new Blob([part.bytes.slice().buffer as ArrayBuffer], { type: part.mime });
-      const url = URL.createObjectURL(blob);
-      context.objectUrls.add(url);
+      let url = context.objectUrlsByPart.get(inline.path);
+      if (!url) {
+        const blob = new Blob([part.bytes.slice().buffer as ArrayBuffer], { type: part.mime });
+        url = URL.createObjectURL(blob);
+        context.objectUrlsByPart.set(inline.path, url);
+        context.objectUrls.add(url);
+      }
       image.src = url;
     }
     if (inline.width) image.style.width = `${inline.width}pt`;
