@@ -21,19 +21,14 @@ import type {
   Table,
   TableCell,
   TableRow,
+  TextStyle,
 } from "./model";
 import { parseNumbering } from "./numbering";
-import { parseRunProperties, parseStyles } from "./styles";
+import { border, paragraphProperties, parseRunProperties, parseStyles } from "./styles";
 
 const twips = (value: string | undefined, fallback: number): number => {
   const n = Number(value);
   return Number.isFinite(n) ? n / 20 : fallback;
-};
-
-const number = (element: Element | undefined, name: string, fallback = 0): number => {
-  const value = attr(element, name);
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
 };
 
 function localAttr(element: Element, name: string): string | undefined {
@@ -52,6 +47,19 @@ function textValue(element: Element | undefined): string {
 
 function color(value: string | undefined): string | undefined {
   return value && /^[\da-f]{6}$/i.test(value) ? `#${value}` : undefined;
+}
+
+function cssWidth(element: Element | undefined): string | undefined {
+  const value = attr(element, "w");
+  if (value === undefined) return undefined;
+  const type = attr(element, "type") ?? "dxa";
+  if (type === "pct") {
+    const percentage = value.endsWith("%") ? Number(value.slice(0, -1)) : Number(value) / 50;
+    return Number.isFinite(percentage) ? `${percentage}%` : undefined;
+  }
+  if (type !== "dxa") return undefined;
+  const twipValue = Number(value);
+  return Number.isFinite(twipValue) ? `${twipValue / 20}pt` : undefined;
 }
 
 function changeFrom(element: Element, kind: ChangeKind): ChangeMark {
@@ -87,53 +95,31 @@ interface ParseContext {
   numbering: ReturnType<typeof parseNumbering>;
   commentsOpen: Set<string>;
   images: Set<string>;
+  fields: FieldState[];
   paragraphStyle?: string;
 }
 
 interface FieldState {
   instruction: string;
-  result: Inline[];
   stage: "instruction" | "result";
+  style?: TextStyle;
 }
 
-function plain(inlines: Inline[]): string {
-  return inlines
-    .map((inline) =>
-      inline.type === "text" ? inline.text : inline.type === "field" ? (inline.cached ?? "") : "",
-    )
-    .join("");
+function fieldName(instruction: string): string {
+  return instruction.trim().match(/^\S+/)?.[0]?.toUpperCase() ?? "";
 }
 
-function parseParagraphProperties(pPr: Element | undefined): ParagraphProperties {
-  const spacing = first(pPr ?? document, "spacing");
-  const indent = first(pPr ?? document, "ind");
-  const jc = attr(first(pPr ?? document, "jc"), "val");
-  const shading = first(pPr ?? document, "shd");
-  const fill = attr(shading, "fill");
-  const rule = attr(spacing, "lineRule");
-  const line = attr(spacing, "line");
-  const borders = first(pPr ?? document, "pBdr");
-  const border = borders && (first(borders, "left") ?? first(borders, "bottom"));
-  const borderColor = color(attr(border, "color"));
-  const props: ParagraphProperties = {
-    align: jc,
-    before: twips(attr(spacing, "before"), 0),
-    after: twips(attr(spacing, "after"), 0),
-    line: rule === "auto" ? number(spacing, "line") / 240 : twips(line, 0),
-    lineRule: rule,
-    left: twips(attr(indent, "left") ?? attr(indent, "start"), 0),
-    right: twips(attr(indent, "right") ?? attr(indent, "end"), 0),
-    firstLine: twips(attr(indent, "firstLine"), 0),
-    hanging: twips(attr(indent, "hanging"), 0),
-    contextualSpacing: !!first(pPr ?? document, "contextualSpacing"),
-    pageBreakBefore: !!first(pPr ?? document, "pageBreakBefore"),
-    keepNext: !!first(pPr ?? document, "keepNext"),
-    shading: color(fill),
-    border: border
-      ? `${Number(attr(border, "sz") ?? 4) / 8}pt solid ${borderColor ?? "#888"}`
-      : undefined,
-  };
-  return props;
+function fieldHref(instruction: string): string | undefined {
+  if (fieldName(instruction) !== "HYPERLINK") return undefined;
+  const bookmark = instruction.match(/\\l\s+(?:"([^"]+)"|(\S+))/i);
+  if (bookmark) return `#${bookmark[1] ?? bookmark[2]}`;
+  const target = instruction.match(/\bHYPERLINK\s+(?:"([^"]+)"|(\S+))/i);
+  return target?.[1] ?? target?.[2];
+}
+
+function liveField(field: FieldState): boolean {
+  const name = fieldName(field.instruction);
+  return name === "PAGE" || name === "NUMPAGES";
 }
 
 function collectInline(
@@ -141,12 +127,35 @@ function collectInline(
   context: ParseContext,
   comments: Set<string>,
   inheritedChange?: ChangeMark,
-  field: { current?: FieldState } = {},
 ): Inline[] {
   const out: Inline[] = [];
   const emit = (inline: Inline) => {
-    if (field.current?.stage === "result") field.current.result.push(inline);
-    else if (!field.current || field.current.stage !== "instruction") out.push(inline);
+    const style = inline.type === "text" || inline.type === "field" ? inline.style : undefined;
+    let suppressed = false;
+    for (const field of context.fields) {
+      if (liveField(field) && field.stage === "result" && !field.style && style)
+        field.style = style;
+      if (field.stage === "instruction" || (liveField(field) && field.stage === "result"))
+        suppressed = true;
+    }
+    if (suppressed) return;
+    const hyperlink = [...context.fields]
+      .reverse()
+      .find((field) => field.stage === "result" && fieldName(field.instruction) === "HYPERLINK");
+    const href = hyperlink && fieldHref(hyperlink.instruction);
+    out.push(href && inline.type === "text" ? { ...inline, href } : inline);
+  };
+  const handleFieldChar = (node: Element, style?: TextStyle) => {
+    const type = attr(node, "fldCharType");
+    if (type === "begin") context.fields.push({ instruction: "", stage: "instruction", style });
+    else if (type === "separate") {
+      const field = context.fields.at(-1);
+      if (field) field.stage = "result";
+    } else if (type === "end") {
+      const field = context.fields.pop();
+      if (field && liveField(field))
+        emit({ type: "field", name: fieldName(field.instruction), style: field.style });
+    }
   };
 
   for (const node of children(parent)) {
@@ -172,36 +181,34 @@ function collectInline(
       continue;
     }
     if (name === "fldSimple") {
-      const nested = collectInline(node, context, comments, inheritedChange, {});
-      emit({
-        type: "field",
-        name: (attr(node, "instr") ?? "").trim().split(/\s+/)[0]?.toUpperCase() ?? "",
-        cached: plain(nested),
-      });
-      continue;
-    }
-    if (name === "fldChar") {
-      const type = attr(node, "fldCharType");
-      if (type === "begin") field.current = { instruction: "", result: [], stage: "instruction" };
-      else if (type === "separate" && field.current) field.current.stage = "result";
-      else if (type === "end" && field.current) {
-        const completed = field.current;
-        const instruction = completed.instruction.trim().split(/\s+/);
-        const name = instruction[0]?.toUpperCase() ?? "";
-        const cached = plain(completed.result);
-        field.current = undefined;
-        emit({ type: "field", name, cached });
+      const instruction = attr(node, "instr") ?? "";
+      const currentName = fieldName(instruction);
+      if (currentName === "PAGE" || currentName === "NUMPAGES") {
+        const state: FieldState = { instruction, stage: "result" };
+        context.fields.push(state);
+        collectInline(node, context, comments, inheritedChange);
+        context.fields.pop();
+        emit({ type: "field", name: currentName, style: state.style });
+      } else {
+        const nested = collectInline(node, context, comments, inheritedChange);
+        const href = fieldHref(instruction);
+        for (const item of nested) emit(href && item.type === "text" ? { ...item, href } : item);
       }
       continue;
     }
-    if (name === "instrText" && field.current?.stage === "instruction") {
-      field.current.instruction += textValue(node);
+    if (name === "fldChar") {
+      handleFieldChar(node);
+      continue;
+    }
+    if (name === "instrText" && context.fields.at(-1)?.stage === "instruction") {
+      context.fields.at(-1)!.instruction += textValue(node);
       continue;
     }
     if (name === "proofErr" || name === "object" || name === "pict") continue;
     if (name === "AlternateContent") {
-      const fallback = descendants(node, "Fallback")[0];
-      if (fallback) out.push(...collectInline(fallback, context, comments, inheritedChange, field));
+      const fallback = elements(node, "Fallback")[0];
+      if (fallback)
+        for (const item of collectInline(fallback, context, comments, inheritedChange)) emit(item);
       continue;
     }
     if (name === "hyperlink") {
@@ -209,8 +216,8 @@ function collectInline(
       const target = rel ? context.rels.get(rel) : undefined;
       const anchor = attr(node, "anchor");
       const href = anchor ? `#${anchor}` : target?.external ? target.target : undefined;
-      const nested = collectInline(node, context, comments, inheritedChange, field);
-      out.push(...nested.map((item) => (item.type === "text" ? { ...item, href } : item)));
+      for (const item of collectInline(node, context, comments, inheritedChange))
+        emit(href && item.type === "text" ? { ...item, href } : item);
       continue;
     }
     const kind: ChangeKind | undefined =
@@ -224,7 +231,7 @@ function collectInline(
               ? "moveTo"
               : undefined;
     if (kind) {
-      out.push(...collectInline(node, context, comments, changeFrom(node, kind), field));
+      for (const item of collectInline(node, context, comments, changeFrom(node, kind))) emit(item);
       continue;
     }
     if (name === "drawing" || name === "anchor" || name === "inline") {
@@ -266,25 +273,15 @@ function collectInline(
         parseRunProperties(rPr, context.theme),
       );
       const rChange = first(rPr ?? node, "rPrChange");
-      const change = inheritedChange;
       const formattingChange = rChange ? changeFrom(rChange, "ins") : undefined;
       for (const child of children(node)) {
         if (child.localName === "rPr") continue;
         if (child.localName === "fldChar") {
-          const type = attr(child, "fldCharType");
-          if (type === "begin")
-            field.current = { instruction: "", result: [], stage: "instruction" };
-          else if (type === "separate" && field.current) field.current.stage = "result";
-          else if (type === "end" && field.current) {
-            const completed = field.current;
-            const name = completed.instruction.trim().split(/\s+/)[0]?.toUpperCase() ?? "";
-            field.current = undefined;
-            emit({ type: "field", name, cached: plain(completed.result) });
-          }
+          handleFieldChar(child, base);
           continue;
         }
-        if (child.localName === "instrText" && field.current?.stage === "instruction") {
-          field.current.instruction += textValue(child);
+        if (child.localName === "instrText" && context.fields.at(-1)?.stage === "instruction") {
+          context.fields.at(-1)!.instruction += textValue(child);
           continue;
         }
         if (["t", "delText", "delInstrText"].includes(child.localName)) {
@@ -292,7 +289,7 @@ function collectInline(
             type: "text",
             text: textValue(child),
             style: base,
-            change,
+            change: inheritedChange,
             formattingChange,
             comments: [...comments],
           });
@@ -301,7 +298,7 @@ function collectInline(
             type: "text",
             text: "\t",
             style: base,
-            change,
+            change: inheritedChange,
             formattingChange,
             comments: [...comments],
           });
@@ -312,7 +309,7 @@ function collectInline(
             type: "text",
             text: "\u2011",
             style: base,
-            change,
+            change: inheritedChange,
             formattingChange,
             comments: [...comments],
           });
@@ -321,7 +318,7 @@ function collectInline(
             type: "text",
             text: "\u00ad",
             style: base,
-            change,
+            change: inheritedChange,
             formattingChange,
             comments: [...comments],
           });
@@ -330,8 +327,7 @@ function collectInline(
             { childNodes: [child] } as unknown as ParentNode,
             context,
             comments,
-            change,
-            field,
+            inheritedChange,
           );
           for (const item of nested) emit(item);
         }
@@ -345,7 +341,7 @@ function collectInline(
       name === "customXml" ||
       name === "Fallback"
     ) {
-      out.push(...collectInline(node, context, comments, inheritedChange, field));
+      for (const item of collectInline(node, context, comments, inheritedChange)) emit(item);
     }
   }
   return out;
@@ -358,13 +354,16 @@ function parseParagraph(
 ): Paragraph {
   const pPr = first(node, "pPr");
   const pStyle = attr(first(pPr ?? node, "pStyle"), "val");
-  const properties = context.styles.paragraph(pStyle, parseParagraphProperties(pPr));
+  const directProperties = paragraphProperties(pPr) as Partial<ParagraphProperties>;
+  const properties = context.styles.paragraph(pStyle, directProperties);
   properties.styleId = pStyle;
   const numPr = first(pPr ?? node, "numPr");
-  const numId = attr(first(numPr ?? node, "numId"), "val");
-  const level = Number(attr(first(numPr ?? node, "ilvl"), "val") ?? 0);
+  const inheritedNumbering = context.styles.numbering(pStyle);
+  const numId = attr(first(numPr ?? node, "numId"), "val") ?? inheritedNumbering.numId;
+  const level = Number(attr(first(numPr ?? node, "ilvl"), "val") ?? inheritedNumbering.level ?? 0);
   const runs = collectInline(node, { ...context, paragraphStyle: pStyle }, commentState);
-  const marker = numId ? context.numbering.marker(numId, level) : undefined;
+  const marker = numId && numId !== "0" ? context.numbering.marker(numId, level) : undefined;
+  const inheritedProperties = context.styles.paragraph(pStyle);
   const markChange = first(pPr ?? node, "ins") ?? first(pPr ?? node, "del");
   if (markChange)
     properties.change = changeFrom(markChange, first(pPr ?? node, "del") ? "del" : "ins");
@@ -374,16 +373,109 @@ function parseParagraph(
     type: "paragraph",
     properties,
     runs,
+    markStyle: context.styles.run(
+      pStyle,
+      undefined,
+      parseRunProperties(first(pPr ?? node, "rPr"), context.theme),
+    ),
     list: marker
-      ? { numId: numId!, level, marker: marker.text, left: marker.left, hanging: marker.hanging }
+      ? {
+          numId: numId!,
+          level,
+          marker: marker.text,
+          left: directProperties.left ?? marker.left ?? inheritedProperties.left,
+          hanging: directProperties.hanging ?? marker.hanging ?? inheritedProperties.hanging,
+          suffix: marker.suffix,
+        }
       : undefined,
   };
 }
 
+export function splitAtPageBreaks(paragraph: Paragraph): Paragraph[] {
+  if (!paragraph.runs.some((run) => run.type === "break" && run.page)) return [paragraph];
+  const segments: Array<{ runs: Inline[]; pageBreakAfter: boolean }> = [];
+  let runs: Inline[] = [];
+  let leadingBreak = false;
+  for (const run of paragraph.runs) {
+    if (run.type === "break" && run.page) {
+      if (runs.length) {
+        segments.push({ runs, pageBreakAfter: true });
+        runs = [];
+      } else if (!segments.length) leadingBreak = true;
+      else segments.at(-1)!.pageBreakAfter = true;
+    } else runs.push(run);
+  }
+  if (runs.length) segments.push({ runs, pageBreakAfter: false });
+  if (!segments.length)
+    return [
+      {
+        ...paragraph,
+        properties: { ...paragraph.properties, pageBreakAfter: true },
+        runs: [],
+      },
+    ];
+  return segments.map(({ runs: segmentRuns, pageBreakAfter }, index) => ({
+    ...paragraph,
+    properties: {
+      ...paragraph.properties,
+      before: index ? 0 : paragraph.properties.before,
+      pageBreakBefore:
+        index === 0 && leadingBreak ? true : index ? false : paragraph.properties.pageBreakBefore,
+      pageBreakAfter,
+    },
+    runs: segmentRuns,
+    list: index === 0 ? paragraph.list : undefined,
+  }));
+}
+
+function applyContextualSpacing(blocks: Block[]): Block[] {
+  let previous: Paragraph | undefined;
+  for (const block of blocks) {
+    if (block.type !== "paragraph") {
+      previous = undefined;
+      continue;
+    }
+    if (previous && previous.properties.styleId === block.properties.styleId) {
+      if (block.properties.contextualSpacing) block.properties.before = 0;
+      if (previous.properties.contextualSpacing) previous.properties.after = 0;
+    }
+    previous = block;
+  }
+  return blocks;
+}
+
+function blockNodes(nodes: Element[]): Element[] {
+  const out: Element[] = [];
+  for (const node of nodes) {
+    if (["p", "tbl", "sectPr"].includes(node.localName)) {
+      out.push(node);
+    } else if (node.localName === "AlternateContent") {
+      const fallback = elements(node, "Fallback")[0];
+      if (fallback) out.push(...blockNodes(children(fallback)));
+    } else if (node.localName === "sdt") {
+      const content = first(node, "sdtContent");
+      if (content) out.push(...blockNodes(children(content)));
+    } else if (["sdtContent", "customXml", "smartTag", "Fallback"].includes(node.localName)) {
+      out.push(...blockNodes(children(node)));
+    }
+  }
+  return out;
+}
+
 function parseTable(node: Element, context: ParseContext, comments: Set<string>): Table {
   const tblPr = first(node, "tblPr");
+  const styleId = attr(first(tblPr ?? node, "tblStyle"), "val");
+  const style = context.styles.table(styleId);
   const grid = first(node, "tblGrid");
-  const widths = elements(grid ?? node, "gridCol").map((col) => twips(attr(col, "w"), 0));
+  const widths = elements(grid ?? node, "gridCol").map((col) => cssWidth(col));
+  const directMargins: NonNullable<Table["margins"]> = {};
+  const directTableMargins = first(tblPr ?? node, "tblCellMar");
+  for (const side of ["top", "right", "bottom", "left"] as const) {
+    const item = first(directTableMargins ?? node, side);
+    const value = item ? twips(attr(item, "w"), 0) : undefined;
+    if (value !== undefined) directMargins[side] = value;
+  }
+  const tableMargins = { ...style.margins, ...directMargins };
   const rows: TableRow[] = elements(node, "tr").map((row) => {
     const trPr = first(row, "trPr");
     const cells: TableCell[] = elements(row, "tc").map((cell) => {
@@ -393,30 +485,32 @@ function parseTable(node: Element, context: ParseContext, comments: Set<string>)
       const val = attr(merge, "val");
       const shading = attr(first(tcPr ?? cell, "shd"), "fill");
       const tcW = first(tcPr ?? cell, "tcW");
-      const margins = first(tcPr ?? cell, "tcMar");
-      const borders: Record<string, string> = {};
-      for (const side of ["top", "right", "bottom", "left"]) {
-        const b = first(first(tcPr ?? cell, "tcBorders") ?? cell, side);
-        const c = color(attr(b, "color"));
-        if (b && c) borders[side] = `${Number(attr(b, "sz") ?? 4) / 8}pt solid ${c}`;
+      const cellMargins = first(tcPr ?? cell, "tcMar");
+      const borders: NonNullable<TableCell["borders"]> = {};
+      const cellBorders = first(tcPr ?? cell, "tcBorders");
+      for (const side of ["top", "right", "bottom", "left"] as const) {
+        const value = border(first(cellBorders ?? cell, side));
+        if (value !== undefined) borders[side] = value;
       }
-      const blocks = children(cell)
-        .filter((child) => child.localName === "p" || child.localName === "tbl")
-        .map((child) =>
+      const blocks = applyContextualSpacing(
+        blockNodes(children(cell)).flatMap((child) =>
           child.localName === "p"
-            ? parseParagraph(child, context, comments)
-            : parseTable(child, context, comments),
-        );
+            ? splitAtPageBreaks(parseParagraph(child, context, comments))
+            : child.localName === "tbl"
+              ? [parseTable(child, context, comments)]
+              : [],
+        ),
+      );
       const marginValue = (side: string): number | undefined => {
-        const item = first(margins ?? cell, side);
-        return item ? twips(attr(item, "w"), 0) : undefined;
+        const item = first(cellMargins ?? cell, side);
+        return item ? twips(attr(item, "w"), 0) : tableMargins[side as keyof typeof tableMargins];
       };
       return {
         blocks,
         gridSpan: Math.max(1, span),
         rowSpan: val === "restart" ? -1 : val === "continue" || merge ? 0 : 1,
-        width: tcW ? twips(attr(tcW, "w"), 0) : undefined,
-        shading: color(shading),
+        width: cssWidth(tcW),
+        shading: (shading && shading !== "auto" ? color(shading) : undefined) ?? style.cellShading,
         borders,
         margins: {
           top: marginValue("top"),
@@ -439,14 +533,31 @@ function parseTable(node: Element, context: ParseContext, comments: Set<string>)
     };
   });
 
+  const gridStarts = rows.map((row) => {
+    let column = 0;
+    return row.cells.map((cell) => {
+      const start = column;
+      column += cell.gridSpan;
+      return start;
+    });
+  });
   for (let row = 0; row < rows.length; row++) {
     for (let cell = 0; cell < rows[row].cells.length; cell++) {
       const item = rows[row].cells[cell];
       if (item.rowSpan !== -1) continue;
       let span = 1;
+      const start = gridStarts[row][cell];
       for (let next = row + 1; next < rows.length; next++) {
-        const continuation = rows[next].cells[cell];
-        if (!continuation || continuation.rowSpan !== 0) break;
+        const index = gridStarts[next].findIndex((column, candidate) => {
+          const continuation = rows[next].cells[candidate];
+          return (
+            column === start &&
+            continuation.rowSpan === 0 &&
+            continuation.gridSpan === item.gridSpan
+          );
+        });
+        if (index < 0) break;
+        const continuation = rows[next].cells[index];
         continuation.rowSpan = -2;
         span++;
       }
@@ -455,40 +566,31 @@ function parseTable(node: Element, context: ParseContext, comments: Set<string>)
   }
   for (const row of rows) for (const cell of row.cells) if (cell.rowSpan === -2) cell.rowSpan = 0;
 
-  const tableBorders: Record<string, string> = {};
+  const tableBorders: NonNullable<Table["borders"]> = { ...style.borders };
   const tblBorders = first(tblPr ?? node, "tblBorders");
-  for (const side of ["top", "right", "bottom", "left", "insideH", "insideV"]) {
-    const border = first(tblBorders ?? node, side);
-    const c = color(attr(border, "color"));
-    if (border && c) tableBorders[side] = `${Number(attr(border, "sz") ?? 4) / 8}pt solid ${c}`;
+  for (const side of ["top", "right", "bottom", "left", "insideH", "insideV"] as const) {
+    const value = border(first(tblBorders ?? node, side));
+    if (value !== undefined) tableBorders[side] = value;
   }
-  const cellMargins = first(tblPr ?? node, "tblCellMar");
-  const margin = (side: string) => {
-    const item = first(cellMargins ?? node, side);
-    return item ? twips(attr(item, "w"), 0) : undefined;
-  };
   return {
     type: "table",
     rows,
     widths,
-    width: twips(attr(first(tblPr ?? node, "tblW"), "w"), 0) || undefined,
+    width: cssWidth(first(tblPr ?? node, "tblW")),
     indent: twips(attr(first(tblPr ?? node, "tblInd"), "w"), 0),
+    align: attr(first(tblPr ?? node, "jc"), "val"),
     borders: tableBorders,
-    margins: {
-      top: margin("top"),
-      right: margin("right"),
-      bottom: margin("bottom"),
-      left: margin("left"),
-    },
+    margins: tableMargins,
   };
 }
 
 function sectionProperties(node: Element | undefined): SectionProperties {
   const pageSize = first(node ?? document, "pgSz");
   const pageMargins = first(node ?? document, "pgMar");
+  const grid = first(node ?? document, "docGrid");
   const orientation = attr(pageSize, "orient") === "landscape" ? "landscape" : "portrait";
-  let width = twips(attr(pageSize, "w"), 595 * 20);
-  let height = twips(attr(pageSize, "h"), 842 * 20);
+  let width = twips(attr(pageSize, "w"), 595.3);
+  let height = twips(attr(pageSize, "h"), 841.9);
   if (orientation === "landscape" && width < height) [width, height] = [height, width];
   return {
     width,
@@ -504,6 +606,7 @@ function sectionProperties(node: Element | undefined): SectionProperties {
     },
     titlePage: !!first(node ?? document, "titlePg"),
     breakType: attr(first(node ?? document, "type"), "val") ?? "nextPage",
+    linePitch: grid ? twips(attr(grid, "linePitch"), 0) || undefined : undefined,
   };
 }
 
@@ -513,11 +616,12 @@ async function parseBlocks(
   comments: Set<string>,
 ): Promise<Block[]> {
   const out: Block[] = [];
-  for (const node of nodes) {
-    if (node.localName === "p") out.push(parseParagraph(node, context, comments));
+  for (const node of blockNodes(nodes)) {
+    if (node.localName === "p")
+      out.push(...splitAtPageBreaks(parseParagraph(node, context, comments)));
     else if (node.localName === "tbl") out.push(parseTable(node, context, comments));
   }
-  return out;
+  return applyContextualSpacing(out);
 }
 
 async function sectionDecorations(
@@ -544,6 +648,7 @@ async function sectionDecorations(
       source: part,
       rels: await opc.relationships(part),
       commentsOpen: new Set(),
+      fields: [],
     };
     const blocks = await parseBlocks(children(root), partContext, new Set());
     const sectionRef = rel.id;
@@ -581,12 +686,13 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
     numbering,
     commentsOpen,
     images,
+    fields: [],
   };
   const body = first(doc.documentElement, "body");
   const sections: DocxDocument["sections"] = [];
   let blocks: Block[] = [];
   let secPr: Element | undefined;
-  for (const node of children(body ?? doc)) {
+  for (const node of blockNodes(children(body ?? doc))) {
     if (node.localName === "sectPr") {
       secPr = node;
       const props = sectionProperties(secPr);
@@ -600,15 +706,13 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
         if (id && type) refs[id] = type;
       }
       (props as SectionProperties & { _refs?: Record<string, string> })._refs = refs;
-      sections.push({ properties: props, blocks });
+      sections.push({ properties: props, blocks: applyContextualSpacing(blocks) });
       blocks = [];
       secPr = undefined;
     } else if (node.localName === "p" || node.localName === "tbl") {
-      blocks.push(
-        node.localName === "p"
-          ? parseParagraph(node, context, commentsOpen)
-          : parseTable(node, context, commentsOpen),
-      );
+      if (node.localName === "p")
+        blocks.push(...splitAtPageBreaks(parseParagraph(node, context, commentsOpen)));
+      else blocks.push(parseTable(node, context, commentsOpen));
       const pPr = node.localName === "p" ? first(node, "pPr") : undefined;
       const paragraphSection = first(pPr ?? node, "sectPr");
       if (paragraphSection) {
@@ -623,13 +727,13 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
           if (id && type) refs[id] = type;
         }
         (props as SectionProperties & { _refs?: Record<string, string> })._refs = refs;
-        sections.push({ properties: props, blocks });
+        sections.push({ properties: props, blocks: applyContextualSpacing(blocks) });
         blocks = [];
       }
     }
   }
   if (blocks.length || !sections.length)
-    sections.push({ properties: sectionProperties(secPr), blocks });
+    sections.push({ properties: sectionProperties(secPr), blocks: applyContextualSpacing(blocks) });
 
   for (let index = 0; index < sections.length; index++) {
     const section = sections[index];
@@ -640,6 +744,7 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
       theme,
       numbering,
       images,
+      fields: [],
     });
     const previous = sections[index - 1]?.properties;
     if (previous) {
@@ -654,11 +759,19 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
 
   const commentList: DocxComment[] = [];
   if (opc.zip.has("word/comments.xml")) {
-    const commentsDoc = await opc.xml("word/comments.xml");
+    const commentsPath = "word/comments.xml";
+    const commentsDoc = await opc.xml(commentsPath);
+    const commentContext: ParseContext = {
+      ...context,
+      source: commentsPath,
+      rels: await opc.relationships(commentsPath),
+      commentsOpen: new Set(),
+      fields: [],
+    };
     for (const node of descendants(commentsDoc, "comment")) {
       const id = attr(node, "id");
       if (!id) continue;
-      const blocks = await parseBlocks(elements(node, "p"), context, new Set());
+      const blocks = await parseBlocks(children(node), commentContext, new Set());
       const lastParagraph = elements(node, "p").at(-1);
       const paraId = lastParagraph && localAttr(lastParagraph, "paraId");
       commentList.push({
@@ -690,10 +803,14 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
   const settings = opc.zip.has("word/settings.xml")
     ? await opc.xml("word/settings.xml")
     : undefined;
+  const defaultTabStop = settings
+    ? twips(attr(descendants(settings, "defaultTabStop")[0], "val"), 36)
+    : undefined;
   return {
     sections,
     comments: commentList,
     evenAndOddHeaders: !!(settings && descendants(settings, "evenAndOddHeaders").length),
+    defaultTabStop,
     imageParts,
   };
 }

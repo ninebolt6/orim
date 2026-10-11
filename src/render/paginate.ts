@@ -80,6 +80,7 @@ export function paginate(
       content.style.top = `${margin.top}pt`;
       content.style.width = `${usableWidth}pt`;
       content.style.height = `${usableHeight}pt`;
+      if (props.linePitch) content.style.setProperty("--orim-pitch", `${props.linePitch}pt`);
       page.append(content);
 
       const pageNumber = pages.length + 1;
@@ -110,6 +111,9 @@ export function paginate(
       current.content.style.top = `${margin.top}pt`;
       current.content.style.width = `${usableWidth}pt`;
       current.content.style.height = `${usableHeight}pt`;
+      if (props.linePitch)
+        current.content.style.setProperty("--orim-pitch", `${props.linePitch}pt`);
+      else current.content.style.removeProperty("--orim-pitch");
       current.page
         .querySelectorAll(".orim-header,.orim-footer")
         .forEach((element) => element.remove());
@@ -128,18 +132,28 @@ export function paginate(
         blockBounds.bottom > bounds.bottom + 1
       );
     };
-    const splitTable = (table: HTMLTableElement, page: Page): void => {
-      if (!overflows(table, page) || table.rows.length < 2) return;
+    const splitTable = (table: HTMLTableElement, page: Page): Page => {
+      if (!overflows(table, page)) return page;
+      const originalRows = Array.from(table.rows);
       const headerRows = Array.from(table.rows).filter((row) => row.dataset.orimHeader === "true");
       const movable = Array.from(table.rows).filter((row) => row.dataset.orimHeader !== "true");
-      if (!movable.length) return;
+      if (!movable.length) return page;
       const continuedRows: HTMLTableRowElement[] = [];
-      while (overflows(table, page) && movable.length > 1) {
-        const row = movable.pop()!;
+      for (let index = movable.length - 1; index > 0; index--) {
+        const row = movable[index];
         row.remove();
         continuedRows.unshift(row);
+        if (!overflows(table, page)) break;
       }
-      if (!continuedRows.length) return;
+      if (overflows(table, page) && page.content.childElementCount > 1) {
+        const body = table.tBodies[0];
+        if (body) for (const row of originalRows) body.append(row);
+        table.remove();
+        const next = newPage();
+        next.content.append(table);
+        return splitTable(table, next);
+      }
+      if (!continuedRows.length) return page;
       const next = newPage();
       const continuation = table.cloneNode(false) as HTMLTableElement;
       for (const child of Array.from(table.children)) {
@@ -150,39 +164,27 @@ export function paginate(
       for (const row of continuedRows) body.append(row);
       continuation.append(body);
       next.content.append(continuation);
-      splitTable(continuation, next);
+      return splitTable(continuation, next);
     };
 
     for (let blockIndex = 0; blockIndex < section.blocks.length; blockIndex++) {
       const block = section.blocks[blockIndex];
-      const pageBreaks =
-        block.type === "paragraph" && block.runs.some((run) => run.type === "break" && run.page);
-      const onlyBreak =
-        block.type === "paragraph" &&
-        pageBreaks &&
-        block.runs.every(
-          (run) => (run.type === "break" && run.page) || (run.type === "text" && !run.text.trim()),
-        );
-      if (
-        block.type === "paragraph" &&
-        block.properties.pageBreakBefore &&
-        current.content.childElementCount
-      )
-        current = newPage();
-      if (onlyBreak) {
-        if (current.content.childElementCount) current = newPage();
-        continue;
-      }
-      if (pageBreaks && current.content.childElementCount) current = newPage();
+      if (block.type === "paragraph" && block.properties.pageBreakBefore) current = newPage();
       const element = renderBlock(block);
       current.content.append(element);
-      if (overflows(element, current) && current.content.childElementCount > 1) {
+      if (element instanceof HTMLTableElement) {
+        current = splitTable(element, current);
+      } else if (overflows(element, current) && current.content.childElementCount > 1) {
         element.remove();
         current = newPage();
         current.content.append(element);
       }
-      if (element instanceof HTMLTableElement) splitTable(element, current);
-      if (pageBreaks && blockIndex < section.blocks.length - 1) current = newPage();
+      if (
+        block.type === "paragraph" &&
+        block.properties.pageBreakAfter &&
+        blockIndex < section.blocks.length - 1
+      )
+        current = newPage();
     }
   }
 

@@ -36,7 +36,7 @@ export type Inline =
       href?: string;
     }
   | { type: "image"; path: string; width?: number; height?: number }
-  | { type: "field"; name: string; cached?: string }
+  | { type: "field"; name: string; cached?: string; style?: TextStyle }
   | { type: "break"; page?: boolean }
   | { type: "bookmark"; name: string }
   | { type: "comment-reference"; id: string };
@@ -54,9 +54,12 @@ export interface ParagraphProperties {
   hanging?: number;
   contextualSpacing?: boolean;
   pageBreakBefore?: boolean;
+  pageBreakAfter?: boolean;
   keepNext?: boolean;
+  snapToGrid?: boolean;
   shading?: string;
-  border?: string;
+  borders?: Partial<Record<"top" | "right" | "bottom" | "left", string>>;
+  borderSpacing?: Partial<Record<"top" | "right" | "bottom" | "left", number>>;
   change?: ChangeMark;
   formattingChange?: ChangeMark;
 }
@@ -65,14 +68,22 @@ export interface Paragraph {
   type: "paragraph";
   properties: ParagraphProperties;
   runs: Inline[];
-  list?: { numId: string; level: number; marker: string; left?: number; hanging?: number };
+  markStyle?: TextStyle;
+  list?: {
+    numId: string;
+    level: number;
+    marker: string;
+    left?: number;
+    hanging?: number;
+    suffix?: "tab" | "space" | "nothing";
+  };
 }
 
 export interface TableCell {
   blocks: Block[];
   gridSpan: number;
   rowSpan: number;
-  width?: number;
+  width?: string;
   shading?: string;
   borders?: Record<string, string>;
   margins?: Partial<Record<"top" | "right" | "bottom" | "left", number>>;
@@ -89,9 +100,10 @@ export interface TableRow {
 export interface Table {
   type: "table";
   rows: TableRow[];
-  widths: number[];
-  width?: number;
+  widths: Array<string | undefined>;
+  width?: string;
   indent?: number;
+  align?: string;
   borders?: Record<string, string>;
   margins?: Partial<Record<"top" | "right" | "bottom" | "left", number>>;
 }
@@ -112,6 +124,7 @@ export interface SectionProperties {
   };
   titlePage?: boolean;
   breakType?: string;
+  linePitch?: number;
   header?: Block[];
   firstHeader?: Block[];
   evenHeader?: Block[];
@@ -135,5 +148,6 @@ export interface DocxDocument {
   sections: Array<{ properties: SectionProperties; blocks: Block[] }>;
   comments: DocxComment[];
   evenAndOddHeaders?: boolean;
+  defaultTabStop?: number;
   imageParts: Record<string, { bytes: Uint8Array; mime: string }>;
 }

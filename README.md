@@ -19,7 +19,7 @@ rendered.destroy();
 ## Limitations
 
 - Layout is page-level rather than line-level: a single block taller than a page can overflow that page. Tables split at row boundaries.
-- Floating objects render inline. VML, charts, SmartArt, table-style-based formatting, paragraph-mark merging, numbering inherited from paragraph styles and exact Word font metrics are not implemented.
+- Floating objects render inline. VML, charts, SmartArt, conditional table-style formatting, paragraph-mark merging and exact Word font metrics are not implemented.
 - The ZIP reader supports stored and deflate entries, not ZIP64, encryption or multi-disk archives. Deflated files require `DecompressionStream('deflate-raw')`.
 - Page geometry and typography approximate Word; detailed pagination should be checked in Chrome.
 

@@ -27,15 +27,15 @@ const highlightColors: Record<string, string> = {
   black: "#000",
   blue: "#00f",
   cyan: "#0ff",
-  darkBlue: "#00f",
-  darkCyan: "#0aa",
-  darkGray: "#555",
-  darkGreen: "#080",
-  darkMagenta: "#a0a",
-  darkRed: "#a00",
-  darkYellow: "#aa0",
+  darkBlue: "#000080",
+  darkCyan: "#008080",
+  darkGray: "#808080",
+  darkGreen: "#008000",
+  darkMagenta: "#800080",
+  darkRed: "#800000",
+  darkYellow: "#808000",
   green: "#0f0",
-  lightGray: "#aaa",
+  lightGray: "#c0c0c0",
   magenta: "#f0f",
   red: "#f00",
   white: "#fff",
@@ -76,9 +76,24 @@ function fontStack(name: string | undefined): string | undefined {
         .filter(Boolean),
     ),
   ];
-  return names.length
-    ? `${names.map((item) => `"${item}"`).join(", ")}, "Noto Sans", serif`
-    : undefined;
+  if (!names.length) return undefined;
+  const families = names
+    .map((item) =>
+      ["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"].includes(
+        item.toLowerCase(),
+      )
+        ? item
+        : `"${item}"`,
+    )
+    .join(", ");
+  const fallback = /明朝|Mincho/i.test(name)
+    ? '"Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", "Noto Serif CJK JP", serif'
+    : /ゴシック|Gothic|Meiryo|メイリオ/i.test(name)
+      ? '"Yu Gothic", "YuGothic", "Hiragino Sans", "Noto Sans JP", "Noto Sans CJK JP", sans-serif'
+      : /Times|Century|Cambria|Georgia|Mincho|Serif/i.test(name)
+        ? "serif"
+        : "sans-serif";
+  return `${families}, ${fallback}`;
 }
 
 function applyTextStyle(element: HTMLElement, style: TextStyle | undefined): void {
@@ -111,11 +126,13 @@ function applyTextStyle(element: HTMLElement, style: TextStyle | undefined): voi
     element.style.fontSize = `${style.fontSize}pt`;
   const family = fontStack(style.fontFamily);
   if (family) element.style.fontFamily = family;
-  if (style.verticalAlign)
+  if (style.verticalAlign) {
     element.style.verticalAlign = style.verticalAlign === "superscript" ? "super" : "sub";
+    element.style.fontSize = style.fontSize ? `${style.fontSize * 0.65}pt` : "65%";
+  }
   if (style.caps) element.style.textTransform = "uppercase";
   if (style.smallCaps) element.style.fontVariant = "small-caps";
-  if (style.hidden) element.style.visibility = "hidden";
+  if (style.hidden) element.style.display = "none";
   for (const [key, value] of Object.entries(style.style ?? {})) {
     if (/^[a-z-]+$/i.test(key) && typeof value === "string") element.style.setProperty(key, value);
   }
@@ -131,9 +148,7 @@ interface RenderContext {
 
 function renderInline(inline: Inline, context: RenderContext): Node {
   if (inline.type === "break") {
-    const element = document.createElement(inline.page ? "span" : "br");
-    if (inline.page) element.className = "orim-page-break";
-    return element;
+    return inline.page ? document.createTextNode("") : document.createElement("br");
   }
   if (inline.type === "bookmark") {
     const anchor = document.createElement("span");
@@ -169,6 +184,7 @@ function renderInline(inline: Inline, context: RenderContext): Node {
     field.dataset.field = inline.name;
     field.dataset.cached = inline.cached ?? "";
     field.textContent = inline.cached ?? "";
+    applyTextStyle(field, inline.style);
     return field;
   }
   const kind = inline.change?.kind;
@@ -194,17 +210,27 @@ function renderInline(inline: Inline, context: RenderContext): Node {
   textNode.classList.add("orim-text");
   textNode.textContent = inline.text;
   applyTextStyle(textNode, inline.style);
-  if (inline.text === "\t") textNode.classList.add("orim-tab");
+  const titles: string[] = [];
   if (inline.change && context.changes === "markup") {
     const { kind, author, date } = inline.change;
     textNode.classList.add(`orim-change--${kind}`);
-    textNode.style.setProperty("--orim-change-color", changeColor(inline.change, context.colors));
-    textNode.title = `${kind === "ins" || kind === "moveTo" ? "Inserted" : "Deleted"} by ${author}${date ? ` on ${date}` : ""}`;
+    if (kind === "moveTo" || kind === "moveFrom") {
+      textNode.style.color = "#137333";
+      textNode.style.textDecoration =
+        kind === "moveTo" ? "underline double" : "line-through double";
+    } else
+      textNode.style.setProperty("--orim-change-color", changeColor(inline.change, context.colors));
+    titles.push(
+      `${kind === "ins" || kind === "moveTo" ? "Inserted" : "Deleted"} by ${author}${date ? ` on ${date}` : ""}`,
+    );
   }
   if (inline.formattingChange && context.changes === "markup") {
     textNode.classList.add("orim-format-change");
-    textNode.title = `Formatted: ${inline.formattingChange.author}${inline.formattingChange.date ? ` ${inline.formattingChange.date}` : ""}`;
+    titles.push(
+      `Formatted: ${inline.formattingChange.author}${inline.formattingChange.date ? ` ${inline.formattingChange.date}` : ""}`,
+    );
   }
+  if (titles.length) textNode.title = titles.join("\n");
   if (context.comments && inline.comments?.length) {
     const anchor = document.createElement("span");
     anchor.className = "orim-comment-anchor";
@@ -218,6 +244,7 @@ function renderInline(inline: Inline, context: RenderContext): Node {
 function renderParagraph(block: Paragraph, context: RenderContext): HTMLElement {
   const paragraph = document.createElement("p");
   paragraph.className = "orim-paragraph";
+  const titles: string[] = [];
   const props = block.properties;
   if (props.styleId) paragraph.classList.add(`orim-style-${props.styleId.replace(/[^\w-]/g, "")}`);
   if (props.align) {
@@ -230,25 +257,37 @@ function renderParagraph(block: Paragraph, context: RenderContext): HTMLElement 
           ? "right"
           : align;
   }
-  if (props.before) paragraph.style.marginTop = `${props.before}pt`;
+  if (props.before !== undefined) paragraph.style.marginTop = `${props.before}pt`;
   if (props.after !== undefined) paragraph.style.marginBottom = `${props.after}pt`;
-  if (props.line)
-    paragraph.style.lineHeight = props.lineRule === "auto" ? String(props.line) : `${props.line}pt`;
+  if (props.lineRule === "auto" || props.lineRule === undefined)
+    paragraph.style.lineHeight = `calc(var(--orim-pitch, 1.15) * ${props.line ?? 1})`;
+  else if (props.line !== undefined) paragraph.style.lineHeight = `${props.line}pt`;
   if (props.left) paragraph.style.marginLeft = `${props.left}pt`;
   if (props.right) paragraph.style.marginRight = `${props.right}pt`;
   if (props.firstLine) paragraph.style.textIndent = `${props.firstLine}pt`;
   if (props.hanging) paragraph.style.textIndent = `${-props.hanging}pt`;
   const shading = validColor(props.shading);
   if (shading) paragraph.style.backgroundColor = shading;
-  if (props.border) paragraph.style.borderLeft = props.border;
+  for (const side of ["top", "right", "bottom", "left"] as const) {
+    const border = props.borders?.[side];
+    if (border) paragraph.style.setProperty(`border-${side}`, border);
+    const padding = props.borderSpacing?.[side];
+    if (padding !== undefined) paragraph.style.setProperty(`padding-${side}`, `${padding}pt`);
+  }
+  if (props.snapToGrid === false) paragraph.style.setProperty("--orim-pitch", "initial");
   if (props.change && context.changes === "markup") {
     paragraph.classList.add("orim-paragraph--change");
-    paragraph.title = `Formatted by ${props.change.author}${props.change.date ? ` on ${props.change.date}` : ""}`;
+    titles.push(
+      `Paragraph mark ${props.change.kind === "del" ? "deleted" : "inserted"} by ${props.change.author}${props.change.date ? ` on ${props.change.date}` : ""}`,
+    );
   }
   if (props.formattingChange && context.changes === "markup") {
     paragraph.classList.add("orim-format-change");
-    paragraph.title = `Formatted: ${props.formattingChange.author}${props.formattingChange.date ? ` ${props.formattingChange.date}` : ""}`;
+    titles.push(
+      `Formatted: ${props.formattingChange.author}${props.formattingChange.date ? ` ${props.formattingChange.date}` : ""}`,
+    );
   }
+  if (titles.length) paragraph.title = titles.join("\n");
   if (props.pageBreakBefore) paragraph.style.breakBefore = "page";
   if (block.list) {
     paragraph.classList.add("orim-list");
@@ -256,13 +295,25 @@ function renderParagraph(block: Paragraph, context: RenderContext): HTMLElement 
     paragraph.style.textIndent = `${-(block.list.hanging ?? 18)}pt`;
     const marker = document.createElement("span");
     marker.className = "orim-list-marker";
-    marker.textContent = block.list.marker;
+    marker.textContent =
+      block.list.marker +
+      (block.list.suffix === "space" ? " " : block.list.suffix === "tab" ? "\t" : "");
+    marker.style.minWidth = `${block.list.hanging ?? 18}pt`;
+    applyTextStyle(marker, block.markStyle);
     paragraph.append(marker);
   }
   for (const inline of block.runs) paragraph.append(renderInline(inline, context));
-  if (!block.runs.length) {
+  const hasVisibleInline = block.runs.some(
+    (inline) =>
+      (inline.type === "text" && inline.text.length > 0 && !inline.style?.hidden) ||
+      inline.type === "image" ||
+      inline.type === "field" ||
+      (inline.type === "comment-reference" && context.comments),
+  );
+  if (!hasVisibleInline) {
     const spacer = document.createElement("span");
     spacer.textContent = "\u200b";
+    applyTextStyle(spacer, block.markStyle);
     paragraph.append(spacer);
   }
   if (props.change && context.changes === "markup") {
@@ -271,19 +322,20 @@ function renderParagraph(block: Paragraph, context: RenderContext): HTMLElement 
     mark.textContent = " ¶";
     paragraph.append(mark);
   }
-  if (props.contextualSpacing) paragraph.classList.add("orim-contextual-spacing");
   return paragraph;
 }
 
 function renderTable(block: Table, context: RenderContext): HTMLTableElement {
   const table = document.createElement("table");
   table.className = "orim-table";
-  table.style.width = block.width ? `${block.width}pt` : "100%";
-  if (block.indent) table.style.marginLeft = `${block.indent}pt`;
+  if (block.width) table.style.width = block.width;
+  if (block.align === "center") table.style.marginInline = "auto";
+  else if (block.align === "right") table.style.marginLeft = "auto";
+  else if (block.indent) table.style.marginLeft = `${block.indent}pt`;
   const colgroup = document.createElement("colgroup");
   for (const width of block.widths) {
     const col = document.createElement("col");
-    if (width) col.style.width = `${width}pt`;
+    if (width) col.style.width = width;
     colgroup.append(col);
   }
   if (block.widths.length) table.append(colgroup);
@@ -295,7 +347,8 @@ function renderTable(block: Table, context: RenderContext): HTMLTableElement {
     if (row.header) tr.dataset.orimHeader = "true";
     if (row.height) tr.style.height = `${row.height}pt`;
     if (row.change && context.changes === "markup") {
-      tr.className = "orim-table-row--change";
+      tr.classList.add("orim-table-row--change", `orim-table-row--${row.change.kind}`);
+      tr.style.setProperty("--orim-change-color", changeColor(row.change, context.colors));
       tr.title = `${row.change.kind === "ins" ? "Inserted" : "Deleted"} by ${row.change.author}`;
     }
     for (const [cellIndex, cell] of row.cells.entries()) {
@@ -304,7 +357,7 @@ function renderTable(block: Table, context: RenderContext): HTMLTableElement {
       td.className = "orim-table-cell";
       if (cell.gridSpan > 1) td.colSpan = cell.gridSpan;
       if (cell.rowSpan > 1) td.rowSpan = cell.rowSpan;
-      if (cell.width) td.style.width = `${cell.width}pt`;
+      if (cell.width) td.style.width = cell.width;
       const bg = validColor(cell.shading);
       if (bg) td.style.backgroundColor = bg;
       if (cell.verticalAlign) td.style.verticalAlign = cell.verticalAlign;
@@ -357,6 +410,14 @@ function renderCommentText(comment: DocxComment): string {
     .join("\n");
 }
 
+function renderCommentAuthor(comment: DocxComment): string {
+  if (!comment.date || !Number.isFinite(new Date(comment.date).getTime())) return comment.author;
+  return `${comment.author} · ${new Date(comment.date).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })}`;
+}
+
 function addComments(pages: Page[], comments: DocxComment[]): void {
   const scope = pages[0]?.wrapper.parentElement;
   if (!scope) return;
@@ -377,7 +438,7 @@ function addComments(pages: Page[], comments: DocxComment[]): void {
     let nextTop = 0;
     for (const [id, top] of [...ordered].sort((a, b) => a[1] - b[1])) {
       const comment = byId.get(id);
-      if (!comment) continue;
+      if (!comment || comment.parentId) continue;
       const balloon = document.createElement("div");
       balloon.className = "orim-comment";
       balloon.dataset.comment = id;
@@ -385,7 +446,7 @@ function addComments(pages: Page[], comments: DocxComment[]): void {
       if (comment.done) balloon.classList.add("orim-comment--done");
       const author = document.createElement("div");
       author.className = "orim-comment-author";
-      author.textContent = comment.author;
+      author.textContent = renderCommentAuthor(comment);
       balloon.append(author);
       const text = document.createElement("div");
       text.className = "orim-comment-text";
@@ -400,7 +461,7 @@ function addComments(pages: Page[], comments: DocxComment[]): void {
           replyEl.className = `orim-comment${reply.done ? " orim-comment--done" : ""}`;
           const replyAuthor = document.createElement("div");
           replyAuthor.className = "orim-comment-author";
-          replyAuthor.textContent = reply.author;
+          replyAuthor.textContent = renderCommentAuthor(reply);
           const replyText = document.createElement("div");
           replyText.textContent = renderCommentText(reply);
           replyEl.append(replyAuthor, replyText);
@@ -495,6 +556,8 @@ export async function renderDocx(
     objectUrls,
     colors: new Map(),
   };
+  if (doc.defaultTabStop !== undefined)
+    root.style.setProperty("--orim-tab-size", `${doc.defaultTabStop}pt`);
   container.replaceChildren(root);
   let pages: Page[] = [];
   const draw = () => {

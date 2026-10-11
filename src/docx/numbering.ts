@@ -7,26 +7,37 @@ export interface NumberLevel {
   left?: number;
   hanging?: number;
   font?: string;
+  suffix?: "tab" | "space" | "nothing";
 }
 
 export interface Numbering {
   marker(
     numId: string,
     level: number,
-  ): { text: string; left?: number; hanging?: number; format: string };
+  ): {
+    text: string;
+    left?: number;
+    hanging?: number;
+    format: string;
+    suffix?: "tab" | "space" | "nothing";
+  };
 }
 
 function readLevel(node: Element): NumberLevel {
   const pPr = first(node, "pPr");
   const ind = first(pPr ?? node, "ind");
   const rFonts = first(first(node, "rPr") ?? node, "rFonts");
+  const left = attr(ind, "left") ?? attr(ind, "start");
+  const hanging = attr(ind, "hanging");
+  const suffix = attr(first(node, "suff"), "val");
   return {
     format: attr(first(node, "numFmt"), "val") ?? "decimal",
     text: attr(first(node, "lvlText"), "val") ?? "%1.",
     start: Number(attr(first(node, "start"), "val") ?? 1),
-    left: Number(attr(ind, "left") ?? attr(ind, "start") ?? 0) / 20,
-    hanging: Number(attr(ind, "hanging") ?? 0) / 20,
+    left: left === undefined ? undefined : Number(left) / 20,
+    hanging: hanging === undefined ? undefined : Number(hanging) / 20,
     font: attr(rFonts, "ascii") ?? attr(rFonts, "hAnsi"),
+    suffix: suffix === "space" || suffix === "nothing" || suffix === "tab" ? suffix : "tab",
   };
 }
 
@@ -141,8 +152,25 @@ export function parseNumbering(doc: Document | undefined): Numbering {
           level.format;
         return formatNumber(values[which] ?? 1, fmt);
       });
-      const marker = level.format === "bullet" && /[\ue000-\uf8ff]/u.test(label) ? "•" : label;
-      return { text: marker, left: level.left, hanging: level.hanging, format: level.format };
+      const bullets: Record<string, string> = {
+        "\uf0a7": "▪",
+        "\uf0a8": "•",
+        "\uf0b7": "•",
+        "\uf0d8": "➢",
+        "\uf076": "❖",
+        "\uf0fc": "✓",
+      };
+      const marker =
+        level.format === "bullet"
+          ? label.replace(/[\ue000-\uf8ff]/gu, (char) => bullets[char] ?? "•")
+          : label;
+      return {
+        text: marker,
+        left: level.left,
+        hanging: level.hanging,
+        format: level.format,
+        suffix: level.suffix,
+      };
     },
   };
 }

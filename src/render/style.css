@@ -2,6 +2,7 @@
   color: #202124;
   font-family: Arial, "Noto Sans", sans-serif;
   line-height: 1.35;
+  tab-size: var(--orim-tab-size, 36pt);
 }
 .orim-pages {
   display: flex;
@@ -19,10 +20,13 @@
   box-sizing: border-box;
   background: #fff;
   color: #111;
+  font-size: 10pt;
   box-shadow: 0 2px 12px #0002;
   overflow: hidden;
 }
 .orim-content {
+  display: flex;
+  flex-direction: column;
   position: absolute;
   box-sizing: border-box;
   overflow: hidden;
@@ -30,11 +34,17 @@
 }
 .orim-header,
 .orim-footer {
+  display: flex;
+  flex-direction: column;
   position: absolute;
   left: 0;
   right: 0;
   overflow: hidden;
-  font-size: 9pt;
+}
+.orim-content > *,
+.orim-header > *,
+.orim-footer > * {
+  flex: none;
 }
 .orim-header p,
 .orim-footer p {
@@ -42,6 +52,7 @@
 }
 .orim-paragraph {
   position: relative;
+  margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -54,10 +65,6 @@
   min-width: 1.4em;
   white-space: pre;
 }
-.orim-tab {
-  display: inline-block;
-  white-space: pre;
-}
 .orim-change--ins {
   color: var(--orim-change-color, #188038);
   text-decoration: underline;
@@ -67,11 +74,11 @@
   text-decoration: line-through;
 }
 .orim-change--moveTo {
-  color: var(--orim-change-color, #137333);
+  color: #137333;
   text-decoration: underline double;
 }
 .orim-change--moveFrom {
-  color: var(--orim-change-color, #137333);
+  color: #137333;
   text-decoration: line-through double;
 }
 .orim-final .orim-change--del,
@@ -112,7 +119,11 @@
   overflow-wrap: anywhere;
 }
 .orim-table-row--change {
-  border-left: 2px solid #188038;
+  border-left: 2px solid var(--orim-change-color, #188038);
+}
+.orim-table-row--del > .orim-table-cell {
+  color: var(--orim-change-color, #c5221f);
+  text-decoration: line-through;
 }
 .orim-image {
   max-width: 100%;

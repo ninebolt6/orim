@@ -9,6 +9,6 @@ This project uses Vite+, a unified toolchain for the web. Vite+ is available loc
 # orim notes
 
 - Keep the published library free of runtime dependencies. `fflate` is only for fixture generation and tests.
-- Keep OOXML parsing and browser rendering separate; do not add spreadsheet or presentation readers.
+- XLSX/PPTX support may come later: keep zip.ts/opc.ts format-agnostic, but don't build for it yet.
 - Create document text only with DOM text nodes; sanitize all document-provided links and colors.
 - Run the pre-commit checks through `pnpm exec vp staged`.
