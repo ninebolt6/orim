@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { Block, Paragraph } from "../docx/model";
-import { resolveParagraphMarks } from "./revisions";
+import { resolveParagraphMarks, revisionVisibility } from "./revisions";
 
 const paragraph = (text: string, change?: "ins" | "del"): Paragraph => ({
   type: "paragraph",
@@ -56,5 +56,24 @@ describe("paragraph-mark revisions", () => {
     expect(resolved[0].type).toBe("table");
     if (resolved[0].type !== "table") return;
     expect(resolved[0].rows[0].cells[0].blocks).toHaveLength(1);
+  });
+});
+
+describe("revision visibility", () => {
+  it.each([
+    ["ins", "markup", "marked"],
+    ["del", "markup", "marked"],
+    ["moveFrom", "markup", "marked"],
+    ["moveTo", "markup", "marked"],
+    ["ins", "final", "plain"],
+    ["del", "final", "hidden"],
+    ["moveFrom", "final", "hidden"],
+    ["moveTo", "final", "plain"],
+    ["ins", "original", "hidden"],
+    ["del", "original", "plain"],
+    ["moveFrom", "original", "plain"],
+    ["moveTo", "original", "hidden"],
+  ] as const)("classifies %s in %s as %s", (kind, mode, expected) => {
+    expect(revisionVisibility(kind, mode)).toBe(expected);
   });
 });

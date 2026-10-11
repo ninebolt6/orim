@@ -3,6 +3,7 @@ import type { RenderContext } from "./context";
 import { renderInline } from "./inline";
 import { validColor } from "./sanitize";
 import { applyTextStyle } from "./text-style";
+import { revisionVisibility } from "./revisions";
 
 export function renderParagraph(block: Paragraph, context: RenderContext): HTMLElement {
   const paragraph = document.createElement("p");
@@ -38,7 +39,10 @@ export function renderParagraph(block: Paragraph, context: RenderContext): HTMLE
     if (padding !== undefined) paragraph.style.setProperty(`padding-${side}`, `${padding}pt`);
   }
   if (props.snapToGrid === false) paragraph.style.setProperty("--orim-pitch", "initial");
-  if (props.change && context.changes === "markup") {
+  const markVisibility = props.change
+    ? revisionVisibility(props.change.kind, context.changes)
+    : "plain";
+  if (props.change && markVisibility === "marked") {
     paragraph.classList.add(
       "orim-paragraph--change",
       `orim-paragraph--change-${props.change.kind}`,
@@ -62,7 +66,7 @@ export function renderParagraph(block: Paragraph, context: RenderContext): HTMLE
     const marker = document.createElement("span");
     marker.className = "orim-list-marker";
     marker.textContent =
-      block.list.marker +
+      (block.list.marker ?? "") +
       (block.list.suffix === "space" ? " " : block.list.suffix === "tab" ? "\t" : "");
     marker.style.minWidth = `${block.list.hanging ?? 18}pt`;
     applyTextStyle(marker, block.markStyle);
@@ -72,7 +76,8 @@ export function renderParagraph(block: Paragraph, context: RenderContext): HTMLE
   const hasVisibleInline = block.runs.some(
     (inline) =>
       (inline.type === "text" && inline.text.length > 0 && !inline.style?.hidden) ||
-      inline.type === "image" ||
+      (inline.type === "image" &&
+        (!inline.change || revisionVisibility(inline.change.kind, context.changes) !== "hidden")) ||
       inline.type === "field" ||
       (inline.type === "comment-reference" && context.comments),
   );
@@ -82,7 +87,7 @@ export function renderParagraph(block: Paragraph, context: RenderContext): HTMLE
     applyTextStyle(spacer, block.markStyle);
     paragraph.append(spacer);
   }
-  if (props.change && context.changes === "markup") {
+  if (props.change && markVisibility === "marked") {
     const mark = document.createElement("span");
     mark.className = "orim-paragraph-mark";
     mark.textContent = " ¶";

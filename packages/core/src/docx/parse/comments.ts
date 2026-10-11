@@ -1,9 +1,8 @@
 import type { Block, DocxComment } from "../model";
-import { attr, children, descendants, elements } from "../../xml";
+import { attr, children, descendants, elements, W14, W15 } from "../../xml";
 import type { OpcPackage } from "../../opc/package";
 import type { ParseContext } from "./context";
-import { createCommentRangeState } from "./context";
-import { createFieldStack } from "./fields";
+import { createParseState } from "./context";
 
 type ParseBlocks = (nodes: Element[], context: ParseContext) => Block[];
 
@@ -12,11 +11,12 @@ export async function parseComments(
   context: ParseContext,
   parseBlocks: ParseBlocks,
 ): Promise<DocxComment[]> {
+  const config = context.config;
   const relatedPath = (suffix: string): string | undefined => {
-    const relation = [...context.rels.values()].find(
+    const relation = [...config.rels.values()].find(
       (item) => !item.external && item.type.endsWith(`/${suffix}`),
     );
-    return relation ? opc.resolve(context.source, relation.target) : undefined;
+    return relation ? opc.resolve(config.source, relation.target) : undefined;
   };
   const commentsExtendedPath = relatedPath("commentsExtended");
   const extended =
@@ -25,14 +25,14 @@ export async function parseComments(
       : undefined;
   const extensionByParaId = new Map(
     (extended ? descendants(extended, "commentEx") : []).flatMap((node) => {
-      const paraId = attr(node, "paraId");
+      const paraId = attr(node, "paraId", W15);
       return paraId
         ? [
             [
               paraId,
               {
-                parentParaId: attr(node, "paraIdParent"),
-                done: attr(node, "done") === "1" || attr(node, "done") === "true",
+                parentParaId: attr(node, "paraIdParent", W15),
+                done: attr(node, "done", W15) === "1" || attr(node, "done", W15) === "true",
               },
             ] as const,
           ]
@@ -46,22 +46,23 @@ export async function parseComments(
   const nodes = descendants(commentsDoc, "comment");
   const nodesByParaId = new Map(
     nodes.flatMap((node) => {
-      const paraId = elements(node, "p").at(-1) && attr(elements(node, "p").at(-1), "paraId");
+      const paraId = elements(node, "p").at(-1) && attr(elements(node, "p").at(-1), "paraId", W14);
       return paraId ? [[paraId, node] as const] : [];
     }),
   );
   const commentContext: ParseContext = {
-    ...context,
-    source: commentsPath,
-    rels: await opc.relationships(commentsPath),
-    commentRanges: createCommentRangeState(),
-    fields: createFieldStack(),
+    config: {
+      ...config,
+      source: commentsPath,
+      rels: await opc.relationships(commentsPath),
+    },
+    state: createParseState(),
   };
   return nodes.flatMap((node) => {
     const id = attr(node, "id");
     if (!id) return [];
     const lastParagraph = elements(node, "p").at(-1);
-    const paraId = lastParagraph && attr(lastParagraph, "paraId");
+    const paraId = lastParagraph && attr(lastParagraph, "paraId", W14);
     const extension = paraId ? extensionByParaId.get(paraId) : undefined;
     const parentNode = extension?.parentParaId
       ? nodesByParaId.get(extension.parentParaId)
@@ -74,7 +75,7 @@ export async function parseComments(
         date: attr(node, "date"),
         paragraphs: parseBlocks(children(node), {
           ...commentContext,
-          commentRanges: createCommentRangeState(),
+          state: createParseState(),
         }),
         paraId,
         ...(extension

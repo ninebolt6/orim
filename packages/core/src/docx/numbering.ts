@@ -1,26 +1,28 @@
 import { attr, descendants, elements, first } from "../xml";
+import type { Block } from "./model";
 
 export interface NumberLevel {
-  format: string;
-  text: string;
-  start: number;
-  left?: number;
-  hanging?: number;
-  font?: string;
-  suffix?: "tab" | "space" | "nothing";
+  readonly format: string;
+  readonly text: string;
+  readonly start: number;
+  readonly left?: number;
+  readonly hanging?: number;
+  readonly font?: string;
+  readonly suffix?: "tab" | "space" | "nothing";
+}
+
+export interface NumberMarker {
+  readonly text: string;
+  readonly left?: number;
+  readonly hanging?: number;
+  readonly format: string;
+  readonly suffix?: "tab" | "space" | "nothing";
+  readonly counters: readonly number[];
 }
 
 export interface Numbering {
-  marker(
-    numId: string,
-    level: number,
-  ): {
-    text: string;
-    left?: number;
-    hanging?: number;
-    format: string;
-    suffix?: "tab" | "space" | "nothing";
-  };
+  level(numId: string, level: number): NumberLevel;
+  marker(numId: string, level: number, counters?: readonly number[]): NumberMarker;
 }
 
 function readLevel(node: Element): NumberLevel {
@@ -50,7 +52,7 @@ function alpha(number: number, upper: boolean): string {
 }
 
 function roman(number: number): string {
-  const digits: Array<[number, string]> = [
+  const digits: readonly (readonly [number, string])[] = [
     [1000, "M"],
     [900, "CM"],
     [500, "D"],
@@ -65,13 +67,13 @@ function roman(number: number): string {
     [4, "IV"],
     [1, "I"],
   ];
-  return digits.reduce(
-    (state, [value, symbol]) => ({
-      remaining: state.remaining % value,
-      output: state.output + symbol.repeat(Math.floor(state.remaining / value)),
-    }),
-    { remaining: number, output: "" },
-  ).output;
+  let remaining = number;
+  let output = "";
+  for (const [value, symbol] of digits) {
+    output += symbol.repeat(Math.floor(remaining / value));
+    remaining %= value;
+  }
+  return output;
 }
 
 function formatNumber(number: number, format: string): string {
@@ -128,30 +130,31 @@ export function parseNumbering(doc: Document | undefined): Numbering {
       }
     }
   }
-  const counts = new Map<string, number[]>();
+  const level = (numId: string, levelIndex: number): NumberLevel => {
+    const abstractId = nums.get(numId);
+    return (
+      overrides.get(numId)?.get(levelIndex) ??
+      abstract.get(abstractId ?? "")?.get(levelIndex) ?? {
+        format: "decimal",
+        text: `%${levelIndex + 1}.`,
+        start: 1,
+      }
+    );
+  };
   return {
-    marker(numId, levelIndex) {
-      const abstractId = nums.get(numId);
-      const level = overrides.get(numId)?.get(levelIndex) ??
-        abstract.get(abstractId ?? "")?.get(levelIndex) ?? {
-          format: "decimal",
-          text: `%${levelIndex + 1}.`,
-          start: 1,
-        };
-      const values = counts.get(numId) ?? [];
-      if (values[levelIndex] === undefined) values[levelIndex] = level.start - 1;
+    level,
+    marker(numId, levelIndex, counters = []) {
+      const currentLevel = level(numId, levelIndex);
+      const values = [...counters];
+      if (values[levelIndex] === undefined) values[levelIndex] = currentLevel.start - 1;
       values[levelIndex]++;
       values.length = levelIndex + 1;
-      counts.set(numId, values);
-      const label = level.text.replace(/%([1-9])/g, (_match, index: string) => {
+      const label = currentLevel.text.replace(/%([1-9])/g, (_match, index: string) => {
         const which = Number(index) - 1;
-        const fmt =
-          overrides.get(numId)?.get(which)?.format ??
-          abstract.get(abstractId ?? "")?.get(which)?.format ??
-          level.format;
-        return formatNumber(values[which] ?? 1, fmt);
+        const referencedLevel = level(numId, which);
+        return formatNumber(values[which] ?? referencedLevel.start, referencedLevel.format);
       });
-      const bullets: Record<string, string> = {
+      const bullets: Readonly<Record<string, string>> = {
         "\uf0a7": "▪",
         "\uf0a8": "•",
         "\uf0b7": "•",
@@ -160,16 +163,44 @@ export function parseNumbering(doc: Document | undefined): Numbering {
         "\uf0fc": "✓",
       };
       const marker =
-        level.format === "bullet"
+        currentLevel.format === "bullet"
           ? label.replace(/[\ue000-\uf8ff]/gu, (char) => bullets[char] ?? "•")
           : label;
       return {
         text: marker,
-        left: level.left,
-        hanging: level.hanging,
-        format: level.format,
-        suffix: level.suffix,
+        left: currentLevel.left,
+        hanging: currentLevel.hanging,
+        format: currentLevel.format,
+        suffix: currentLevel.suffix,
+        counters: values,
       };
     },
   };
+}
+
+export function assignListMarkers(blocks: readonly Block[], numbering: Numbering): Block[] {
+  const counters = new Map<string, readonly number[]>();
+  const assign = (block: Block): Block => {
+    if (block.type === "paragraph") {
+      if (!block.list) return block;
+      const marker = numbering.marker(
+        block.list.numId,
+        block.list.level,
+        counters.get(block.list.numId),
+      );
+      counters.set(block.list.numId, marker.counters);
+      return { ...block, list: { ...block.list, marker: marker.text } };
+    }
+    return {
+      ...block,
+      rows: block.rows.map((row) => ({
+        ...row,
+        cells: row.cells.map((cell) => ({
+          ...cell,
+          blocks: cell.blocks.map(assign),
+        })),
+      })),
+    };
+  };
+  return blocks.map(assign);
 }

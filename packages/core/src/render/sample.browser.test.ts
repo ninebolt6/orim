@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import { parseDocx } from "../docx/parse";
 import type { DocxDocument } from "../docx/model";
-import { renderDocx } from "../index";
+import { renderDocument } from "../index";
+import "./styles.css";
 import sampleUrl from "../../../../fixtures/sample.docx?url";
 
 async function sampleDocument(): Promise<DocxDocument> {
@@ -94,7 +95,7 @@ function tableAfterContentDocument(): DocxDocument {
 describe("sample DOCX in Chromium", () => {
   it("uses portrait and landscape page geometry without overflow", async () => {
     const container = createContainer();
-    const rendered = await renderDocx(await sampleDocument(), container);
+    const rendered = renderDocument(await sampleDocument(), container);
     const pages = Array.from(container.querySelectorAll<HTMLElement>(".orim-page"));
     expect(pages).toHaveLength(7);
     expect(pages[0].offsetWidth).toBeLessThan(pages[0].offsetHeight);
@@ -110,7 +111,7 @@ describe("sample DOCX in Chromium", () => {
 
   it("continues the long table and repeats its header", async () => {
     const container = createContainer();
-    const rendered = await renderDocx(await sampleDocument(), container);
+    const rendered = renderDocument(await sampleDocument(), container);
     const tableParts = Array.from(container.querySelectorAll<HTMLTableElement>(".orim-table"));
     expect(tableParts.length).toBeGreaterThanOrEqual(2);
     expect(
@@ -122,7 +123,7 @@ describe("sample DOCX in Chromium", () => {
 
   it("conserves table body rows when a table follows preceding content", async () => {
     const container = createContainer();
-    const rendered = await renderDocx(tableAfterContentDocument(), container);
+    const rendered = renderDocument(tableAfterContentDocument(), container);
     const tables = Array.from(container.querySelectorAll<HTMLTableElement>(".orim-table"));
     const rows = tables.flatMap((table) =>
       Array.from(table.rows)
@@ -143,7 +144,7 @@ describe("sample DOCX in Chromium", () => {
 
   it("keeps the bullet marker visible inside the page", async () => {
     const container = createContainer();
-    const rendered = await renderDocx(await sampleDocument(), container);
+    const rendered = renderDocument(await sampleDocument(), container);
     const paragraph = Array.from(container.querySelectorAll<HTMLElement>(".orim-paragraph")).find(
       (item) => item.textContent?.includes("Bullet item"),
     )!;
@@ -196,7 +197,7 @@ describe("sample DOCX in Chromium", () => {
 
   it("keeps comment balloons near their anchors inside their page", async () => {
     const container = createContainer();
-    const rendered = await renderDocx(await sampleDocument(), container);
+    const rendered = renderDocument(await sampleDocument(), container);
     const balloons = Array.from(
       container.querySelectorAll<HTMLElement>(".orim-page-comments > .orim-comment"),
     );
@@ -226,7 +227,7 @@ describe("sample DOCX in Chromium", () => {
 
   it("starts the paragraph after an explicit page break at the next page top", async () => {
     const container = createContainer();
-    const rendered = await renderDocx(await sampleDocument(), container);
+    const rendered = renderDocument(await sampleDocument(), container);
     const paragraphs = Array.from(container.querySelectorAll<HTMLElement>(".orim-paragraph"));
     const before = paragraphs.find((paragraph) =>
       paragraph.textContent?.includes("Before inline page break"),
@@ -242,7 +243,7 @@ describe("sample DOCX in Chromium", () => {
 
   it("repaginates deleted text when switching to Final mode", async () => {
     const container = createContainer();
-    const rendered = await renderDocx(deletedTextDocument(), container);
+    const rendered = renderDocument(deletedTextDocument(), container);
     const markupPages = container.querySelectorAll(".orim-page").length;
     rendered.update({ changes: "final" });
     const finalPages = container.querySelectorAll(".orim-page").length;

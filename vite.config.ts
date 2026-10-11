@@ -26,6 +26,7 @@ export default defineConfig({
         test: {
           name: "unit",
           environment: "happy-dom",
+          setupFiles: ["./packages/core/test/namespace-dom.ts"],
           include: ["packages/**/*.test.{ts,tsx}", "apps/**/*.test.{ts,tsx}"],
           exclude: ["**/node_modules/**", "**/dist/**", "**/*.browser.test.{ts,tsx}"],
         },

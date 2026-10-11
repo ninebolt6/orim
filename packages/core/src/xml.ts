@@ -1,9 +1,20 @@
-export function attr(element: Element | undefined, name: string): string | undefined {
+export const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+export const R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+export const W14 = "http://schemas.microsoft.com/office/word/2010/wordml";
+export const W15 = "http://schemas.microsoft.com/office/word/2012/wordml";
+export const WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+export const A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+
+export function attr(
+  element: Element | undefined,
+  name: string,
+  namespace: string | null = W,
+): string | undefined {
   if (!element) return undefined;
-  for (const item of Array.from(element.attributes)) {
-    if (item.localName === name || item.name.split(":").at(-1) === name) return item.value;
-  }
-  return undefined;
+  const namespaced = element.getAttributeNS(namespace, name);
+  if (namespaced !== null) return namespaced;
+  const unprefixed = element.getAttributeNode(name);
+  return unprefixed && unprefixed.namespaceURI === null ? unprefixed.value : undefined;
 }
 
 export function children(parent: ParentNode): Element[] {

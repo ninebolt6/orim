@@ -3,31 +3,22 @@ import { children, elements, first } from "../../xml";
 
 export function splitAtPageBreaks(paragraph: Paragraph): Paragraph[] {
   if (!paragraph.runs.some((run) => run.type === "break" && run.page)) return [paragraph];
-  const split = paragraph.runs.reduce(
-    (state, run) => {
-      if (run.type !== "break" || !run.page) return { ...state, current: [...state.current, run] };
-      if (state.current.length)
-        return {
-          ...state,
-          segments: [...state.segments, { runs: state.current, pageBreakAfter: true }],
-          current: [],
-        };
-      if (!state.segments.length) return { ...state, leadingBreak: true };
-      const last = state.segments.at(-1)!;
-      return {
-        ...state,
-        segments: [...state.segments.slice(0, -1), { ...last, pageBreakAfter: true }],
-      };
-    },
-    {
-      segments: [] as Array<{ runs: Inline[]; pageBreakAfter: boolean }>,
-      current: [] as Inline[],
-      leadingBreak: false,
-    },
-  );
-  const segments = split.current.length
-    ? [...split.segments, { runs: split.current, pageBreakAfter: false }]
-    : split.segments;
+  const segments: Array<{ runs: Inline[]; pageBreakAfter: boolean }> = [];
+  let current: Inline[] = [];
+  let leadingBreak = false;
+  for (const run of paragraph.runs) {
+    if (run.type !== "break" || !run.page) {
+      current.push(run);
+    } else if (current.length) {
+      segments.push({ runs: current, pageBreakAfter: true });
+      current = [];
+    } else if (segments.length) {
+      segments[segments.length - 1] = { ...segments[segments.length - 1], pageBreakAfter: true };
+    } else {
+      leadingBreak = true;
+    }
+  }
+  if (current.length) segments.push({ runs: current, pageBreakAfter: false });
   if (!segments.length)
     return [
       {
@@ -42,11 +33,7 @@ export function splitAtPageBreaks(paragraph: Paragraph): Paragraph[] {
       ...paragraph.properties,
       before: index ? 0 : paragraph.properties.before,
       pageBreakBefore:
-        index === 0 && split.leadingBreak
-          ? true
-          : index
-            ? false
-            : paragraph.properties.pageBreakBefore,
+        index === 0 && leadingBreak ? true : index ? false : paragraph.properties.pageBreakBefore,
       pageBreakAfter,
     },
     runs: segmentRuns,

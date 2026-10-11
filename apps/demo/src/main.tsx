@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { parseDocx } from "@orim/core";
 import type { DocxDocument } from "@orim/core";
+import "@orim/core/style.css";
 import { App } from "./App";
 import "./style.css";
 import sampleUrl from "../../../fixtures/sample.docx?url";

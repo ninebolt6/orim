@@ -7,12 +7,15 @@ orim is a small TypeScript DOCX reader for modern browsers. It reads `.docx` fil
 - `@orim/core` parses OOXML and renders paginated documents into a DOM container.
 - `@orim/react` provides the `DocxViewer` React component and treats React as a peer dependency.
 
+Import `@orim/core/style.css` once in the application to apply the renderer styles.
+
 The workspace demo in `apps/demo` shows the renderer with the generated sample document.
 
 ## Vanilla JavaScript
 
 ```ts
 import { parseDocx, renderDocx } from "@orim/core";
+import "@orim/core/style.css";
 
 const rendered = await renderDocx(file, document.querySelector("#document")!, {
   changes: "markup",
@@ -30,6 +33,7 @@ const model = await parseDocx(file);
 ```tsx
 import { parseDocx } from "@orim/core";
 import { DocxViewer } from "@orim/react";
+import "@orim/core/style.css";
 
 const model = await parseDocx(file);
 

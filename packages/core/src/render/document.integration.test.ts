@@ -44,7 +44,14 @@ describe("DOCX rendering integration", () => {
     const container = document.createElement("div");
     const rendered = await renderDocx(data, container);
     expect(container.querySelector(".orim-comment")).not.toBeNull();
-    expect(container.querySelector(".orim-comment-anchor")).not.toBeNull();
+    const anchor = container.querySelector<HTMLElement>(".orim-comment-anchor")!;
+    const balloon = container.querySelector<HTMLElement>(".orim-comment")!;
+    expect(anchor).not.toBeNull();
+    anchor.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    expect(anchor.classList.contains("orim-comment-active")).toBe(true);
+    expect(balloon.classList.contains("orim-comment-active")).toBe(true);
+    anchor.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(anchor.classList.contains("orim-comment-pinned")).toBe(true);
     rendered.update({ comments: false });
     expect(container.querySelector(".orim-comment")).toBeNull();
     expect(container.querySelector(".orim-comment-anchor")).toBeNull();
@@ -72,12 +79,26 @@ describe("DOCX rendering integration", () => {
     const container = document.createElement("div");
     const rendered = await renderDocx(data, container);
     expect(container.querySelectorAll("img")).toHaveLength(2);
+    expect(container.querySelector(".orim-change--ins")).not.toBeNull();
+    expect(container.querySelector(".orim-change--del")).not.toBeNull();
     rendered.update({ changes: "final" });
     expect(container.querySelectorAll("img")).toHaveLength(1);
-    expect(container.querySelector(".orim-change--ins")).not.toBeNull();
+    expect(container.querySelector(".orim-change--ins")).toBeNull();
     rendered.update({ changes: "original" });
     expect(container.querySelectorAll("img")).toHaveLength(1);
-    expect(container.querySelector(".orim-change--del")).not.toBeNull();
+    expect(container.querySelector(".orim-change--del")).toBeNull();
+    rendered.destroy();
+  });
+
+  it("renders comment references nested inside runs as superscripts", async () => {
+    const data = buildDocx({
+      document: documentXml('<w:p><w:r><w:commentReference w:id="17"/></w:r></w:p><w:sectPr/>'),
+    });
+    const container = document.createElement("div");
+    const rendered = await renderDocx(data, container);
+    const marker = container.querySelector<HTMLElement>("sup.orim-comment-reference");
+    expect(marker?.textContent).toBe("1");
+    expect(marker?.dataset.comment).toBe("17");
     rendered.destroy();
   });
 });

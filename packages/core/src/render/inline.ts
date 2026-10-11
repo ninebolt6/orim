@@ -2,6 +2,7 @@ import type { Inline } from "../docx/model";
 import type { RenderContext } from "./context";
 import { safeHref } from "./sanitize";
 import { applyTextStyle, changeColor } from "./text-style";
+import { revisionVisibility } from "./revisions";
 
 export function renderInline(inline: Inline, context: RenderContext): Node {
   if (inline.type === "break") {
@@ -16,22 +17,24 @@ export function renderInline(inline: Inline, context: RenderContext): Node {
     if (!context.comments) return document.createTextNode("");
     const marker = document.createElement("sup");
     marker.className = "orim-comment-reference";
-    marker.textContent = String(Number(inline.id) + 1);
+    let number = context.commentReferences.get(inline.id);
+    if (number === undefined) {
+      number = context.commentReferences.size + 1;
+      context.commentReferences.set(inline.id, number);
+    }
+    marker.textContent = String(number);
     marker.dataset.comment = inline.id;
     return marker;
   }
   if (inline.type === "image") {
     const change = inline.change;
-    const hidden =
-      change &&
-      ((context.changes === "final" && (change.kind === "del" || change.kind === "moveFrom")) ||
-        (context.changes === "original" && (change.kind === "ins" || change.kind === "moveTo")));
-    if (hidden) return document.createTextNode("");
+    const visibility = change ? revisionVisibility(change.kind, context.changes) : "plain";
+    if (visibility === "hidden") return document.createTextNode("");
     const image = document.createElement("img");
     image.className = "orim-image";
-    if (change) {
+    if (change && visibility === "marked") {
       image.classList.add(`orim-change--${change.kind}`);
-      if (context.changes === "markup" && change.kind !== "moveTo" && change.kind !== "moveFrom")
+      if (change.kind !== "moveTo" && change.kind !== "moveFrom")
         image.style.setProperty("--orim-change-color", changeColor(change, context.colors));
     }
     const part = context.doc.imageParts[inline.path];
@@ -53,12 +56,22 @@ export function renderInline(inline: Inline, context: RenderContext): Node {
   if (inline.type === "field") {
     const field = document.createElement("span");
     field.className = "orim-field";
-    field.dataset.field = inline.name;
-    field.dataset.cached = inline.cached ?? "";
     field.textContent = inline.cached ?? "";
     applyTextStyle(field, inline.style);
+    if (inline.name === "PAGE" && context.decorationPageNumber !== undefined)
+      field.textContent = String(context.decorationPageNumber);
+    else if (inline.name === "PAGE" || inline.name === "NUMPAGES")
+      context.fields.push({
+        element: field,
+        name: inline.name,
+        cached: inline.cached ?? "",
+      });
     return field;
   }
+  const visibility = inline.change
+    ? revisionVisibility(inline.change.kind, context.changes)
+    : "plain";
+  if (visibility === "hidden") return document.createTextNode("");
   let textNode: HTMLElement;
   const href = safeHref(inline.href);
   if (href) {
@@ -75,22 +88,17 @@ export function renderInline(inline: Inline, context: RenderContext): Node {
   const titles: string[] = [];
   if (inline.change) {
     const { kind, author, date } = inline.change;
-    textNode.classList.add(`orim-change--${kind}`);
-    if (kind === "moveTo" || kind === "moveFrom") {
-      const accepted =
-        (kind === "moveTo" && context.changes === "final") ||
-        (kind === "moveFrom" && context.changes === "original");
-      textNode.style.color = accepted ? "inherit" : "#137333";
-      textNode.style.textDecoration = accepted
-        ? "none"
-        : kind === "moveTo"
-          ? "underline double"
-          : "line-through double";
-    } else
-      textNode.style.setProperty("--orim-change-color", changeColor(inline.change, context.colors));
-    titles.push(
-      `${kind === "ins" || kind === "moveTo" ? "Inserted" : "Deleted"} by ${author}${date ? ` on ${date}` : ""}`,
-    );
+    if (visibility === "marked") {
+      textNode.classList.add(`orim-change--${kind}`);
+      if (kind !== "moveTo" && kind !== "moveFrom")
+        textNode.style.setProperty(
+          "--orim-change-color",
+          changeColor(inline.change, context.colors),
+        );
+      titles.push(
+        `${kind === "ins" || kind === "moveTo" ? "Inserted" : "Deleted"} by ${author}${date ? ` on ${date}` : ""}`,
+      );
+    }
   }
   if (inline.formattingChange && context.changes === "markup") {
     textNode.classList.add("orim-format-change");
@@ -104,6 +112,11 @@ export function renderInline(inline: Inline, context: RenderContext): Node {
     anchor.className = "orim-comment-anchor";
     anchor.dataset.c = inline.comments.join(" ");
     anchor.append(textNode);
+    for (const id of inline.comments) {
+      const anchors = context.commentAnchors.get(id) ?? [];
+      anchors.push(anchor);
+      context.commentAnchors.set(id, anchors);
+    }
     return anchor;
   }
   return textNode;

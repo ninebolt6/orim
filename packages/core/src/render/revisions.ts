@@ -1,5 +1,22 @@
-import type { Block, DocxDocument, Paragraph, SectionProperties, Table } from "../docx/model";
+import type {
+  Block,
+  ChangeKind,
+  DocxDocument,
+  Paragraph,
+  SectionProperties,
+  Table,
+} from "../docx/model";
 import type { ChangesMode } from "./document";
+
+export function revisionVisibility(
+  kind: ChangeKind,
+  mode: ChangesMode,
+): "hidden" | "marked" | "plain" {
+  if (mode === "markup") return "marked";
+  const accepted = kind === "ins" || kind === "moveTo";
+  if (mode === "final") return accepted ? "plain" : "hidden";
+  return accepted ? "hidden" : "plain";
+}
 
 function resolveTable(table: Table, mode: ChangesMode): Table {
   return {
@@ -20,24 +37,30 @@ export function resolveParagraphMarks(blocks: readonly Block[], mode: ChangesMod
   );
   if (mode === "markup") return resolved;
 
-  const excludedKind = mode === "final" ? "del" : "ins";
   const output: Block[] = [];
   for (let index = 0; index < resolved.length; index++) {
     const block = resolved[index];
-    if (block.type !== "paragraph" || block.properties.change?.kind !== excludedKind) {
+    const visibility =
+      block.type === "paragraph" && block.properties.change
+        ? revisionVisibility(block.properties.change.kind, mode)
+        : "plain";
+    if (block.type !== "paragraph" || visibility !== "hidden") {
       output.push(block);
       continue;
     }
 
     let current: Paragraph = block;
-    let runs = [...block.runs];
+    const runs = [...block.runs];
     let nextIndex = index + 1;
     while (resolved[nextIndex]?.type === "paragraph") {
       const next = resolved[nextIndex] as Paragraph;
-      runs = [...runs, ...next.runs];
+      runs.push(...next.runs);
       current = next;
       nextIndex++;
-      if (current.properties.change?.kind !== excludedKind) break;
+      const nextVisibility = next.properties.change
+        ? revisionVisibility(next.properties.change.kind, mode)
+        : "plain";
+      if (nextVisibility !== "hidden") break;
     }
     if (nextIndex > index + 1) {
       output.push({ ...current, runs });

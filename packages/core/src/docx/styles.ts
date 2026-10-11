@@ -4,11 +4,14 @@ import { halfPoints, points, twips } from "./units";
 import type { ThemeFonts } from "./theme";
 import type { ParagraphProperties, TextStyle } from "./model";
 
-type Props = Record<string, unknown>;
 type BorderSides = Partial<
   Record<"top" | "right" | "bottom" | "left" | "insideH" | "insideV", string>
 >;
 type CellMargins = Partial<Record<"top" | "right" | "bottom" | "left", number>>;
+export type RawRunProperties = Partial<TextStyle> & {
+  fontLatin?: string;
+  fontEastAsia?: string;
+};
 
 export interface TableStyleProperties {
   borders: BorderSides;
@@ -18,14 +21,14 @@ export interface TableStyleProperties {
 
 interface Style {
   basedOn?: string;
-  paragraph: Props;
-  run: Props;
+  paragraph: Partial<ParagraphProperties>;
+  run: RawRunProperties;
   numbering: { numId?: string; level?: number };
 }
 
 export interface StyleSheet {
   paragraph(styleId?: string, direct?: Partial<ParagraphProperties>): ParagraphProperties;
-  run(paragraphStyle?: string, runStyle?: string, direct?: Partial<TextStyle>): TextStyle;
+  run(paragraphStyle?: string, runStyle?: string, direct?: RawRunProperties): TextStyle;
   numbering(styleId?: string): { numId?: string; level?: number };
   table(styleId?: string): TableStyleProperties;
 }
@@ -57,12 +60,7 @@ function tableStyleProperties(node: Element): TableStyleProperties {
 
 type Theme = ThemeFonts;
 
-type ParsedRunProperties = Partial<TextStyle> & {
-  readonly fontLatin?: string;
-  readonly fontEastAsia?: string;
-};
-
-function runProperties(parent: Element | undefined, theme: Theme): Props {
+function runProperties(parent: Element | undefined, theme: Theme): RawRunProperties {
   if (!parent) return {};
   const fonts = first(parent, "rFonts");
   const latinTheme = attr(fonts, "asciiTheme") ?? attr(fonts, "hAnsiTheme");
@@ -103,21 +101,12 @@ function runProperties(parent: Element | undefined, theme: Theme): Props {
   };
 }
 
-function composeRunProperties(props: Props, theme: Theme, directFontFamily?: string): TextStyle {
-  const { fontLatin, fontEastAsia, ...style } = props as Props & {
-    fontLatin?: string;
-    fontEastAsia?: string;
-  };
+function composeRunProperties(props: RawRunProperties, theme: Theme): TextStyle {
+  const { fontLatin, fontEastAsia, ...style } = props;
   const explicit = [fontLatin, fontEastAsia].filter(
     (item, index, all): item is string => !!item && all.indexOf(item) === index,
   );
-  const fontFamily =
-    directFontFamily ??
-    (explicit.length > 0
-      ? explicit.join(",")
-      : typeof style.fontFamily === "string"
-        ? style.fontFamily
-        : theme.minor);
+  const fontFamily = explicit.length > 0 ? explicit.join(",") : (style.fontFamily ?? theme.minor);
   return { ...style, fontFamily };
 }
 
@@ -167,27 +156,29 @@ export function paragraphProperties(parent: Element | undefined): Partial<Paragr
   };
 }
 
-function merge<T>(...layers: Array<Props | undefined>): T {
-  return layers
-    .filter((layer): layer is Props => !!layer)
-    .reduce<Props>(
-      (merged, layer) =>
-        Object.entries(layer).reduce<Props>((next, [key, value]) => {
-          if (value === undefined) return next;
-          const previous = next[key];
-          return {
-            ...next,
-            [key]:
-              (key === "borders" || key === "borderSpacing") && value && typeof value === "object"
-                ? {
-                    ...(previous && typeof previous === "object" ? previous : {}),
-                    ...value,
-                  }
-                : value,
-          };
-        }, merged),
-      {},
-    ) as T;
+function isObject(value: unknown): value is object {
+  return typeof value === "object" && value !== null;
+}
+
+export function mergeLayers<T extends object>(
+  layers: readonly (Partial<T> | undefined)[],
+  nestedKeys: readonly (keyof T)[],
+): Partial<T> {
+  const merged: { -readonly [Key in keyof T]?: T[Key] } = {};
+  for (const layer of layers) {
+    if (!layer) continue;
+    for (const key of Object.keys(layer) as Array<keyof T>) {
+      const value = layer[key];
+      if (value === undefined) continue;
+      const previous = merged[key];
+      const next =
+        nestedKeys.includes(key) && isObject(value)
+          ? { ...(isObject(previous) ? previous : {}), ...value }
+          : value;
+      Reflect.set(merged, key, next);
+    }
+  }
+  return merged;
 }
 
 export function parseStyles(doc: Document | undefined, theme: Theme = {}): StyleSheet {
@@ -195,9 +186,7 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
   const tableStyles = new Map<string, { basedOn?: string; properties: TableStyleProperties }>();
   let defaultTableStyle: string | undefined;
   const defaults = doc && descendants(doc, "docDefaults")[0];
-  const defaultParagraph: Props = paragraphProperties(
-    first(first(defaults, "pPrDefault"), "pPr"),
-  ) as Props;
+  const defaultParagraph = paragraphProperties(first(first(defaults, "pPrDefault"), "pPr"));
   const defaultRun = runProperties(first(first(defaults, "rPrDefault"), "rPr"), theme);
   if (doc) {
     for (const node of descendants(doc, "style")) {
@@ -212,7 +201,7 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
       }
       styles.set(id, {
         basedOn: attr(first(node, "basedOn"), "val"),
-        paragraph: paragraphProperties(first(node, "pPr")) as unknown as Props,
+        paragraph: paragraphProperties(first(node, "pPr")),
         run: runProperties(first(node, "rPr"), theme),
         numbering: (() => {
           const numPr = first(first(node, "pPr"), "numPr");
@@ -227,56 +216,99 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
     }
   }
 
-  function chain(id?: string, visited: readonly string[] = []): Style[] {
-    if (!id || visited.includes(id)) return [];
-    const style = styles.get(id);
-    return style ? [...chain(style.basedOn, [...visited, id]), style] : [];
+  const chainCache = new Map<string, readonly Style[]>();
+  function chain(id?: string): readonly Style[] {
+    const key = id ?? "";
+    const cached = chainCache.get(key);
+    if (cached) return cached;
+    const reversed: Style[] = [];
+    const visited = new Set<string>();
+    let current = id;
+    while (current && !visited.has(current)) {
+      visited.add(current);
+      const style = styles.get(current);
+      if (!style) break;
+      reversed.push(style);
+      current = style.basedOn;
+    }
+    const result = reversed.reverse();
+    chainCache.set(key, result);
+    return result;
   }
 
   function tableChain(id?: string): TableStyleProperties {
-    const resolve = (current?: string, visited: readonly string[] = []): TableStyleProperties[] => {
-      if (!current || visited.includes(current)) return [];
+    const resolved: TableStyleProperties = { borders: {}, margins: {} };
+    const visited = new Set<string>();
+    let current = id ?? defaultTableStyle;
+    while (current && !visited.has(current)) {
+      visited.add(current);
       const style = tableStyles.get(current);
-      return style ? [style.properties, ...resolve(style.basedOn, [...visited, current])] : [];
-    };
-    return resolve(id ?? defaultTableStyle).reduce<TableStyleProperties>(
-      (resolved, properties) => {
-        return {
-          borders: { ...properties.borders, ...resolved.borders },
-          margins: { ...properties.margins, ...resolved.margins },
-          cellShading: resolved.cellShading ?? properties.cellShading,
-        };
-      },
-      { borders: {}, margins: {} },
-    );
+      if (!style) break;
+      for (const [side, value] of Object.entries(style.properties.borders))
+        if (resolved.borders[side as keyof BorderSides] === undefined)
+          Reflect.set(resolved.borders, side, value);
+      for (const [side, value] of Object.entries(style.properties.margins))
+        if (resolved.margins[side as keyof CellMargins] === undefined)
+          Reflect.set(resolved.margins, side, value);
+      resolved.cellShading ??= style.properties.cellShading;
+      current = style.basedOn;
+    }
+    return resolved;
   }
+
+  const paragraphCache = new Map<string, Partial<ParagraphProperties>>();
+  const runCache = new Map<string, RawRunProperties>();
+  const inheritedParagraph = (styleId?: string) => {
+    const key = styleId ?? "";
+    const cached = paragraphCache.get(key);
+    if (cached) return cached;
+    const result = mergeLayers<ParagraphProperties>(
+      [defaultParagraph, ...chain(styleId).map((item) => item.paragraph)],
+      ["borders", "borderSpacing"],
+    );
+    paragraphCache.set(key, result);
+    return result;
+  };
+  const inheritedRun = (paragraphStyle?: string, runStyle?: string) => {
+    const key = JSON.stringify([paragraphStyle ?? "", runStyle ?? ""]);
+    const cached = runCache.get(key);
+    if (cached) return cached;
+    const result = mergeLayers<RawRunProperties>(
+      [
+        defaultRun,
+        ...chain(paragraphStyle).map((item) => item.run),
+        ...chain(runStyle).map((item) => item.run),
+      ],
+      [],
+    );
+    runCache.set(key, result);
+    return result;
+  };
 
   return {
     paragraph(styleId, direct = {}) {
-      const inherited = chain(styleId).map((item) => item.paragraph);
-      const resolved = merge(defaultParagraph, ...inherited, direct as Props);
-      return resolved as ParagraphProperties;
+      return mergeLayers<ParagraphProperties>(
+        [inheritedParagraph(styleId), direct],
+        ["borders", "borderSpacing"],
+      );
     },
     run(paragraphStyle, runStyle, direct = {}) {
-      const pRun = chain(paragraphStyle).map((item) => item.run);
-      const rRun = chain(runStyle).map((item) => item.run);
-      const hasDirectScriptFont = Object.entries(direct).some(
-        ([key, value]) => (key === "fontLatin" || key === "fontEastAsia") && value !== undefined,
-      );
-      return composeRunProperties(
-        merge<Props>(defaultRun, ...pRun, ...rRun, direct as Props),
-        theme,
-        hasDirectScriptFont ? undefined : direct.fontFamily,
-      );
+      const inherited = inheritedRun(paragraphStyle, runStyle);
+      const hasDirectScriptFont =
+        direct.fontLatin !== undefined || direct.fontEastAsia !== undefined;
+      const cascade =
+        direct.fontFamily !== undefined && !hasDirectScriptFont
+          ? { ...inherited, fontLatin: undefined, fontEastAsia: undefined }
+          : inherited;
+      return composeRunProperties(mergeLayers<RawRunProperties>([cascade, direct], []), theme);
     },
     numbering(styleId) {
-      return chain(styleId).reduce(
-        (resolved, style) => ({
-          numId: style.numbering.numId ?? resolved.numId,
-          level: style.numbering.level ?? resolved.level,
-        }),
-        {} as { numId?: string; level?: number },
-      );
+      const resolved: { numId?: string; level?: number } = {};
+      for (const style of chain(styleId)) {
+        resolved.numId = style.numbering.numId ?? resolved.numId;
+        resolved.level = style.numbering.level ?? resolved.level;
+      }
+      return resolved;
     },
     table(styleId) {
       return tableChain(styleId);
@@ -287,6 +319,6 @@ export function parseStyles(doc: Document | undefined, theme: Theme = {}): Style
 export function parseRunProperties(
   parent: Element | undefined,
   theme: Theme = {},
-): ParsedRunProperties {
-  return runProperties(parent, theme) as ParsedRunProperties;
+): RawRunProperties {
+  return runProperties(parent, theme);
 }

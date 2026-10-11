@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { border } from "./borders";
-import { paragraphProperties, parseStyles } from "./styles";
+import { mergeLayers, paragraphProperties, parseStyles } from "./styles";
 
 describe("DOCX styles", () => {
   it("applies doc defaults, basedOn, and direct run overrides in order", () => {
@@ -74,6 +74,22 @@ describe("DOCX styles", () => {
     expect(parseStyles(doc).run(undefined, undefined, { fontFamily: "Arial" }).fontFamily).toBe(
       "Arial",
     );
+  });
+
+  it("merges typed nested property layers without replacing inherited sides", () => {
+    interface Properties {
+      color?: string;
+      borders?: { top?: string; left?: string };
+    }
+    expect(
+      mergeLayers<Properties>(
+        [
+          { color: "red", borders: { top: "solid" } },
+          { color: "blue", borders: { left: "dashed" } },
+        ],
+        ["borders"],
+      ),
+    ).toEqual({ color: "blue", borders: { top: "solid", left: "dashed" } });
   });
 
   it("preserves inherited paragraph attributes and defaults a line to auto", () => {

@@ -14,6 +14,7 @@
 .orim-page-wrap {
   position: relative;
   flex: none;
+  width: calc(var(--orim-page-width) + var(--orim-comment-lane, 0pt));
 }
 .orim-page {
   position: relative;

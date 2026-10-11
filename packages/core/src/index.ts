@@ -1,5 +1,6 @@
 export { parseDocx } from "./docx/parse";
 export { renderDocx, renderDocument } from "./render/document";
+export { COMMENT_LANE_WIDTH_PT } from "./render/paginate";
 export type {
   ChangesMode,
   RenderDocumentOptions,
@@ -15,6 +16,7 @@ export type {
   Inline,
   Paragraph,
   ParagraphProperties,
+  RevisionInfo,
   SectionProperties,
   Table,
   TableCell,

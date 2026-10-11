@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { renderDocx, renderDocument } from "./document";
-import type { DocxDocument } from "../docx/model";
+import type { DocxDocument, Inline } from "../docx/model";
 import { splitAtPageBreaks } from "../docx/parse/blocks";
 
 function model(text: string): DocxDocument {
@@ -93,32 +93,34 @@ describe("DOCX renderer", () => {
 
   it("toggles tracked-change modes and only creates safe links", async () => {
     const container = document.createElement("div");
-    const rendered = await renderDocx(model("deleted"), container);
+    const rendered = renderDocument(model("deleted"), container);
     expect(container.querySelector(".orim-change--del")).not.toBeNull();
     expect(container.querySelector(".orim-comment")).not.toBeNull();
     rendered.update({ changes: "final" });
     expect(container.querySelector(".orim-root")?.classList.contains("orim-final")).toBe(true);
-    expect(container.querySelector(".orim-change--del")).not.toBeNull();
+    expect(container.querySelector(".orim-change--del")).toBeNull();
     expect(container.textContent).toContain("inserted");
+    expect(container.textContent).not.toContain("deleted");
     const links = Array.from(container.querySelectorAll("a"));
     expect(links).toHaveLength(1);
     expect(links[0].href).toBe("https://example.com/");
     rendered.update({ changes: "original" });
     expect(container.querySelector(".orim-root")?.classList.contains("orim-original")).toBe(true);
     expect(container.textContent).toContain("deleted");
-    expect(container.querySelector(".orim-change--ins")).not.toBeNull();
+    expect(container.querySelector(".orim-change--ins")).toBeNull();
+    expect(container.textContent).not.toContain("inserted");
     rendered.destroy();
     expect(container.childElementCount).toBe(0);
   });
 
   it("renders document text as text rather than HTML", async () => {
     const container = document.createElement("div");
-    await renderDocx(model("<img src=x onerror=alert(1)>"), container);
+    renderDocument(model("<img src=x onerror=alert(1)>"), container);
     expect(container.querySelector("img")).toBeNull();
     expect(container.textContent).toContain("<img src=x onerror=alert(1)>");
   });
 
-  it("renders comment references as superscript markers", async () => {
+  it("numbers comment references by order of first appearance", () => {
     const source = model("text");
     const doc: DocxDocument = {
       ...source,
@@ -128,14 +130,60 @@ describe("DOCX renderer", () => {
           {
             type: "paragraph",
             properties: {},
-            runs: [{ type: "comment-reference", id: "0" }],
+            runs: [
+              { type: "comment-reference", id: "7" },
+              { type: "comment-reference", id: "3" },
+              { type: "comment-reference", id: "7" },
+            ],
           },
         ],
       })),
     };
     const container = document.createElement("div");
-    await renderDocx(doc, container);
-    expect(container.querySelector("sup.orim-comment-reference")?.textContent).toBe("1");
+    const rendered = renderDocument(doc, container);
+    expect(
+      Array.from(container.querySelectorAll("sup.orim-comment-reference")).map(
+        (element) => element.textContent,
+      ),
+    ).toEqual(["1", "2", "1"]);
+    rendered.destroy();
+  });
+
+  it("sets decoration PAGE fields at render time and resolves body fields after pagination", () => {
+    const source = model("unused");
+    const field = (name: string) => ({ type: "field" as const, name, cached: "cached" });
+    const paragraph = (runs: Inline[]) => ({
+      type: "paragraph" as const,
+      properties: {},
+      runs,
+    });
+    const doc: DocxDocument = {
+      ...source,
+      sections: [
+        {
+          properties: {
+            ...source.sections[0].properties,
+            header: [paragraph([field("PAGE"), { type: "text", text: "/" }, field("NUMPAGES")])],
+          },
+          blocks: [
+            paragraph([{ type: "text", text: "first page" }]),
+            {
+              ...paragraph([field("PAGE")]),
+              properties: { pageBreakBefore: true },
+            },
+          ],
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    const rendered = renderDocument(doc, container);
+    expect(
+      Array.from(container.querySelectorAll(".orim-header .orim-field")).map(
+        (element) => element.textContent,
+      ),
+    ).toEqual(["1", "2", "2", "2"]);
+    expect(container.querySelector(".orim-content .orim-field")?.textContent).toBe("2");
+    rendered.destroy();
   });
 
   it("rejects aborted renders without leaving content behind", async () => {
@@ -143,7 +191,7 @@ describe("DOCX renderer", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(
-      renderDocx(model("aborted"), container, { signal: controller.signal }),
+      renderDocx(new Blob([]), container, { signal: controller.signal }),
     ).rejects.toMatchObject({
       name: "AbortError",
     });
@@ -153,7 +201,7 @@ describe("DOCX renderer", () => {
   it("prevents an older in-flight render from replacing a newer one", async () => {
     const container = document.createElement("div");
     const older = renderDocx(new Blob([]), container);
-    await renderDocx(model("latest"), container);
+    renderDocument(model("latest"), container);
     await expect(older).rejects.toMatchObject({ name: "AbortError" });
     expect(container.textContent).toContain("latest");
     expect(container.textContent).not.toContain("old");
@@ -183,7 +231,7 @@ describe("DOCX renderer", () => {
       })),
     };
     const container = document.createElement("div");
-    await renderDocx(doc, container);
+    renderDocument(doc, container);
     const pages = Array.from(container.querySelectorAll(".orim-page"));
     expect(pages).toHaveLength(2);
     expect(pages[0].textContent).toContain("A");
@@ -213,7 +261,7 @@ describe("DOCX renderer", () => {
       ],
     };
     const container = document.createElement("div");
-    await renderDocx(doc, container);
+    renderDocument(doc, container);
     expect(container.querySelectorAll(".orim-page")).toHaveLength(1);
     expect(container.textContent).toContain("first");
     expect(container.textContent).toContain("second");
@@ -242,7 +290,7 @@ describe("DOCX renderer", () => {
       ],
     };
     const container = document.createElement("div");
-    await renderDocx(doc, container);
+    renderDocument(doc, container);
     expect(container.querySelectorAll(".orim-page")).toHaveLength(3);
     expect(container.querySelectorAll(".orim-page")[2].textContent).toContain("odd section");
   });
@@ -259,7 +307,7 @@ describe("DOCX renderer", () => {
       ],
     };
     const pitchContainer = document.createElement("div");
-    await renderDocx(withPitch, pitchContainer);
+    renderDocument(withPitch, pitchContainer);
     expect(
       pitchContainer
         .querySelector<HTMLElement>(".orim-content")
@@ -267,7 +315,7 @@ describe("DOCX renderer", () => {
     ).toBe("18pt");
 
     const autoContainer = document.createElement("div");
-    await renderDocx(source, autoContainer);
+    renderDocument(source, autoContainer);
     expect(
       autoContainer
         .querySelector<HTMLElement>(".orim-content")
@@ -302,7 +350,7 @@ describe("DOCX renderer", () => {
       ],
     };
     const container = document.createElement("div");
-    await renderDocx(doc, container);
+    renderDocument(doc, container);
     expect(container.querySelectorAll(".orim-page")).toHaveLength(1);
     expect(
       container.querySelector<HTMLElement>(".orim-content")?.style.getPropertyValue("--orim-pitch"),
@@ -334,10 +382,9 @@ describe("DOCX renderer", () => {
       })),
     };
     const container = document.createElement("div");
-    await renderDocx(doc, container);
+    renderDocument(doc, container);
     const move = container.querySelector<HTMLElement>(".orim-change--moveTo");
-    expect(move?.style.color).not.toBe("#ff0000");
-    expect(move?.style.textDecoration).toBe("underline double");
+    expect(move?.classList.contains("orim-change--moveTo")).toBe(true);
   });
 
   it("renders accepted moves plainly and removes revision decoration outside Markup", async () => {
@@ -355,7 +402,7 @@ describe("DOCX renderer", () => {
           {
             type: "paragraph",
             properties: {
-              formattingChange: { kind: "ins", author: "Morgan", date: "" },
+              formattingChange: { author: "Morgan", date: "" },
               change: { kind: "ins", author: "Morgan", date: "" },
             },
             runs: [
@@ -375,28 +422,18 @@ describe("DOCX renderer", () => {
       })),
     };
     const container = document.createElement("div");
-    const rendered = await renderDocx(doc, container);
+    const rendered = renderDocument(doc, container);
     rendered.update({ changes: "final" });
     expect(container.querySelectorAll(".orim-paragraph")).toHaveLength(1);
     expect(container.querySelector(".orim-paragraph-mark")).toBeNull();
     expect(container.querySelector(".orim-format-change")).toBeNull();
-    expect(container.querySelector<HTMLElement>(".orim-change--moveTo")?.style.color).toBe(
-      "inherit",
-    );
-    expect(container.querySelector<HTMLElement>(".orim-change--moveTo")?.style.textDecoration).toBe(
-      "none",
-    );
+    expect(container.querySelector(".orim-change--moveTo")).toBeNull();
 
     rendered.update({ changes: "original" });
     expect(container.querySelectorAll(".orim-paragraph")).toHaveLength(2);
     expect(container.querySelector(".orim-paragraph-mark")).toBeNull();
     expect(container.querySelector(".orim-format-change")).toBeNull();
-    expect(container.querySelector<HTMLElement>(".orim-change--moveFrom")?.style.color).toBe(
-      "inherit",
-    );
-    expect(
-      container.querySelector<HTMLElement>(".orim-change--moveFrom")?.style.textDecoration,
-    ).toBe("none");
+    expect(container.querySelector(".orim-change--moveFrom")).toBeNull();
     rendered.destroy();
   });
 
@@ -415,7 +452,7 @@ describe("DOCX renderer", () => {
       ],
     };
     const container = document.createElement("div");
-    await renderDocx(doc, container);
+    renderDocument(doc, container);
     expect(container.querySelectorAll(".orim-page-comments > .orim-comment")).toHaveLength(1);
     expect(container.querySelectorAll(".orim-comment-replies .orim-comment")).toHaveLength(1);
     expect(container.querySelector(".orim-comment-author")?.textContent).toContain("Aiko · ");

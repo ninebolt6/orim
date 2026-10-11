@@ -15,11 +15,16 @@ type MergeCell = Pick<TableCell, "gridSpan" | "rowSpan">;
 type MergeRow = { readonly cells: readonly MergeCell[] };
 
 export function computeRowSpans(rows: readonly MergeRow[]): number[][] {
-  const gridStarts = rows.map((row) =>
-    row.cells.map((_, index) =>
-      row.cells.slice(0, index).reduce((column, cell) => column + cell.gridSpan, 0),
-    ),
-  );
+  const gridStarts: number[][] = [];
+  for (const row of rows) {
+    const starts: number[] = [];
+    let column = 0;
+    for (const cell of row.cells) {
+      starts.push(column);
+      column += cell.gridSpan;
+    }
+    gridStarts.push(starts);
+  }
   return rows.map((row, rowIndex) =>
     row.cells.map((cell: MergeCell, cellIndex) => {
       if (cell.rowSpan !== -1) return cell.rowSpan;
@@ -41,9 +46,10 @@ export function computeRowSpans(rows: readonly MergeRow[]): number[][] {
 }
 
 export function parseTable(node: Element, context: ParseContext): Table {
+  const styles = context.config.styles;
   const tblPr = first(node, "tblPr");
   const styleId = attr(first(tblPr, "tblStyle"), "val");
-  const style = context.styles.table(styleId);
+  const style = styles.table(styleId);
   const grid = first(node, "tblGrid");
   const widths = elements(grid, "gridCol").map((col) => cssWidth(col));
   const directTableMargins = first(tblPr, "tblCellMar");

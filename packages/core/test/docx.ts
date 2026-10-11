@@ -7,6 +7,8 @@ export interface BuildDocxOptions {
   stylesPath?: string;
   numbering?: string;
   numberingPath?: string;
+  header?: string;
+  headerPath?: string;
   comments?: string;
   commentsPath?: string;
   commentsExtended?: string;
@@ -27,11 +29,13 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
   };
   const stylesPath = options.stylesPath ?? "word/styles.xml";
   const numberingPath = options.numberingPath ?? "word/numbering.xml";
+  const headerPath = options.headerPath ?? "word/header1.xml";
   const commentsPath = options.commentsPath ?? "word/comments.xml";
   const commentsExtendedPath = options.commentsExtendedPath ?? "word/commentsExtended.xml";
   const themePath = options.themePath ?? "word/theme/theme1.xml";
   if (options.styles) parts[stylesPath] = options.styles;
   if (options.numbering) parts[numberingPath] = options.numbering;
+  if (options.header) parts[headerPath] = options.header;
   if (options.comments) parts[commentsPath] = options.comments;
   if (options.commentsExtended) parts[commentsExtendedPath] = options.commentsExtended;
   if (options.theme) parts[themePath] = options.theme;
@@ -39,7 +43,7 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
     .filter((path) => path !== mainPath)
     .map(
       (path) =>
-        `<Override PartName="/${path}" ContentType="${path === commentsExtendedPath ? "application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml" : "application/xml"}"/>`,
+        `<Override PartName="/${path}" ContentType="${path === commentsExtendedPath ? "application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml" : path === headerPath ? "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml" : "application/xml"}"/>`,
     )
     .join("");
   const media = Object.entries(options.media ?? {});
@@ -54,6 +58,8 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
       `<Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="${relativeTarget(stylesPath)}"/>`,
     options.numbering &&
       `<Relationship Id="rNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="${relativeTarget(numberingPath)}"/>`,
+    options.header &&
+      `<Relationship Id="rHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="${relativeTarget(headerPath)}"/>`,
     options.comments &&
       `<Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="${relativeTarget(commentsPath)}"/>`,
     options.commentsExtended &&

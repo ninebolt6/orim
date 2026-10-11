@@ -19,20 +19,22 @@ function renderCommentAuthor(comment: DocxComment): string {
   })}`;
 }
 
-export function addComments(pages: Page[], comments: readonly DocxComment[]): void {
-  const scope = pages[0]?.wrapper.parentElement;
-  if (!scope) return;
+export function addComments(
+  pages: readonly Page[],
+  comments: readonly DocxComment[],
+  anchors: ReadonlyMap<string, readonly HTMLElement[]>,
+  balloons: Map<string, HTMLElement>,
+  scope: HTMLElement,
+): () => void {
   const byId = new Map(comments.map((comment) => [comment.id, comment]));
   for (const page of pages) {
     const lane = page.wrapper.querySelector<HTMLElement>(".orim-page-comments");
     if (!lane) continue;
-    const candidates = Array.from(
-      page.content.querySelectorAll<HTMLElement>(".orim-comment-anchor[data-c]"),
-    );
     const ordered = new Map<string, number>();
-    for (const anchor of candidates) {
-      const top = anchor.getBoundingClientRect().top - page.page.getBoundingClientRect().top;
-      for (const id of anchor.dataset.c?.split(" ") ?? []) {
+    for (const [id, elements] of anchors) {
+      for (const anchor of elements) {
+        if (!page.content.contains(anchor)) continue;
+        const top = anchor.getBoundingClientRect().top - page.page.getBoundingClientRect().top;
         if (!ordered.has(id)) ordered.set(id, top);
       }
     }
@@ -43,6 +45,7 @@ export function addComments(pages: Page[], comments: readonly DocxComment[]): vo
       const balloon = document.createElement("div");
       balloon.className = "orim-comment";
       balloon.dataset.comment = id;
+      balloons.set(id, balloon);
       balloon.style.top = `${Math.max(top, nextTop)}px`;
       if (comment.done) balloon.classList.add("orim-comment--done");
       const author = document.createElement("div");
@@ -77,48 +80,54 @@ export function addComments(pages: Page[], comments: readonly DocxComment[]): vo
 
   const highlight = (id: string | undefined, active: boolean) => {
     if (!id) return;
-    for (const anchor of scope.querySelectorAll<HTMLElement>(".orim-comment-anchor[data-c]")) {
-      if (anchor.dataset.c?.split(" ").includes(id))
-        anchor.classList.toggle(
-          "orim-comment-active",
-          active || anchor.classList.contains("orim-comment-pinned"),
-        );
+    const balloon = balloons.get(id);
+    const pinned =
+      balloon?.classList.contains("orim-comment-pinned") ||
+      anchors.get(id)?.some((anchor) => anchor.classList.contains("orim-comment-pinned"));
+    for (const anchor of anchors.get(id) ?? []) {
+      anchor.classList.toggle("orim-comment-active", active || Boolean(pinned));
     }
-    for (const balloon of scope.querySelectorAll<HTMLElement>(".orim-comment[data-comment]")) {
-      if (balloon.dataset.comment === id)
-        balloon.classList.toggle(
-          "orim-comment-active",
-          active || balloon.classList.contains("orim-comment-pinned"),
-        );
-    }
+    balloon?.classList.toggle("orim-comment-active", active || Boolean(pinned));
   };
   const togglePinned = (id: string | undefined) => {
     if (!id) return;
-    const balloon = scope.querySelector<HTMLElement>(
-      `.orim-comment[data-comment="${CSS.escape(id)}"]`,
-    );
+    const balloon = balloons.get(id);
     const active = !balloon?.classList.contains("orim-comment-pinned");
-    for (const element of scope.querySelectorAll<HTMLElement>(
-      `.orim-comment[data-comment="${CSS.escape(id)}"],.orim-comment-anchor[data-c]`,
-    )) {
-      if (
-        element.classList.contains("orim-comment-anchor") &&
-        !element.dataset.c?.split(" ").includes(id)
-      )
-        continue;
-      element.classList.toggle("orim-comment-pinned", active);
-    }
+    for (const anchor of anchors.get(id) ?? [])
+      anchor.classList.toggle("orim-comment-pinned", active);
+    balloon?.classList.toggle("orim-comment-pinned", active);
     highlight(id, active);
   };
-  for (const balloon of scope.querySelectorAll<HTMLElement>(".orim-comment[data-comment]")) {
-    balloon.addEventListener("mouseenter", () => highlight(balloon.dataset.comment, true));
-    balloon.addEventListener("mouseleave", () => highlight(balloon.dataset.comment, false));
-    balloon.addEventListener("click", () => togglePinned(balloon.dataset.comment));
-  }
-  for (const anchor of scope.querySelectorAll<HTMLElement>(".orim-comment-anchor")) {
-    const id = anchor.dataset.c?.split(" ")[0];
-    anchor.addEventListener("mouseenter", () => highlight(id, true));
-    anchor.addEventListener("mouseleave", () => highlight(id, false));
-    anchor.addEventListener("click", () => togglePinned(id));
-  }
+  const targetFor = (event: Event): HTMLElement | undefined => {
+    if (!(event.target instanceof Element)) return undefined;
+    return (
+      event.target.closest<HTMLElement>(
+        ".orim-comment[data-comment],.orim-comment-anchor[data-c]",
+      ) ?? undefined
+    );
+  };
+  const commentId = (element: HTMLElement): string | undefined =>
+    element.dataset.comment ?? element.dataset.c?.split(" ")[0];
+  const onMouseOver = (event: MouseEvent) => {
+    const target = targetFor(event);
+    if (target && !(event.relatedTarget instanceof Node && target.contains(event.relatedTarget)))
+      highlight(commentId(target), true);
+  };
+  const onMouseOut = (event: MouseEvent) => {
+    const target = targetFor(event);
+    if (target && !(event.relatedTarget instanceof Node && target.contains(event.relatedTarget)))
+      highlight(commentId(target), false);
+  };
+  const onClick = (event: MouseEvent) => {
+    const target = targetFor(event);
+    if (target) togglePinned(commentId(target));
+  };
+  scope.addEventListener("mouseover", onMouseOver);
+  scope.addEventListener("mouseout", onMouseOut);
+  scope.addEventListener("click", onClick);
+  return () => {
+    scope.removeEventListener("mouseover", onMouseOver);
+    scope.removeEventListener("mouseout", onMouseOut);
+    scope.removeEventListener("click", onClick);
+  };
 }

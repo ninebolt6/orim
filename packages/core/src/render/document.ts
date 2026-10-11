@@ -1,4 +1,3 @@
-import css from "./styles.css?inline";
 import type { Block, DocxDocument } from "../docx/model";
 import type { RenderContext } from "./context";
 import { addComments } from "./comments";
@@ -27,21 +26,17 @@ export interface RenderedDocument {
   destroy(): void;
 }
 
-function renderBlock(block: Block, context: RenderContext): HTMLElement {
-  if (block.type === "paragraph") return renderParagraph(block, context);
-  return renderTable(block, context, renderBlock);
-}
-
-function ensureStyles(): void {
-  if (document.querySelector("style[data-orim]")) return;
-  const style = document.createElement("style");
-  style.dataset.orim = "true";
-  style.textContent = css;
-  document.head.append(style);
-}
-
-function isModel(input: unknown): input is DocxDocument {
-  return !!input && typeof input === "object" && Array.isArray((input as DocxDocument).sections);
+function renderBlock(
+  block: Block,
+  context: RenderContext,
+  pageNumber?: number,
+  decoration = false,
+): HTMLElement {
+  const scopedContext = decoration ? { ...context, decorationPageNumber: pageNumber } : context;
+  if (block.type === "paragraph") return renderParagraph(block, scopedContext);
+  return renderTable(block, scopedContext, (nested, nestedContext) =>
+    renderBlock(nested, nestedContext, pageNumber, decoration),
+  );
 }
 
 interface RenderLease {
@@ -49,6 +44,22 @@ interface RenderLease {
 }
 
 const renderLeases = new WeakMap<HTMLElement, RenderLease>();
+
+function acquireContainerLease(container: HTMLElement, onCancel: () => void): RenderLease {
+  let cancelled = false;
+  const lease: RenderLease = {
+    cancel() {
+      if (cancelled) return;
+      cancelled = true;
+      onCancel();
+      if (renderLeases.get(container) === lease) renderLeases.delete(container);
+    },
+  };
+  const previous = renderLeases.get(container);
+  renderLeases.set(container, lease);
+  previous?.cancel();
+  return lease;
+}
 
 function abortError(): DOMException {
   return new DOMException("Rendering was aborted.", "AbortError");
@@ -59,11 +70,15 @@ export function renderDocument(
   container: HTMLElement,
   options: RenderDocumentOptions = {},
 ): RenderedDocument {
-  ensureStyles();
   const objectUrls = new Set<string>();
   const objectUrlsByPart = new Map<string, string>();
+  const fields: RenderContext["fields"] = [];
+  const commentAnchors: RenderContext["commentAnchors"] = new Map();
+  const commentBalloons: RenderContext["commentBalloons"] = new Map();
+  const commentReferences: RenderContext["commentReferences"] = new Map();
   let cancelled = false;
   let root: HTMLDivElement | undefined;
+  let removeCommentListeners = () => {};
   let context: RenderContext = {
     doc,
     comments: options.comments !== false,
@@ -71,37 +86,52 @@ export function renderDocument(
     objectUrls,
     objectUrlsByPart,
     colors: new Map(),
+    fields,
+    commentAnchors,
+    commentBalloons,
+    commentReferences,
   };
-  const lease: RenderLease = {
-    cancel() {
-      if (cancelled) return;
-      cancelled = true;
-      if (root?.parentElement === container) container.replaceChildren();
-      for (const url of objectUrls) URL.revokeObjectURL(url);
-      objectUrls.clear();
-      objectUrlsByPart.clear();
-      if (renderLeases.get(container) === lease) renderLeases.delete(container);
-    },
-  };
-  const previous = renderLeases.get(container);
-  renderLeases.set(container, lease);
-  previous?.cancel();
+  const lease = acquireContainerLease(container, () => {
+    cancelled = true;
+    removeCommentListeners();
+    if (root?.parentElement === container) container.replaceChildren();
+    for (const url of objectUrls) URL.revokeObjectURL(url);
+    objectUrls.clear();
+    objectUrlsByPart.clear();
+  });
 
   try {
     root = document.createElement("div");
     if (doc.defaultTabStop !== undefined)
       root.style.setProperty("--orim-tab-size", `${doc.defaultTabStop}pt`);
+    fields.length = 0;
+    commentAnchors.clear();
+    commentBalloons.clear();
+    commentReferences.clear();
     const draw = () => {
+      removeCommentListeners();
+      fields.length = 0;
+      commentAnchors.clear();
+      commentBalloons.clear();
+      commentReferences.clear();
       root!.className = `orim-root orim-${context.changes}`;
       const resolvedDoc = resolveDocumentParagraphMarks(doc, context.changes);
       const pages = paginate(
         root!,
         resolvedDoc,
         context.changes,
-        (block) => renderBlock(block, context),
+        (block, pageNumber, decoration) => renderBlock(block, context, pageNumber, decoration),
         context.comments,
+        fields,
       );
-      if (context.comments) addComments(pages, doc.comments);
+      if (context.comments)
+        removeCommentListeners = addComments(
+          pages,
+          doc.comments,
+          commentAnchors,
+          commentBalloons,
+          root!,
+        );
     };
     container.replaceChildren(root);
     draw();
@@ -126,25 +156,19 @@ export function renderDocument(
 }
 
 export async function renderDocx(
-  input: ArrayBuffer | Uint8Array | Blob | DocxDocument,
+  input: ArrayBuffer | Uint8Array | Blob,
   container: HTMLElement,
   options: RenderOptions = {},
 ): Promise<RenderedDocument> {
   const controller = new AbortController();
   let cancelled = false;
+  let lease: RenderLease;
   const onAbort = () => lease.cancel();
-  const lease: RenderLease = {
-    cancel() {
-      if (cancelled) return;
-      cancelled = true;
-      controller.abort();
-      options.signal?.removeEventListener("abort", onAbort);
-      if (renderLeases.get(container) === lease) renderLeases.delete(container);
-    },
-  };
-  const previous = renderLeases.get(container);
-  renderLeases.set(container, lease);
-  previous?.cancel();
+  lease = acquireContainerLease(container, () => {
+    cancelled = true;
+    controller.abort();
+    options.signal?.removeEventListener("abort", onAbort);
+  });
   if (options.signal?.aborted) lease.cancel();
   else options.signal?.addEventListener("abort", onAbort, { once: true });
 
@@ -156,7 +180,7 @@ export async function renderDocx(
   let doc: DocxDocument;
   try {
     check();
-    doc = isModel(input) ? input : await parseDocx(input);
+    doc = await parseDocx(input);
     check();
   } catch (error) {
     const aborted = cancelled || controller.signal.aborted || renderLeases.get(container) !== lease;

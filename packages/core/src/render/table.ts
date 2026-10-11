@@ -2,6 +2,7 @@ import type { Block, Table } from "../docx/model";
 import type { RenderContext } from "./context";
 import { validColor } from "./sanitize";
 import { changeColor } from "./text-style";
+import { revisionVisibility } from "./revisions";
 
 type RenderBlock = (block: Block, context: RenderContext) => HTMLElement;
 
@@ -25,12 +26,15 @@ export function renderTable(
   if (block.widths.length) table.append(colgroup);
   const body = document.createElement("tbody");
   for (const [rowIndex, row] of block.rows.entries()) {
+    const visibility = row.change ? revisionVisibility(row.change.kind, context.changes) : "plain";
+    if (visibility === "hidden") continue;
     const tr = document.createElement("tr");
     if (row.header) tr.dataset.orimHeader = "true";
     if (row.height) tr.style.height = `${row.height}pt`;
-    if (row.change) {
+    if (row.change && visibility === "marked") {
       tr.classList.add("orim-table-row--change", `orim-table-row--${row.change.kind}`);
-      tr.style.setProperty("--orim-change-color", changeColor(row.change, context.colors));
+      if (row.change.kind === "ins" || row.change.kind === "del")
+        tr.style.setProperty("--orim-change-color", changeColor(row.change, context.colors));
       tr.title = `${row.change.kind === "ins" ? "Inserted" : "Deleted"} by ${row.change.author}`;
     }
     for (const [cellIndex, cell] of row.cells.entries()) {

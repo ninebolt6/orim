@@ -2,19 +2,26 @@ import type { OpcPackage, Relationship } from "../../opc/package";
 import type { Numbering } from "../numbering";
 import type { StyleSheet } from "../styles";
 import type { ThemeFonts } from "../theme";
-import type { FieldStack } from "./fields";
+import { createFieldStack, type FieldStack } from "./fields";
 
-export interface ParseContext {
+export interface ParseConfig {
   readonly opc: OpcPackage;
   readonly source: string;
-  readonly rels: Map<string, Relationship>;
+  readonly rels: ReadonlyMap<string, Relationship>;
   readonly styles: StyleSheet;
   readonly theme: ThemeFonts;
   readonly numbering: Numbering;
-  readonly commentRanges: CommentRangeState;
-  readonly imageParts: ImagePathState;
-  readonly fields: FieldStack;
   readonly paragraphStyle?: string;
+}
+
+export interface ParseState {
+  readonly fields: FieldStack;
+  readonly commentRanges: CommentRangeState;
+}
+
+export interface ParseContext {
+  readonly config: ParseConfig;
+  readonly state: ParseState;
 }
 
 export interface CommentRangeState {
@@ -23,9 +30,11 @@ export interface CommentRangeState {
   snapshot(): string[];
 }
 
-export interface ImagePathState {
-  add(path: string): void;
-  values(): readonly string[];
+export function createParseState(): ParseState {
+  return {
+    fields: createFieldStack(),
+    commentRanges: createCommentRangeState(),
+  };
 }
 
 export function createCommentRangeState(): CommentRangeState {
@@ -39,18 +48,6 @@ export function createCommentRangeState(): CommentRangeState {
     },
     snapshot() {
       return [...open];
-    },
-  };
-}
-
-export function createImagePathState(): ImagePathState {
-  const paths = new Set<string>();
-  return {
-    add(path) {
-      paths.add(path);
-    },
-    values() {
-      return [...paths];
     },
   };
 }

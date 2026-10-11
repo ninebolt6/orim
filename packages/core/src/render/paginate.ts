@@ -1,22 +1,168 @@
 import type { Block, DocxDocument, SectionProperties } from "../docx/model";
+import type { PendingField } from "./context";
 
 export interface Page {
   wrapper: HTMLElement;
   page: HTMLElement;
   content: HTMLElement;
-  properties: SectionProperties;
-  number: number;
+  readonly properties: SectionProperties;
+  readonly number: number;
+}
+
+export const COMMENT_LANE_WIDTH_PT = 168;
+type RenderBlock = (block: Block, pageNumber?: number, decoration?: boolean) => HTMLElement;
+
+function addHeaderFooter(
+  doc: DocxDocument,
+  properties: SectionProperties,
+  page: HTMLElement,
+  pageNumber: number,
+  firstPage: boolean,
+  renderBlock: RenderBlock,
+): void {
+  const { margins: margin, width } = properties;
+  const usableWidth = Math.max(1, width - margin.left - margin.right);
+  const parityEven = pageNumber % 2 === 0;
+  const header =
+    properties.titlePage && firstPage
+      ? (properties.firstHeader ?? properties.header)
+      : doc.evenAndOddHeaders && parityEven
+        ? (properties.evenHeader ?? properties.header)
+        : properties.header;
+  const footer =
+    properties.titlePage && firstPage
+      ? (properties.firstFooter ?? properties.footer)
+      : doc.evenAndOddHeaders && parityEven
+        ? (properties.evenFooter ?? properties.footer)
+        : properties.footer;
+  if (header?.length) {
+    const element = document.createElement("div");
+    element.className = "orim-header";
+    element.style.top = `${margin.header}pt`;
+    element.style.left = `${margin.left}pt`;
+    element.style.width = `${usableWidth}pt`;
+    for (const block of header) element.append(renderBlock(block, pageNumber, true));
+    page.append(element);
+  }
+  if (footer?.length) {
+    const element = document.createElement("div");
+    element.className = "orim-footer";
+    element.style.bottom = `${margin.footer}pt`;
+    element.style.left = `${margin.left}pt`;
+    element.style.width = `${usableWidth}pt`;
+    for (const block of footer) element.append(renderBlock(block, pageNumber, true));
+    page.append(element);
+  }
+}
+
+function applyPageGeometry(page: Page, properties: SectionProperties): Page {
+  const { width, height, margins: margin } = properties;
+  const usableWidth = Math.max(1, width - margin.left - margin.right);
+  const usableHeight = Math.max(1, height - margin.top - margin.bottom);
+  page.wrapper.style.setProperty("--orim-page-width", `${width}pt`);
+  page.wrapper.style.height = `${height}pt`;
+  page.page.style.width = `${width}pt`;
+  page.page.style.height = `${height}pt`;
+  page.content.style.left = `${margin.left}pt`;
+  page.content.style.top = `${margin.top}pt`;
+  page.content.style.width = `${usableWidth}pt`;
+  page.content.style.height = `${usableHeight}pt`;
+  if (properties.linePitch)
+    page.content.style.setProperty("--orim-pitch", `${properties.linePitch}pt`);
+  else page.content.style.removeProperty("--orim-pitch");
+  return { ...page, properties };
+}
+
+function createPage(
+  pagesRoot: HTMLElement,
+  pages: Page[],
+  doc: DocxDocument,
+  properties: SectionProperties,
+  includeComments: boolean,
+  renderBlock: RenderBlock,
+): Page {
+  const wrapper = document.createElement("div");
+  wrapper.className = "orim-page-wrap";
+  const pageElement = document.createElement("div");
+  pageElement.className = "orim-page";
+  const content = document.createElement("div");
+  content.className = "orim-content";
+  pageElement.append(content);
+  const pageNumber = pages.length + 1;
+  const firstPage = !pages.some((page) => page.properties === properties);
+  addHeaderFooter(doc, properties, pageElement, pageNumber, firstPage, renderBlock);
+  if (includeComments) {
+    const comments = document.createElement("div");
+    comments.className = "orim-page-comments";
+    wrapper.append(comments);
+  }
+  wrapper.append(pageElement);
+  const page = applyPageGeometry(
+    { wrapper, page: pageElement, content, properties, number: pageNumber },
+    properties,
+  );
+  pagesRoot.append(wrapper);
+  pages.push(page);
+  return page;
+}
+
+function overflows(element: HTMLElement, page: Page): boolean {
+  const bounds = page.content.getBoundingClientRect();
+  const blockBounds = element.getBoundingClientRect();
+  return (
+    page.content.scrollHeight > page.content.clientHeight + 1 ||
+    blockBounds.bottom > bounds.bottom + 1
+  );
+}
+
+function splitTable(table: HTMLTableElement, page: Page, newPage: () => Page): Page {
+  if (!overflows(table, page)) return page;
+  const originalRows = Array.from(table.rows);
+  const headerRows = originalRows.filter((row) => row.dataset.orimHeader === "true");
+  const movable = originalRows.filter((row) => row.dataset.orimHeader !== "true");
+  if (!movable.length) return page;
+  const continuedRows: HTMLTableRowElement[] = [];
+  for (let index = movable.length - 1; index > 0; index--) {
+    const row = movable[index];
+    row.remove();
+    continuedRows.unshift(row);
+    if (!overflows(table, page)) break;
+  }
+  if (overflows(table, page) && page.content.childElementCount > 1) {
+    const body = table.tBodies[0];
+    if (body) for (const row of originalRows) body.append(row);
+    table.remove();
+    const next = newPage();
+    next.content.append(table);
+    return splitTable(table, next, newPage);
+  }
+  if (!continuedRows.length) return page;
+  const next = newPage();
+  const continuation = table.cloneNode(false) as HTMLTableElement;
+  for (const child of Array.from(table.children))
+    if (child.localName === "colgroup") continuation.append(child.cloneNode(true));
+  const body = document.createElement("tbody");
+  for (const row of headerRows) body.append(row.cloneNode(true));
+  for (const row of continuedRows) body.append(row);
+  continuation.append(body);
+  next.content.append(continuation);
+  return splitTable(continuation, next, newPage);
 }
 
 export function paginate(
   root: HTMLElement,
   doc: DocxDocument,
   mode: string,
-  renderBlock: (block: Block) => HTMLElement,
+  renderBlock: (block: Block, pageNumber?: number, decoration?: boolean) => HTMLElement,
   includeComments: boolean,
+  fields: readonly PendingField[],
 ): Page[] {
   root.replaceChildren();
   root.className = `orim-root orim-${mode}`;
+  root.style.setProperty(
+    "--orim-comment-lane",
+    includeComments ? `${COMMENT_LANE_WIDTH_PT}pt` : "0pt",
+  );
   const pagesRoot = document.createElement("div");
   pagesRoot.className = "orim-pages";
   root.append(pagesRoot);
@@ -25,148 +171,24 @@ export function paginate(
   for (let sectionIndex = 0; sectionIndex < doc.sections.length; sectionIndex++) {
     const section = doc.sections[sectionIndex];
     const props = section.properties;
-    const width = props.width;
-    const height = props.height;
-    const margin = props.margins;
-    const usableWidth = Math.max(1, width - margin.left - margin.right);
-    const usableHeight = Math.max(1, height - margin.top - margin.bottom);
-
-    const addHeaderFooter = (page: HTMLElement, pageNumber: number, firstPage: boolean): void => {
-      const parityEven = pageNumber % 2 === 0;
-      const header =
-        props.titlePage && firstPage
-          ? (props.firstHeader ?? props.header)
-          : doc.evenAndOddHeaders && parityEven
-            ? (props.evenHeader ?? props.header)
-            : props.header;
-      const footer =
-        props.titlePage && firstPage
-          ? (props.firstFooter ?? props.footer)
-          : doc.evenAndOddHeaders && parityEven
-            ? (props.evenFooter ?? props.footer)
-            : props.footer;
-      if (header?.length) {
-        const el = document.createElement("div");
-        el.className = "orim-header";
-        el.style.top = `${margin.header}pt`;
-        el.style.left = `${margin.left}pt`;
-        el.style.width = `${usableWidth}pt`;
-        for (const block of header) el.append(renderBlock(block));
-        page.append(el);
-      }
-      if (footer?.length) {
-        const el = document.createElement("div");
-        el.className = "orim-footer";
-        el.style.bottom = `${margin.footer}pt`;
-        el.style.left = `${margin.left}pt`;
-        el.style.width = `${usableWidth}pt`;
-        for (const block of footer) el.append(renderBlock(block));
-        page.append(el);
-      }
-    };
-
-    const newPage = (): Page => {
-      const wrapper = document.createElement("div");
-      wrapper.className = "orim-page-wrap";
-      wrapper.style.width = `${width + (includeComments ? 168 : 0)}pt`;
-      wrapper.style.height = `${height}pt`;
-      const page = document.createElement("div");
-      page.className = "orim-page";
-      page.style.width = `${width}pt`;
-      page.style.height = `${height}pt`;
-      const content = document.createElement("div");
-      content.className = "orim-content";
-      content.style.left = `${margin.left}pt`;
-      content.style.top = `${margin.top}pt`;
-      content.style.width = `${usableWidth}pt`;
-      content.style.height = `${usableHeight}pt`;
-      if (props.linePitch) content.style.setProperty("--orim-pitch", `${props.linePitch}pt`);
-      page.append(content);
-
-      const pageNumber = pages.length + 1;
-      const firstPage = !pages.some((item) => item.properties === props);
-      addHeaderFooter(page, pageNumber, firstPage);
-      if (includeComments) {
-        const comments = document.createElement("div");
-        comments.className = "orim-page-comments";
-        wrapper.append(comments);
-      }
-      wrapper.append(page);
-      pagesRoot.append(wrapper);
-      const result = { wrapper, page, content, properties: props, number: pageNumber };
-      pages.push(result);
-      return result;
-    };
+    const newPage = () => createPage(pagesRoot, pages, doc, props, includeComments, renderBlock);
 
     const breakType = props.breakType ?? "nextPage";
     let current: Page;
     if (sectionIndex > 0 && breakType === "continuous" && pages.length) {
-      current = pages[pages.length - 1];
-      current.properties = props;
-      current.wrapper.style.width = `${width + (includeComments ? 168 : 0)}pt`;
-      current.wrapper.style.height = `${height}pt`;
-      current.page.style.width = `${width}pt`;
-      current.page.style.height = `${height}pt`;
-      current.content.style.left = `${margin.left}pt`;
-      current.content.style.top = `${margin.top}pt`;
-      current.content.style.width = `${usableWidth}pt`;
-      current.content.style.height = `${usableHeight}pt`;
-      if (props.linePitch)
-        current.content.style.setProperty("--orim-pitch", `${props.linePitch}pt`);
-      else current.content.style.removeProperty("--orim-pitch");
+      const previous = pages[pages.length - 1];
+      current = applyPageGeometry(previous, props);
+      pages[pages.length - 1] = current;
       current.page
         .querySelectorAll(".orim-header,.orim-footer")
         .forEach((element) => element.remove());
       const firstPage = !pages.some((item) => item !== current && item.properties === props);
-      addHeaderFooter(current.page, current.number, firstPage);
+      addHeaderFooter(doc, props, current.page, current.number, firstPage, renderBlock);
     } else {
       if (sectionIndex > 0 && breakType === "oddPage" && pages.length % 2 === 1) newPage();
       if (sectionIndex > 0 && breakType === "evenPage" && pages.length % 2 === 0) newPage();
       current = newPage();
     }
-    const overflows = (element: HTMLElement, page: Page): boolean => {
-      const bounds = page.content.getBoundingClientRect();
-      const blockBounds = element.getBoundingClientRect();
-      return (
-        page.content.scrollHeight > page.content.clientHeight + 1 ||
-        blockBounds.bottom > bounds.bottom + 1
-      );
-    };
-    const splitTable = (table: HTMLTableElement, page: Page): Page => {
-      if (!overflows(table, page)) return page;
-      const originalRows = Array.from(table.rows);
-      const headerRows = Array.from(table.rows).filter((row) => row.dataset.orimHeader === "true");
-      const movable = Array.from(table.rows).filter((row) => row.dataset.orimHeader !== "true");
-      if (!movable.length) return page;
-      const continuedRows: HTMLTableRowElement[] = [];
-      for (let index = movable.length - 1; index > 0; index--) {
-        const row = movable[index];
-        row.remove();
-        continuedRows.unshift(row);
-        if (!overflows(table, page)) break;
-      }
-      if (overflows(table, page) && page.content.childElementCount > 1) {
-        const body = table.tBodies[0];
-        if (body) for (const row of originalRows) body.append(row);
-        table.remove();
-        const next = newPage();
-        next.content.append(table);
-        return splitTable(table, next);
-      }
-      if (!continuedRows.length) return page;
-      const next = newPage();
-      const continuation = table.cloneNode(false) as HTMLTableElement;
-      for (const child of Array.from(table.children)) {
-        if (child.localName === "colgroup") continuation.append(child.cloneNode(true));
-      }
-      const body = document.createElement("tbody");
-      for (const row of headerRows) body.append(row.cloneNode(true));
-      for (const row of continuedRows) body.append(row);
-      continuation.append(body);
-      next.content.append(continuation);
-      return splitTable(continuation, next);
-    };
-
     for (let blockIndex = 0; blockIndex < section.blocks.length; blockIndex++) {
       const block = section.blocks[blockIndex];
       if (
@@ -175,10 +197,10 @@ export function paginate(
         current.content.childElementCount
       )
         current = newPage();
-      const element = renderBlock(block);
+      const element = renderBlock(block, current.number);
       current.content.append(element);
       if (element instanceof HTMLTableElement) {
-        current = splitTable(element, current);
+        current = splitTable(element, current, newPage);
       } else if (overflows(element, current) && current.content.childElementCount > 1) {
         element.remove();
         current = newPage();
@@ -194,16 +216,12 @@ export function paginate(
   }
 
   const total = pages.length;
-  for (const element of root.querySelectorAll<HTMLElement>("[data-field]")) {
-    const name = element.dataset.field;
-    if (name === "PAGE")
-      element.textContent = element.closest(".orim-page-wrap")?.querySelector(".orim-page")
-        ? String(
-            pages.find((page) => page.wrapper === element.closest(".orim-page-wrap"))?.number ?? "",
-          )
-        : "";
-    else if (name === "NUMPAGES") element.textContent = String(total);
-    else element.textContent = element.dataset.cached ?? "";
+  for (const field of fields) {
+    if (field.name === "NUMPAGES") field.element.textContent = String(total);
+    else if (field.name === "PAGE") {
+      const page = pages.find((item) => item.content.contains(field.element));
+      field.element.textContent = page ? String(page.number) : field.cached;
+    }
   }
   return pages;
 }

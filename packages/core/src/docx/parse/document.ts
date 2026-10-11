@@ -1,14 +1,13 @@
 import { attr, children, descendants, first } from "../../xml";
 import { openOpc, type OpcPackage, type Relationship } from "../../opc/package";
 import type { Block, DocxDocument, DocxSection, SectionProperties } from "../model";
-import { parseNumbering } from "../numbering";
+import { assignListMarkers, parseNumbering } from "../numbering";
 import { parseStyles } from "../styles";
 import { parseThemeFonts } from "../theme";
 import { twips } from "../units";
 import { applyContextualSpacing, blockNodes, splitAtPageBreaks } from "./blocks";
 import { parseComments } from "./comments";
-import { createCommentRangeState, createImagePathState, type ParseContext } from "./context";
-import { createFieldStack } from "./fields";
+import { createParseState, type ParseConfig, type ParseContext } from "./context";
 import { relationshipId } from "./inline";
 import { parseParagraph } from "./paragraph";
 import { parseTable } from "./table";
@@ -62,69 +61,46 @@ function sectionReferences(node: Element): Readonly<Record<string, string>> {
 }
 
 function parseBlocks(nodes: readonly Element[], context: ParseContext): Block[] {
-  return applyContextualSpacing(
-    blockNodes([...nodes]).flatMap((node): Block[] =>
-      node.localName === "p"
-        ? splitAtPageBreaks(parseParagraph(node, context))
-        : node.localName === "tbl"
-          ? [parseTable(node, context)]
-          : [],
-    ),
-  );
+  const blocks: Block[] = [];
+  for (const node of blockNodes([...nodes])) {
+    if (node.localName === "p") blocks.push(...splitAtPageBreaks(parseParagraph(node, context)));
+    else if (node.localName === "tbl") blocks.push(parseTable(node, context));
+  }
+  return applyContextualSpacing(blocks);
 }
 
 function parseSections(nodes: readonly Element[], context: ParseContext): ParsedSection[] {
-  const grouped = nodes.reduce(
-    (state, node) => {
-      if (node.localName === "sectPr") {
-        return {
-          sections: [
-            ...state.sections,
-            {
-              properties: sectionProperties(node),
-              references: sectionReferences(node),
-              blocks: applyContextualSpacing(state.blocks),
-            },
-          ],
-          blocks: [],
-        };
-      }
-      if (node.localName !== "p" && node.localName !== "tbl") return state;
+  const sections: ParsedSection[] = [];
+  let blocks: Block[] = [];
+  const pushSection = (
+    properties: SectionProperties,
+    references: Readonly<Record<string, string>>,
+  ) => {
+    sections.push({ properties, references, blocks: applyContextualSpacing(blocks) });
+    blocks = [];
+  };
 
-      const blocks = [
-        ...state.blocks,
-        ...(node.localName === "p"
-          ? splitAtPageBreaks(parseParagraph(node, context))
-          : [parseTable(node, context)]),
-      ];
-      const paragraphSection =
-        node.localName === "p" ? first(first(node, "pPr"), "sectPr") : undefined;
-      if (!paragraphSection) return { ...state, blocks };
-      return {
-        sections: [
-          ...state.sections,
-          {
-            properties: sectionProperties(paragraphSection),
-            references: sectionReferences(paragraphSection),
-            blocks: applyContextualSpacing(blocks),
-          },
-        ],
-        blocks: [],
-      };
-    },
-    { sections: [] as ParsedSection[], blocks: [] as Block[] },
-  );
+  for (const node of nodes) {
+    if (node.localName === "sectPr") {
+      pushSection(sectionProperties(node), sectionReferences(node));
+      continue;
+    }
+    if (node.localName !== "p" && node.localName !== "tbl") continue;
 
-  if (!grouped.blocks.length) return grouped.sections;
-  const previous = grouped.sections.at(-1);
-  return [
-    ...grouped.sections,
-    {
-      properties: previous?.properties ?? sectionProperties(undefined),
-      references: previous?.references ?? {},
-      blocks: applyContextualSpacing(grouped.blocks),
-    },
-  ];
+    if (node.localName === "p") blocks.push(...splitAtPageBreaks(parseParagraph(node, context)));
+    else blocks.push(parseTable(node, context));
+
+    const paragraphSection =
+      node.localName === "p" ? first(first(node, "pPr"), "sectPr") : undefined;
+    if (paragraphSection)
+      pushSection(sectionProperties(paragraphSection), sectionReferences(paragraphSection));
+  }
+
+  if (blocks.length) {
+    const previous = sections.at(-1);
+    pushSection(previous?.properties ?? sectionProperties(undefined), previous?.references ?? {});
+  }
+  return sections;
 }
 
 async function sectionDecorations(
@@ -132,7 +108,7 @@ async function sectionDecorations(
   source: string,
   rels: Map<string, Relationship>,
   refs: Readonly<Record<string, string>>,
-  base: Omit<ParseContext, "source" | "rels" | "commentRanges">,
+  base: Omit<ParseConfig, "source" | "rels">,
 ): Promise<Partial<SectionProperties>> {
   const parsed = await Promise.all(
     [...rels.values()].map(async (rel) => {
@@ -145,11 +121,8 @@ async function sectionDecorations(
       const root = doc.documentElement;
       if (!root) return undefined;
       const partContext: ParseContext = {
-        ...base,
-        source: part,
-        rels: await opc.relationships(part),
-        commentRanges: createCommentRangeState(),
-        fields: createFieldStack(),
+        config: { ...base, source: part, rels: await opc.relationships(part) },
+        state: createParseState(),
       };
       return { type, kind, blocks: parseBlocks(children(root), partContext) } as const;
     }),
@@ -199,52 +172,64 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
     numberingPath && opc.zip.has(numberingPath) ? await opc.xml(numberingPath) : undefined;
   const styles = parseStyles(stylesDoc, theme);
   const numbering = parseNumbering(numberingDoc);
-  const commentRanges = createCommentRangeState();
-  const imagePartPaths = createImagePathState();
   const context: ParseContext = {
-    opc,
-    source: documentPath,
-    rels,
-    styles,
-    theme,
-    numbering,
-    commentRanges,
-    imageParts: imagePartPaths,
-    fields: createFieldStack(),
+    config: { opc, source: documentPath, rels, styles, theme, numbering },
+    state: createParseState(),
   };
   const body = first(doc.documentElement, "body");
   const sections = parseSections(blockNodes(children(body ?? doc)), context);
-  const renderedSections = await sections.reduce<Promise<DocxSection[]>>(
-    async (promise, section) => {
-      const previousSections = await promise;
-      const previous = previousSections.at(-1)?.properties;
-      const decorations = await sectionDecorations(opc, documentPath, rels, section.references, {
-        opc,
-        styles,
-        theme,
-        numbering,
-        imageParts: imagePartPaths,
-        fields: createFieldStack(),
-      });
-      const properties: SectionProperties = {
-        ...section.properties,
-        ...decorations,
-        header: decorations.header ?? previous?.header,
-        firstHeader: decorations.firstHeader ?? previous?.firstHeader,
-        evenHeader: decorations.evenHeader ?? previous?.evenHeader,
-        footer: decorations.footer ?? previous?.footer,
-        firstFooter: decorations.firstFooter ?? previous?.firstFooter,
-        evenFooter: decorations.evenFooter ?? previous?.evenFooter,
-      };
-      return [...previousSections, { properties, blocks: section.blocks }];
-    },
-    Promise.resolve([]),
-  );
+  const renderedSections: DocxSection[] = [];
+  for (const section of sections) {
+    const previous = renderedSections.at(-1)?.properties;
+    const decorations = await sectionDecorations(opc, documentPath, rels, section.references, {
+      opc,
+      styles,
+      theme,
+      numbering,
+    });
+    const properties: SectionProperties = {
+      ...section.properties,
+      ...decorations,
+      header: decorations.header ?? previous?.header,
+      firstHeader: decorations.firstHeader ?? previous?.firstHeader,
+      evenHeader: decorations.evenHeader ?? previous?.evenHeader,
+      footer: decorations.footer ?? previous?.footer,
+      firstFooter: decorations.firstFooter ?? previous?.firstFooter,
+      evenFooter: decorations.evenFooter ?? previous?.evenFooter,
+    };
+    renderedSections.push({ properties, blocks: section.blocks });
+  }
 
-  const commentList = await parseComments(opc, context, parseBlocks);
+  const bodyBlocks = renderedSections.flatMap((section) => section.blocks);
+  const numberedBodyBlocks = assignListMarkers(bodyBlocks, numbering);
+  let bodyBlockIndex = 0;
+  const numberedSections = renderedSections.map((section) => {
+    const blocks = numberedBodyBlocks.slice(bodyBlockIndex, bodyBlockIndex + section.blocks.length);
+    bodyBlockIndex += section.blocks.length;
+    const numberStory = (story: readonly Block[] | undefined) =>
+      story ? assignListMarkers(story, numbering) : undefined;
+    return {
+      ...section,
+      properties: {
+        ...section.properties,
+        header: numberStory(section.properties.header),
+        firstHeader: numberStory(section.properties.firstHeader),
+        evenHeader: numberStory(section.properties.evenHeader),
+        footer: numberStory(section.properties.footer),
+        firstFooter: numberStory(section.properties.firstFooter),
+        evenFooter: numberStory(section.properties.evenFooter),
+      },
+      blocks,
+    };
+  });
+  const commentList = (await parseComments(opc, context, parseBlocks)).map((comment) => ({
+    ...comment,
+    paragraphs: assignListMarkers(comment.paragraphs, numbering),
+  }));
+  const imagePaths = collectImagePaths(numberedSections, commentList);
   const imageParts: DocxDocument["imageParts"] = Object.fromEntries(
     await Promise.all(
-      [...context.imageParts.values()].map(async (path) => {
+      imagePaths.map(async (path) => {
         const [bytes, mime] = await Promise.all([opc.bytes(path), opc.mime(path)]);
         return [path, { bytes, mime }] as const;
       }),
@@ -255,10 +240,37 @@ export async function parseDocxModel(input: ArrayBuffer | Uint8Array): Promise<D
     ? twips(attr(descendants(settings, "defaultTabStop")[0], "val"), 36)
     : undefined;
   return {
-    sections: renderedSections,
+    sections: numberedSections,
     comments: commentList,
     evenAndOddHeaders: !!(settings && descendants(settings, "evenAndOddHeaders").length),
     defaultTabStop,
     imageParts,
   };
+}
+
+function collectImagePaths(
+  sections: readonly DocxSection[],
+  comments: readonly DocxDocument["comments"][number][],
+): string[] {
+  const paths = new Set<string>();
+  const visit = (blocks: readonly Block[]) => {
+    for (const block of blocks) {
+      if (block.type === "paragraph") {
+        for (const run of block.runs) if (run.type === "image") paths.add(run.path);
+      } else {
+        for (const row of block.rows) for (const cell of row.cells) visit(cell.blocks);
+      }
+    }
+  };
+  for (const section of sections) {
+    visit(section.blocks);
+    visit(section.properties.header ?? []);
+    visit(section.properties.firstHeader ?? []);
+    visit(section.properties.evenHeader ?? []);
+    visit(section.properties.footer ?? []);
+    visit(section.properties.firstFooter ?? []);
+    visit(section.properties.evenFooter ?? []);
+  }
+  for (const comment of comments) visit(comment.paragraphs);
+  return [...paths];
 }

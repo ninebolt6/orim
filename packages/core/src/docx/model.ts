@@ -1,11 +1,13 @@
 export type ChangeKind = "ins" | "del" | "moveFrom" | "moveTo";
 
-export interface ChangeMark {
-  readonly kind: ChangeKind;
+export interface RevisionInfo {
   readonly author: string;
   readonly date: string;
-  readonly color?: string;
 }
+
+export type ChangeMark = RevisionInfo & {
+  readonly kind: ChangeKind;
+};
 
 export interface TextStyle {
   readonly bold?: boolean;
@@ -30,7 +32,7 @@ export type Inline =
       readonly text: string;
       readonly style?: TextStyle;
       readonly change?: ChangeMark;
-      readonly formattingChange?: ChangeMark;
+      readonly formattingChange?: RevisionInfo;
       readonly comments?: readonly string[];
       readonly href?: string;
     }
@@ -71,13 +73,13 @@ export interface ParagraphProperties {
   readonly borders?: Readonly<Partial<Record<"top" | "right" | "bottom" | "left", string>>>;
   readonly borderSpacing?: Readonly<Partial<Record<"top" | "right" | "bottom" | "left", number>>>;
   readonly change?: ChangeMark;
-  readonly formattingChange?: ChangeMark;
+  readonly formattingChange?: RevisionInfo;
 }
 
 export interface ListProperties {
   readonly numId: string;
   readonly level: number;
-  readonly marker: string;
+  readonly marker?: string;
   readonly left?: number;
   readonly hanging?: number;
   readonly suffix?: "tab" | "space" | "nothing";
