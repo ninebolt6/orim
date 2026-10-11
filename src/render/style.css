@@ -122,7 +122,7 @@
 .orim-page-comments {
   position: absolute;
   top: 0;
-  left: 100%;
+  left: calc(100% - 224px);
   width: 210px;
   height: 100%;
   margin-left: 14px;

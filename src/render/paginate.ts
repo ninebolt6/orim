@@ -68,7 +68,7 @@ export function paginate(
     const newPage = (): Page => {
       const wrapper = document.createElement("div");
       wrapper.className = "orim-page-wrap";
-      wrapper.style.width = `${width + (includeComments ? 224 : 0)}pt`;
+      wrapper.style.width = `${width + (includeComments ? 168 : 0)}pt`;
       wrapper.style.height = `${height}pt`;
       const page = document.createElement("div");
       page.className = "orim-page";
@@ -102,7 +102,7 @@ export function paginate(
     if (sectionIndex > 0 && previousBreak === "continuous" && pages.length) {
       current = pages[pages.length - 1];
       current.properties = props;
-      current.wrapper.style.width = `${width + (includeComments ? 224 : 0)}pt`;
+      current.wrapper.style.width = `${width + (includeComments ? 168 : 0)}pt`;
       current.wrapper.style.height = `${height}pt`;
       current.page.style.width = `${width}pt`;
       current.page.style.height = `${height}pt`;
