@@ -5,7 +5,7 @@ import { validColor } from "./sanitize";
 import { applyTextStyle } from "./text-style";
 import { revisionVisibility } from "./revisions";
 
-export function renderParagraph(block: Paragraph, context: RenderContext): HTMLElement {
+export const renderParagraph = (block: Paragraph, context: RenderContext): HTMLElement => {
   const paragraph = document.createElement("p");
   paragraph.className = "orim-paragraph";
   const titles: string[] = [];
@@ -94,4 +94,4 @@ export function renderParagraph(block: Paragraph, context: RenderContext): HTMLE
     paragraph.append(mark);
   }
   return paragraph;
-}
+};

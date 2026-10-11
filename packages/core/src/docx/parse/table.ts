@@ -7,14 +7,14 @@ import { applyContextualSpacing, blockNodes, splitAtPageBreaks } from "./blocks"
 import { changeFrom } from "./inline";
 import { parseParagraph } from "./paragraph";
 
-function color(value: string | undefined): string | undefined {
+const color = (value: string | undefined): string | undefined => {
   return value && /^[\da-f]{6}$/i.test(value) ? `#${value}` : undefined;
-}
+};
 
 type MergeCell = Pick<TableCell, "gridSpan" | "rowSpan">;
 type MergeRow = { readonly cells: readonly MergeCell[] };
 
-export function computeRowSpans(rows: readonly MergeRow[]): number[][] {
+export const computeRowSpans = (rows: readonly MergeRow[]): number[][] => {
   const gridStarts: number[][] = [];
   for (const row of rows) {
     const starts: number[] = [];
@@ -43,9 +43,9 @@ export function computeRowSpans(rows: readonly MergeRow[]): number[][] {
       return 1 + (interrupted < 0 ? continues.length : interrupted);
     }),
   );
-}
+};
 
-export function parseTable(node: Element, context: ParseContext): Table {
+export const parseTable = (node: Element, context: ParseContext): Table => {
   const styles = context.config.styles;
   const tblPr = first(node, "tblPr");
   const styleId = attr(first(tblPr, "tblStyle"), "val");
@@ -146,4 +146,4 @@ export function parseTable(node: Element, context: ParseContext): Table {
     borders: tableBorders,
     margins: tableMargins,
   };
-}
+};

@@ -1,15 +1,15 @@
 const decoder = new TextDecoder();
 const MAX_ENTRY_SIZE = 64 * 1024 * 1024;
 
-function u16(view: DataView, offset: number): number {
+const u16 = (view: DataView, offset: number): number => {
   return view.getUint16(offset, true);
-}
+};
 
-function u32(view: DataView, offset: number): number {
+const u32 = (view: DataView, offset: number): number => {
   return view.getUint32(offset, true);
-}
+};
 
-async function inflateRaw(bytes: Uint8Array, declaredSize: number): Promise<Uint8Array> {
+const inflateRaw = async (bytes: Uint8Array, declaredSize: number): Promise<Uint8Array> => {
   if (typeof DecompressionStream === "undefined") {
     throw new Error("This browser does not support ZIP deflate decompression.");
   }
@@ -47,7 +47,7 @@ async function inflateRaw(bytes: Uint8Array, declaredSize: number): Promise<Uint
     offset += chunk.byteLength;
   }
   return output;
-}
+};
 
 export interface ZipArchive {
   has(path: string): boolean;
@@ -56,7 +56,7 @@ export interface ZipArchive {
   paths(): string[];
 }
 
-export function openZip(input: ArrayBuffer | Uint8Array): ZipArchive {
+export const openZip = (input: ArrayBuffer | Uint8Array): ZipArchive => {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const minOffset = Math.max(0, bytes.byteLength - 22 - 0xffff);
@@ -129,4 +129,4 @@ export function openZip(input: ArrayBuffer | Uint8Array): ZipArchive {
       return decoder.decode(await this.read(path));
     },
   };
-}
+};

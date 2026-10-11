@@ -1,6 +1,10 @@
 const getAttributeNS = Element.prototype.getAttributeNS;
 
-function getNamespaceValue(element: Element, namespace: string, localName: string): string | null {
+const getNamespaceValue = (
+  element: Element,
+  namespace: string,
+  localName: string,
+): string | null => {
   for (const attribute of Array.from(element.attributes)) {
     const separator = attribute.name.indexOf(":");
     if (separator < 0 || attribute.name.slice(separator + 1) !== localName) continue;
@@ -12,7 +16,7 @@ function getNamespaceValue(element: Element, namespace: string, localName: strin
     }
   }
   return null;
-}
+};
 
 Element.prototype.getAttributeNS = function (namespace, localName) {
   const value = getAttributeNS.call(this, namespace, localName);

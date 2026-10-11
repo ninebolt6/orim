@@ -24,7 +24,7 @@ interface MutableFieldState {
   style?: TextStyle;
 }
 
-export function createFieldStack(): FieldStack {
+export const createFieldStack = (): FieldStack => {
   const stack: MutableFieldState[] = [];
   const snapshot = (field: MutableFieldState): FieldState => ({ ...field });
   return {
@@ -63,21 +63,21 @@ export function createFieldStack(): FieldStack {
       return field && snapshot(field);
     },
   };
-}
+};
 
-export function fieldName(instruction: string): string {
+export const fieldName = (instruction: string): string => {
   return instruction.trim().match(/^\S+/)?.[0]?.toUpperCase() ?? "";
-}
+};
 
-export function fieldHref(instruction: string): string | undefined {
+export const fieldHref = (instruction: string): string | undefined => {
   if (fieldName(instruction) !== "HYPERLINK") return undefined;
   const bookmark = instruction.match(/\\l\s+(?:"([^"]+)"|(\S+))/i);
   if (bookmark) return `#${bookmark[1] ?? bookmark[2]}`;
   const target = instruction.match(/\bHYPERLINK\s+(?:"([^"]+)"|(\S+))/i);
   return target?.[1] ?? target?.[2];
-}
+};
 
-export function isPageField(field: FieldState): boolean {
+export const isPageField = (field: FieldState): boolean => {
   const name = fieldName(field.instruction);
   return name === "PAGE" || name === "NUMPAGES";
-}
+};

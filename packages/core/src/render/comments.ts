@@ -1,7 +1,7 @@
 import type { DocxComment } from "../docx/model";
 import type { Page } from "./paginate";
 
-function renderCommentText(comment: DocxComment): string {
+const renderCommentText = (comment: DocxComment): string => {
   return comment.paragraphs
     .map((block) =>
       block.type === "paragraph"
@@ -9,23 +9,23 @@ function renderCommentText(comment: DocxComment): string {
         : "",
     )
     .join("\n");
-}
+};
 
-function renderCommentAuthor(comment: DocxComment): string {
+const renderCommentAuthor = (comment: DocxComment): string => {
   if (!comment.date || !Number.isFinite(new Date(comment.date).getTime())) return comment.author;
   return `${comment.author} · ${new Date(comment.date).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   })}`;
-}
+};
 
-export function addComments(
+export const addComments = (
   pages: readonly Page[],
   comments: readonly DocxComment[],
   anchors: ReadonlyMap<string, readonly HTMLElement[]>,
   balloons: Map<string, HTMLElement>,
   scope: HTMLElement,
-): () => void {
+): (() => void) => {
   const byId = new Map(comments.map((comment) => [comment.id, comment]));
   for (const page of pages) {
     const lane = page.wrapper.querySelector<HTMLElement>(".orim-page-comments");
@@ -130,4 +130,4 @@ export function addComments(
     scope.removeEventListener("mouseout", onMouseOut);
     scope.removeEventListener("click", onClick);
   };
-}
+};

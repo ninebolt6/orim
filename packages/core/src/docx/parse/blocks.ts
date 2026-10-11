@@ -1,7 +1,7 @@
 import type { Block, Inline, Paragraph } from "../model";
 import { children, elements, first } from "../../xml";
 
-export function splitAtPageBreaks(paragraph: Paragraph): Paragraph[] {
+export const splitAtPageBreaks = (paragraph: Paragraph): Paragraph[] => {
   if (!paragraph.runs.some((run) => run.type === "break" && run.page)) return [paragraph];
   const segments: Array<{ runs: Inline[]; pageBreakAfter: boolean }> = [];
   let current: Inline[] = [];
@@ -39,9 +39,9 @@ export function splitAtPageBreaks(paragraph: Paragraph): Paragraph[] {
     runs: segmentRuns,
     list: index === 0 ? paragraph.list : undefined,
   }));
-}
+};
 
-export function applyContextualSpacing(blocks: readonly Block[]): Block[] {
+export const applyContextualSpacing = (blocks: readonly Block[]): Block[] => {
   return blocks.map((block, index) => {
     if (block.type !== "paragraph") return block;
     const previous = blocks[index - 1];
@@ -59,9 +59,9 @@ export function applyContextualSpacing(blocks: readonly Block[]): Block[] {
       },
     };
   });
-}
+};
 
-export function blockNodes(nodes: Element[]): Element[] {
+export const blockNodes = (nodes: Element[]): Element[] => {
   const out: Element[] = [];
   for (const node of nodes) {
     if (["p", "tbl", "sectPr"].includes(node.localName)) out.push(node);
@@ -76,4 +76,4 @@ export function blockNodes(nodes: Element[]): Element[] {
     }
   }
   return out;
-}
+};

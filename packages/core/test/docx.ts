@@ -19,7 +19,7 @@ export interface BuildDocxOptions {
   media?: Record<string, { bytes: Uint8Array; mime: string }>;
 }
 
-export function buildDocx(options: BuildDocxOptions): Uint8Array {
+export const buildDocx = (options: BuildDocxOptions): Uint8Array => {
   const mainPath = options.mainPath ?? "word/document.xml";
   const mainDir = mainPath.slice(0, mainPath.lastIndexOf("/"));
   const relativeTarget = (path: string) =>
@@ -84,4 +84,4 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
   for (const [path, xml] of Object.entries(parts)) archive[path] = strToU8(xml);
   for (const [path, part] of media) archive[path] = part.bytes;
   return zipSync(archive, { level: 0 });
-}
+};

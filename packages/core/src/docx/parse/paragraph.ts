@@ -4,7 +4,7 @@ import { parseRunProperties, paragraphProperties } from "../styles";
 import type { ParseContext } from "./context";
 import { changeFrom, collectInline, revisionInfoFrom } from "./inline";
 
-export function parseParagraph(node: Element, context: ParseContext): Paragraph {
+export const parseParagraph = (node: Element, context: ParseContext): Paragraph => {
   const { styles, theme, numbering } = context.config;
   const pPr = first(node, "pPr");
   const pStyle = attr(first(pPr, "pStyle"), "val");
@@ -42,4 +42,4 @@ export function parseParagraph(node: Element, context: ParseContext): Paragraph 
         }
       : undefined,
   };
-}
+};

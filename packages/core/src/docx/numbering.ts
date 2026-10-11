@@ -25,7 +25,7 @@ export interface Numbering {
   marker(numId: string, level: number, counters?: readonly number[]): NumberMarker;
 }
 
-function readLevel(node: Element): NumberLevel {
+const readLevel = (node: Element): NumberLevel => {
   const pPr = first(node, "pPr");
   const ind = first(pPr, "ind");
   const rFonts = first(first(node, "rPr"), "rFonts");
@@ -41,17 +41,17 @@ function readLevel(node: Element): NumberLevel {
     font: attr(rFonts, "ascii") ?? attr(rFonts, "hAnsi"),
     suffix: suffix === "space" || suffix === "nothing" || suffix === "tab" ? suffix : "tab",
   };
-}
+};
 
-function alpha(number: number, upper: boolean): string {
+const alpha = (number: number, upper: boolean): string => {
   let result = "";
   for (let n = Math.max(1, number); n > 0; n = Math.floor((n - 1) / 26)) {
     result = String.fromCharCode((upper ? 65 : 97) + ((n - 1) % 26)) + result;
   }
   return result;
-}
+};
 
-function roman(number: number): string {
+const roman = (number: number): string => {
   const digits: readonly (readonly [number, string])[] = [
     [1000, "M"],
     [900, "CM"],
@@ -74,9 +74,9 @@ function roman(number: number): string {
     remaining %= value;
   }
   return output;
-}
+};
 
-function formatNumber(number: number, format: string): string {
+const formatNumber = (number: number, format: string): string => {
   switch (format) {
     case "bullet":
       return "•";
@@ -97,9 +97,9 @@ function formatNumber(number: number, format: string): string {
     default:
       return String(number);
   }
-}
+};
 
-export function parseNumbering(doc: Document | undefined): Numbering {
+export const parseNumbering = (doc: Document | undefined): Numbering => {
   const abstract = new Map<string, Map<number, NumberLevel>>();
   const nums = new Map<string, string>();
   const overrides = new Map<string, Map<number, NumberLevel>>();
@@ -176,9 +176,9 @@ export function parseNumbering(doc: Document | undefined): Numbering {
       };
     },
   };
-}
+};
 
-export function assignListMarkers(blocks: readonly Block[], numbering: Numbering): Block[] {
+export const assignListMarkers = (blocks: readonly Block[], numbering: Numbering): Block[] => {
   const counters = new Map<string, readonly number[]>();
   const assign = (block: Block): Block => {
     if (block.type === "paragraph") {
@@ -203,4 +203,4 @@ export function assignListMarkers(blocks: readonly Block[], numbering: Numbering
     };
   };
   return blocks.map(assign);
-}
+};

@@ -5,18 +5,18 @@ import { renderDocument } from "../index";
 import "./styles.css";
 import sampleUrl from "../../../../fixtures/sample.docx?url";
 
-async function sampleDocument(): Promise<DocxDocument> {
+const sampleDocument = async (): Promise<DocxDocument> => {
   const response = await fetch(sampleUrl);
   return parseDocx(await response.blob());
-}
+};
 
-function createContainer(): HTMLDivElement {
+const createContainer = (): HTMLDivElement => {
   const container = document.createElement("div");
   document.body.append(container);
   return container;
-}
+};
 
-function deletedTextDocument(): DocxDocument {
+const deletedTextDocument = (): DocxDocument => {
   return {
     sections: [
       {
@@ -44,9 +44,9 @@ function deletedTextDocument(): DocxDocument {
     comments: [],
     imageParts: {},
   };
-}
+};
 
-function tableAfterContentDocument(): DocxDocument {
+const tableAfterContentDocument = (): DocxDocument => {
   const paragraph = (text: string) => ({
     type: "paragraph" as const,
     properties: {},
@@ -90,7 +90,7 @@ function tableAfterContentDocument(): DocxDocument {
     comments: [],
     imageParts: {},
   };
-}
+};
 
 describe("sample DOCX in Chromium", () => {
   it("uses portrait and landscape page geometry without overflow", async () => {

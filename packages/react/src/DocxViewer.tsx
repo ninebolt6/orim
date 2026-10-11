@@ -9,12 +9,12 @@ export interface DocxViewerProps extends HTMLAttributes<HTMLDivElement> {
   comments?: boolean;
 }
 
-export function DocxViewer({
+export const DocxViewer = ({
   document,
   changes = "markup",
   comments = true,
   ...rest
-}: DocxViewerProps): JSX.Element {
+}: DocxViewerProps): JSX.Element => {
   const element = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -25,4 +25,4 @@ export function DocxViewer({
   }, [document, changes, comments]);
 
   return <div {...rest} ref={element} />;
-}
+};

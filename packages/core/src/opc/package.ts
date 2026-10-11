@@ -19,7 +19,7 @@ export interface OpcPackage {
 
 export { attr, descendants, elements, first } from "../xml";
 
-function normalize(path: string): string {
+const normalize = (path: string): string => {
   const parts: string[] = [];
   for (const part of path.split("/")) {
     if (!part || part === ".") continue;
@@ -27,9 +27,9 @@ function normalize(path: string): string {
     else parts.push(part);
   }
   return parts.join("/");
-}
+};
 
-export function openOpc(input: ArrayBuffer | Uint8Array): OpcPackage {
+export const openOpc = (input: ArrayBuffer | Uint8Array): OpcPackage => {
   const zip = openZip(input);
   const relCache = new Map<string, Promise<Map<string, Relationship>>>();
   const contentTypes = new Map<string, string>();
@@ -49,11 +49,11 @@ export function openOpc(input: ArrayBuffer | Uint8Array): OpcPackage {
       })
     : Promise.resolve();
 
-  function relPath(source: string): string {
+  const relPath = (source: string): string => {
     const path = source.split("/");
     const file = path.pop() ?? "";
     return [...path, "_rels", `${file}.rels`].join("/");
-  }
+  };
 
   return {
     zip,
@@ -107,4 +107,4 @@ export function openOpc(input: ArrayBuffer | Uint8Array): OpcPackage {
       );
     },
   };
-}
+};

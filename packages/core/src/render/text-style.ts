@@ -21,16 +21,16 @@ const highlightColors: Record<string, string> = {
   yellow: "#ff0",
 };
 
-export function changeColor(change: ChangeMark, colors: Map<string, string>): string {
+export const changeColor = (change: ChangeMark, colors: Map<string, string>): string => {
   let value = colors.get(change.author);
   if (!value) {
     value = palette[colors.size % palette.length];
     colors.set(change.author, value);
   }
   return value;
-}
+};
 
-export function fontStack(name: string | undefined): string | undefined {
+export const fontStack = (name: string | undefined): string | undefined => {
   if (!name) return undefined;
   const names = [
     ...new Set(
@@ -60,9 +60,9 @@ export function fontStack(name: string | undefined): string | undefined {
         ? "serif"
         : "sans-serif";
   return `${families}, ${fallback}`;
-}
+};
 
-export function applyTextStyle(element: HTMLElement, style: TextStyle | undefined): void {
+export const applyTextStyle = (element: HTMLElement, style: TextStyle | undefined): void => {
   if (!style) return;
   if (style.bold !== undefined) element.style.fontWeight = style.bold ? "700" : "400";
   if (style.italic !== undefined) element.style.fontStyle = style.italic ? "italic" : "normal";
@@ -99,4 +99,4 @@ export function applyTextStyle(element: HTMLElement, style: TextStyle | undefine
   if (style.caps) element.style.textTransform = "uppercase";
   if (style.smallCaps) element.style.fontVariant = "small-caps";
   if (style.hidden) element.style.display = "none";
-}
+};

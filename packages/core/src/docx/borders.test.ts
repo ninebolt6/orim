@@ -2,10 +2,10 @@ import { describe, expect, it } from "vite-plus/test";
 import { border } from "./borders";
 import { W } from "../xml";
 
-function parseBorder(value: string): Element {
+const parseBorder = (value: string): Element => {
   return new DOMParser().parseFromString(`<w:bottom xmlns:w="${W}" ${value}/>`, "application/xml")
     .documentElement!;
-}
+};
 
 describe("shared border conversion", () => {
   it("uses currentColor for auto, none for nil, and maps double borders", () => {

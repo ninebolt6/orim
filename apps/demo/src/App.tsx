@@ -8,7 +8,7 @@ interface AppProps {
   initialError: string;
 }
 
-export function App({ initialDocument, initialError }: AppProps) {
+export const App = ({ initialDocument, initialError }: AppProps) => {
   const [document, setDocument] = useState(initialDocument);
   const [changes, setChanges] = useState<ChangesMode>("markup");
   const [comments, setComments] = useState(true);
@@ -123,4 +123,4 @@ export function App({ initialDocument, initialError }: AppProps) {
       </div>
     </div>
   );
-}
+};
