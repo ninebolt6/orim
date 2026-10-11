@@ -37,7 +37,10 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
   if (options.theme) parts[themePath] = options.theme;
   const overrides = Object.keys(parts)
     .filter((path) => path !== mainPath)
-    .map((path) => `<Override PartName="/${path}" ContentType="application/xml"/>`)
+    .map(
+      (path) =>
+        `<Override PartName="/${path}" ContentType="${path === commentsExtendedPath ? "application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml" : "application/xml"}"/>`,
+    )
     .join("");
   const media = Object.entries(options.media ?? {});
   const mediaTypes = new Map(
@@ -54,7 +57,7 @@ export function buildDocx(options: BuildDocxOptions): Uint8Array {
     options.comments &&
       `<Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="${relativeTarget(commentsPath)}"/>`,
     options.commentsExtended &&
-      `<Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/word/2018/wordml/commentsExtended" Target="${relativeTarget(commentsExtendedPath)}"/>`,
+      `<Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="${relativeTarget(commentsExtendedPath)}"/>`,
     options.theme &&
       `<Relationship Id="rTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="${relativeTarget(themePath)}"/>`,
   ]
