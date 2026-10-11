@@ -80,16 +80,49 @@ describe("sample DOCX in Chromium", () => {
     const paragraph = Array.from(container.querySelectorAll<HTMLElement>(".orim-paragraph")).find(
       (item) => item.textContent?.includes("Bullet item"),
     )!;
+    const list = rendered.document.sections
+      .flatMap((section) => section.blocks)
+      .find(
+        (block) =>
+          block.type === "paragraph" &&
+          block.runs.some((run) => run.type === "text" && run.text.includes("Bullet item")),
+      );
+    if (list?.type !== "paragraph" || !list.list?.left || list.list.hanging === undefined)
+      throw new Error("The fixture bullet needs explicit left and hanging indents.");
     const marker = paragraph.querySelector<HTMLElement>(".orim-list-marker")!;
     const page = paragraph.closest<HTMLElement>(".orim-page")!;
+    const content = paragraph.closest<HTMLElement>(".orim-content")!;
     const markerRect = marker.getBoundingClientRect();
     const pageRect = page.getBoundingClientRect();
+    const contentRect = content.getBoundingClientRect();
+    const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+    let bulletText: Text | undefined;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.textContent?.includes("Bullet item")) {
+        bulletText = node as Text;
+        break;
+      }
+    }
+    expect(bulletText).toBeDefined();
+    const range = document.createRange();
+    range.setStart(bulletText!, bulletText!.textContent!.indexOf("Bullet item"));
+    range.setEnd(bulletText!, bulletText!.textContent!.indexOf("Bullet item") + 1);
+    const textRect = range.getBoundingClientRect();
     expect(markerRect.width).toBeGreaterThan(0);
     expect(markerRect.height).toBeGreaterThan(0);
     expect(markerRect.right).toBeGreaterThan(pageRect.left);
     expect(markerRect.left).toBeLessThan(pageRect.right);
     expect(markerRect.bottom).toBeGreaterThan(pageRect.top);
     expect(markerRect.top).toBeLessThan(pageRect.bottom);
+    expect(markerRect.left).toBeGreaterThanOrEqual(contentRect.left - 0.5);
+    expect(
+      Math.abs(
+        markerRect.left - (contentRect.left + ((list.list.left - list.list.hanging) * 96) / 72),
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(textRect.left - (contentRect.left + (list.list.left * 96) / 72)),
+    ).toBeLessThanOrEqual(1);
     rendered.destroy();
     container.remove();
   });
