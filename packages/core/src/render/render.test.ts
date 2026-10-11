@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { renderDocx } from "./document";
+import { renderDocx, renderDocument } from "./document";
 import type { DocxDocument } from "../docx/model";
 import { splitAtPageBreaks } from "../docx/parse/blocks";
 
@@ -54,6 +54,43 @@ function model(text: string): DocxDocument {
 }
 
 describe("DOCX renderer", () => {
+  it("renders a parsed model synchronously", () => {
+    const container = document.createElement("div");
+    const rendered = renderDocument(model("synchronous"), container);
+    expect(container.textContent).toContain("synchronous");
+    expect(container.querySelector(".orim-document")).not.toBeNull();
+    rendered.destroy();
+  });
+
+  it("updates options on a synchronously rendered model", () => {
+    const container = document.createElement("div");
+    const rendered = renderDocument(model("deleted"), container);
+    rendered.update({ changes: "final", comments: false });
+    expect(container.querySelector(".orim-root")?.classList.contains("orim-final")).toBe(true);
+    expect(container.querySelector(".orim-comment")).toBeNull();
+    rendered.destroy();
+  });
+
+  it("destroys a synchronous render idempotently", () => {
+    const container = document.createElement("div");
+    const rendered = renderDocument(model("destroy"), container);
+    rendered.destroy();
+    rendered.destroy();
+    expect(container.childElementCount).toBe(0);
+  });
+
+  it("replaces a previous synchronous render in the same container", () => {
+    const container = document.createElement("div");
+    const previous = renderDocument(model("previous"), container);
+    const current = renderDocument(model("current"), container);
+    expect(container.querySelectorAll(".orim-document")).toHaveLength(1);
+    expect(container.textContent).toContain("current");
+    expect(container.textContent).not.toContain("previous");
+    previous.destroy();
+    expect(container.textContent).toContain("current");
+    current.destroy();
+  });
+
   it("toggles tracked-change modes and only creates safe links", async () => {
     const container = document.createElement("div");
     const rendered = await renderDocx(model("deleted"), container);

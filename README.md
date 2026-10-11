@@ -28,12 +28,15 @@ const model = await parseDocx(file);
 ## React
 
 ```tsx
+import { parseDocx } from "@orim/core";
 import { DocxViewer } from "@orim/react";
 
-<DocxViewer src={file} changes="markup" comments />;
+const document = await parseDocx(file);
+
+<DocxViewer document={document} changes="markup" comments />;
 ```
 
-Pass an `ArrayBuffer`, `Uint8Array`, `Blob`, parsed `DocxDocument`, or `null` to `src`. Page dimensions and margins come from section properties; text, tables, images, comments, basic lists, headers/footers, hyperlinks and tracked changes are rendered from OOXML parts.
+Parse the file with `parseDocx` from `@orim/core`, then pass the resulting model to `document`. Page dimensions and margins come from section properties; text, tables, images, comments, basic lists, headers/footers, hyperlinks and tracked changes are rendered from OOXML parts.
 
 ## Limitations
 

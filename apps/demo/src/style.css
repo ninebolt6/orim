@@ -12,6 +12,9 @@ body {
     Meiryo,
     sans-serif;
 }
+.app-shell {
+  min-height: 100vh;
+}
 .toolbar {
   height: 62px;
   display: flex;

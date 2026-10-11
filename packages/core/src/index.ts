@@ -1,6 +1,11 @@
 export { parseDocx } from "./docx/parse";
-export { renderDocx } from "./render/document";
-export type { ChangesMode, RenderOptions, RenderedDocument } from "./render/document";
+export { renderDocx, renderDocument } from "./render/document";
+export type {
+  ChangesMode,
+  RenderDocumentOptions,
+  RenderOptions,
+  RenderedDocument,
+} from "./render/document";
 export type {
   Block,
   ChangeKind,

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { StrictMode } from "react";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
+import * as core from "@orim/core";
 import { DocxViewer } from "./DocxViewer";
 import type { DocxDocument, RenderedDocument } from "@orim/core";
 
@@ -29,72 +30,82 @@ function createDocumentModel(text: string): DocxDocument {
 }
 
 describe("DocxViewer", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
-  it("updates options without reparsing the source", async () => {
-    const onRender = vi.fn<(rendered: RenderedDocument) => void>();
+  it("renders a parsed document synchronously", () => {
     const model = createDocumentModel("React viewer");
-    const view = render(<DocxViewer src={model} changes="markup" onRender={onRender} />);
-    await view.findByText("React viewer");
-    const rendered = onRender.mock.calls[0][0] as RenderedDocument;
-    view.rerender(<DocxViewer src={model} changes="final" onRender={onRender} />);
-    expect(onRender).toHaveBeenCalledOnce();
-    expect(rendered.document).toBe(model);
-    expect(view.container.querySelector(".orim-root")?.classList.contains("orim-final")).toBe(true);
-    view.unmount();
+    const renderDocument = vi.spyOn(core, "renderDocument");
+    const view = render(<DocxViewer document={model} />);
+    expect(view.container.textContent).toContain("React viewer");
+    expect(renderDocument).toHaveBeenCalledOnce();
+    expect(view.container.querySelectorAll(".orim-document")).toHaveLength(1);
   });
 
-  it("aborts a previous source render and shows only the latest source", async () => {
-    const onRender = vi.fn<(rendered: RenderedDocument) => void>();
-    const onError = vi.fn();
-    const view = render(<DocxViewer src={new Blob([])} onRender={onRender} onError={onError} />);
-    view.rerender(
-      <DocxViewer
-        src={createDocumentModel("Latest source")}
-        onRender={onRender}
-        onError={onError}
-      />,
-    );
-    await view.findByText("Latest source");
-    expect(view.queryByText("React viewer")).toBeNull();
-    expect(onRender).toHaveBeenCalledOnce();
-    expect(onError).not.toHaveBeenCalled();
-  });
+  it("re-renders changed options from the same model and destroys the previous render", () => {
+    const model = createDocumentModel("React viewer");
+    const renderDocument = vi.spyOn(core, "renderDocument");
+    const view = render(<DocxViewer document={model} changes="markup" comments />);
+    const previous = renderDocument.mock.results[0].value as RenderedDocument;
+    const destroy = vi.spyOn(previous, "destroy");
 
-  it("destroys the rendered document and empties its container on unmount", async () => {
-    const onRender = vi.fn();
-    const view = render(<DocxViewer src={createDocumentModel("Unmount me")} onRender={onRender} />);
-    await view.findByText("Unmount me");
-    const rendered = onRender.mock.calls[0][0] as RenderedDocument;
-    const destroy = vi.spyOn(rendered, "destroy");
-    view.unmount();
+    view.rerender(<DocxViewer document={model} changes="final" comments={false} />);
+
+    expect(renderDocument).toHaveBeenCalledTimes(2);
+    expect(renderDocument.mock.calls.map(([doc]) => doc)).toEqual([model, model]);
+    expect(renderDocument.mock.calls[1][2]).toEqual({ changes: "final", comments: false });
     expect(destroy).toHaveBeenCalledOnce();
+    expect(view.container.querySelector(".orim-root")?.classList.contains("orim-final")).toBe(true);
+  });
+
+  it("replaces rendered pages when the document changes", () => {
+    const renderDocument = vi.spyOn(core, "renderDocument");
+    const firstModel = createDocumentModel("Previous document");
+    const nextModel = createDocumentModel("Latest document");
+    const view = render(<DocxViewer document={firstModel} />);
+    const previous = renderDocument.mock.results[0].value as RenderedDocument;
+    const destroy = vi.spyOn(previous, "destroy");
+
+    view.rerender(<DocxViewer document={nextModel} />);
+
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(view.container.textContent).toContain("Latest document");
+    expect(view.container.textContent).not.toContain("Previous document");
+    expect(view.container.querySelectorAll(".orim-document")).toHaveLength(1);
+  });
+
+  it("empties its render container when the document becomes null", () => {
+    const view = render(<DocxViewer document={createDocumentModel("Remove me")} />);
+    const renderContainer = view.container.firstElementChild as HTMLElement;
+    expect(renderContainer.childElementCount).toBe(1);
+
+    view.rerender(<DocxViewer document={null} />);
+
+    expect(renderContainer.childElementCount).toBe(0);
+  });
+
+  it("destroys the rendered document and empties its container on unmount", () => {
+    const renderDocument = vi.spyOn(core, "renderDocument");
+    const view = render(<DocxViewer document={createDocumentModel("Unmount me")} />);
+    const rendered = renderDocument.mock.results[0].value as RenderedDocument;
+    const destroy = vi.spyOn(rendered, "destroy");
+    const renderContainer = view.container.firstElementChild as HTMLElement;
+
+    view.unmount();
+
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(renderContainer.childElementCount).toBe(0);
     expect(view.container.childElementCount).toBe(0);
   });
 
-  it("leaves exactly one rendered root under StrictMode", async () => {
-    const onRender = vi.fn();
+  it("leaves exactly one rendered root under StrictMode", () => {
     const view = render(
       <StrictMode>
-        <DocxViewer src={createDocumentModel("Strict mode")} onRender={onRender} />
+        <DocxViewer document={createDocumentModel("Strict mode")} />
       </StrictMode>,
     );
-    await view.findByText("Strict mode");
-    await waitFor(() => expect(onRender).toHaveBeenCalledOnce());
-    expect(view.container.querySelectorAll(".orim-root")).toHaveLength(1);
-    view.unmount();
-  });
-
-  it("leaves a null source empty", () => {
-    const view = render(<DocxViewer src={null} />);
-    expect(view.container.firstElementChild?.childElementCount ?? 0).toBe(0);
-    view.unmount();
-  });
-
-  it("reports invalid DOCX bytes through onError", async () => {
-    const onError = vi.fn();
-    const view = render(<DocxViewer src={new Uint8Array([1, 2, 3])} onError={onError} />);
-    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
-    view.unmount();
+    expect(view.container.querySelectorAll(".orim-document")).toHaveLength(1);
   });
 });

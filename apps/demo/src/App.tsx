@@ -1,58 +1,67 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { DocxViewer } from "@orim/react";
-import type { ChangesMode } from "@orim/core";
-import sampleUrl from "../../../fixtures/sample.docx?url";
+import { parseDocx } from "@orim/core";
+import type { ChangesMode, DocxDocument } from "@orim/core";
 
-export function App() {
-  const [src, setSrc] = useState<Blob | null>(null);
+interface AppProps {
+  initialDocument: DocxDocument | null;
+  initialError: string;
+}
+
+export function App({ initialDocument, initialError }: AppProps) {
+  const [document, setDocument] = useState(initialDocument);
   const [changes, setChanges] = useState<ChangesMode>("markup");
   const [comments, setComments] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError);
+  const [loading, setLoading] = useState(false);
   const [dropVisible, setDropVisible] = useState(false);
+  const requestId = useRef(0);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetch(sampleUrl, { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Unable to load sample: ${response.status}`);
-        return response.blob();
-      })
-      .then(setSrc)
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted)
-          setError(reason instanceof Error ? reason.message : String(reason));
-      });
-    return () => controller.abort();
-  }, []);
-
-  useEffect(() => {
-    const prevent = (event: DragEvent) => {
-      event.preventDefault();
-      setDropVisible(event.type !== "drop" && event.type !== "dragleave");
-    };
-    const drop = (event: DragEvent) => {
-      event.preventDefault();
-      setDropVisible(false);
-      const file = event.dataTransfer?.files[0];
-      if (file) {
-        setError("");
-        setSrc(file);
-      }
-    };
-    window.addEventListener("dragenter", prevent);
-    window.addEventListener("dragover", prevent);
-    window.addEventListener("dragleave", prevent);
-    window.addEventListener("drop", drop);
-    return () => {
-      window.removeEventListener("dragenter", prevent);
-      window.removeEventListener("dragover", prevent);
-      window.removeEventListener("dragleave", prevent);
-      window.removeEventListener("drop", drop);
-    };
-  }, []);
+  const open = (file: File) => {
+    const request = ++requestId.current;
+    setError("");
+    setLoading(true);
+    void parseDocx(file).then(
+      (parsed) => {
+        if (request !== requestId.current) return;
+        setDocument(parsed);
+        setLoading(false);
+      },
+      (reason: unknown) => {
+        if (request !== requestId.current) return;
+        setError(reason instanceof Error ? reason.message : String(reason));
+        setLoading(false);
+      },
+    );
+  };
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setDropVisible(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        if (
+          !(
+            event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
+          )
+        )
+          setDropVisible(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDropVisible(false);
+        const file = event.dataTransfer.files[0];
+        if (file) open(file);
+      }}
+    >
       <header className="toolbar">
         <div className="brand">
           <span className="brand-mark">o</span>
@@ -68,10 +77,8 @@ export function App() {
             accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
-              if (file) {
-                setError("");
-                setSrc(file);
-              }
+              event.currentTarget.value = "";
+              if (file) open(file);
             }}
           />
         </label>
@@ -97,15 +104,20 @@ export function App() {
           Comments
         </label>
       </header>
-      {error && <div className="empty-state error">{error}</div>}
-      {!src && !error && <div className="empty-state">Loading sample document…</div>}
-      <DocxViewer
-        className="viewer"
-        src={src}
-        changes={changes}
-        comments={comments}
-        onError={(reason) => setError(reason instanceof Error ? reason.message : String(reason))}
-      />
+      {error && (
+        <div className="empty-state error" role="alert">
+          {error}
+        </div>
+      )}
+      {loading && (
+        <div className="empty-state loading" role="status">
+          Loading document…
+        </div>
+      )}
+      {!document && !error && !loading && (
+        <div className="empty-state">Open a .docx document to begin.</div>
+      )}
+      <DocxViewer className="viewer" document={document} changes={changes} comments={comments} />
       <div className={`drop-hint${dropVisible ? " visible" : ""}`}>
         Drop a Word document to open
       </div>
