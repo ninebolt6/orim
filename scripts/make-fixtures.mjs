@@ -19,7 +19,8 @@ const textRun = (text, props = "") =>
 const p = (text, props = "", style = "") =>
   `<w:p>${style ? `<w:pPr><w:pStyle w:val="${style}"/>${props}</w:pPr>` : props ? `<w:pPr>${props}</w:pPr>` : ""}${text}</w:p>`;
 const paragraph = (text, style, props = "") => p(textRun(text), props, style);
-const f = (type) => `<w:fldSimple w:instr="${type}"><w:r><w:t>1</w:t></w:r></w:fldSimple>`;
+const f = (type) =>
+  `<w:fldSimple w:instr="${type}"><w:r><w:rPr><w:sz w:val="28"/></w:rPr><w:t>1</w:t></w:r></w:fldSimple>`;
 const cell = (text, props = "") =>
   `<w:tc><w:tcPr>${props}</w:tcPr>${paragraph(text, "Normal")}</w:tc>`;
 
@@ -64,6 +65,21 @@ body.push(
   paragraph(
     "日本語の文章も含むサンプル文書です。ページごとの余白、見出し、コメント、および変更履歴を確認できます。",
     "Normal",
+  ),
+);
+body.push(
+  p(
+    textRun("A direct zero after-spacing value"),
+    '<w:pStyle w:val="Normal"/><w:spacing w:after="0"/>',
+  ),
+);
+body.push(
+  p(textRun("A contextual-spacing paragraph"), '<w:pStyle w:val="Normal"/><w:contextualSpacing/>'),
+);
+body.push(
+  p(
+    textRun("A second contextual-spacing paragraph"),
+    '<w:pStyle w:val="Normal"/><w:contextualSpacing/>',
   ),
 );
 body.push(paragraph("Overview", "Heading1"));
@@ -133,20 +149,68 @@ body.push(
     "Normal",
   ),
 );
+body.push(
+  p(
+    `${textRun("Before inline page break")}<w:r><w:br w:type="page"/></w:r>${textRun("After inline page break")}`,
+  ),
+);
+body.push(
+  `<w:sdt><w:sdtPr><w:docPartObj/></w:sdtPr><w:sdtContent>${p(
+    `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \\o "1-3" \\h </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${textRun("Contents")}`,
+  )}${p(
+    `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \\l "_TocOverview" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>${textRun("Overview")}<w:r><w:fldChar w:fldCharType="end"/></w:r>${textRun(" 1")}`,
+  )}${p(
+    `${textRun("Second TOC entry")}<w:r><w:fldChar w:fldCharType="end"/></w:r>`,
+  )}</w:sdtContent></w:sdt>`,
+);
+body.push(
+  p(
+    `<w:fldSimple w:instr="HYPERLINK &quot;https://example.org/orim&quot;">${textRun("Simple field hyperlink")}</w:fldSimple>`,
+  ),
+);
+body.push(
+  p(
+    `${textRun("A paragraph with a bottom border.")}`,
+    '<w:pStyle w:val="Normal"/><w:pBdr><w:bottom w:val="single" w:sz="6" w:color="auto" w:space="4"/></w:pBdr>',
+  ),
+);
+body.push(
+  p(`${textRun("Superscript example: ")}${textRun("2", '<w:vertAlign w:val="superscript"/>')}`),
+);
+body.push(
+  p(
+    `<w:r><w:rPr><w:sz w:val="30"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:sz w:val="30"/></w:rPr><w:t>2</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`,
+  ),
+);
+body.push(
+  p(textRun("A numbered heading inherited through style."), '<w:pStyle w:val="NumberedHeading"/>'),
+);
+body.push(
+  p(
+    textRun("Direct list level overrides the style level."),
+    '<w:pStyle w:val="NumberedHeading"/><w:numPr><w:ilvl w:val="1"/></w:numPr>',
+  ),
+);
+body.push(
+  p(
+    textRun("Numbering cancelled by numId zero."),
+    '<w:pStyle w:val="NumberedHeading"/><w:numPr><w:numId w:val="0"/></w:numPr>',
+  ),
+);
 body.push(p(`<w:r><w:br w:type="page"/></w:r>`));
 const rows = [
-  `<w:tr><w:trPr><w:tblHeader/></w:trPr>${cell("Area", '<w:shd w:fill="DCE5FF"/>')}${cell("Details", '<w:shd w:fill="DCE5FF"/>')}</w:tr>`,
-  `<w:tr>${cell("Merged group", '<w:vMerge w:val="restart"/>')}${cell("First row with readable content")}</w:tr>`,
-  `<w:tr>${cell("", "<w:vMerge/>")}${cell("Second row continues the merged first cell")}</w:tr>`,
-  `<w:tr><w:trPr><w:ins w:id="7" w:author="Aiko" w:date="2025-02-01T08:00:00Z"/></w:trPr>${cell("New row")}${cell("Inserted table row")}</w:tr>`,
-  `<w:tr><w:trPr><w:del w:id="8" w:author="Morgan" w:date="2025-02-02T08:00:00Z"/></w:trPr>${cell("Removed row")}${cell("Deleted table row")}</w:tr>`,
+  `<w:tr><w:trPr><w:tblHeader/></w:trPr>${cell("Area", '<w:gridSpan w:val="2"/><w:shd w:fill="DCE5FF"/>')}${cell("Details", '<w:shd w:fill="DCE5FF"/>')}</w:tr>`,
+  `<w:tr>${cell("Merged group", '<w:gridSpan w:val="2"/>')}${cell("First row with readable content", '<w:vMerge w:val="restart"/>')}</w:tr>`,
+  `<w:tr>${cell("", '<w:gridSpan w:val="2"/>')}${cell("Second row continues the merged first cell", "<w:vMerge/>")}</w:tr>`,
+  `<w:tr><w:trPr><w:ins w:id="7" w:author="Aiko" w:date="2025-02-01T08:00:00Z"/></w:trPr>${cell("New row")}${cell("Inserted table row", '<w:gridSpan w:val="2"/>')}</w:tr>`,
+  `<w:tr><w:trPr><w:del w:id="8" w:author="Morgan" w:date="2025-02-02T08:00:00Z"/></w:trPr>${cell("Removed row")}${cell("Deleted table row", '<w:gridSpan w:val="2"/>')}</w:tr>`,
 ];
 for (let i = 1; i <= 28; i++)
   rows.push(
-    `<w:tr>${cell(`Row ${i}`)}${cell(`A deliberately repeated table entry to make the table continue onto additional pages (${i}).`)}</w:tr>`,
+    `<w:tr>${cell(`Row ${i}`)}${cell(`A deliberately repeated table entry to make the table continue onto additional pages (${i}).`, '<w:gridSpan w:val="2"/>')}</w:tr>`,
   );
 body.push(
-  `<w:tbl><w:tblPr><w:tblW w:w="9000" w:type="dxa"/><w:tblBorders><w:top w:val="single" w:sz="6" w:color="52627A"/><w:left w:val="single" w:sz="4" w:color="9AA6B7"/><w:bottom w:val="single" w:sz="6" w:color="52627A"/><w:right w:val="single" w:sz="4" w:color="9AA6B7"/><w:insideH w:val="single" w:sz="3" w:color="D0D5DD"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w="2400"/><w:gridCol w:w="6600"/></w:tblGrid>${rows.join("")}</w:tbl>`,
+  `<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/></w:tblPr><w:tblGrid><w:gridCol w:w="1200"/><w:gridCol w:w="1200"/><w:gridCol w:w="6600"/></w:tblGrid>${rows.join("")}</w:tbl>`,
 );
 body.push(paragraph("Table continuation", "Heading1"));
 for (let i = 1; i <= 9; i++) {
@@ -160,7 +224,7 @@ for (let i = 1; i <= 9; i++) {
 body.push(
   p(
     textRun("Portrait section ends here."),
-    '<w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="500" w:footer="500"/><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/></w:sectPr>',
+    '<w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="500" w:footer="500"/><w:docGrid w:type="lines" w:linePitch="360"/><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/></w:sectPr>',
   ),
 );
 for (let i = 1; i <= 8; i++) {
@@ -171,7 +235,7 @@ for (let i = 1; i <= 8; i++) {
     ),
   );
 }
-const finalSect = `<w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900" w:header="420" w:footer="420"/><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/></w:sectPr>`;
+const finalSect = `<w:sectPr><w:type w:val="nextPage"/><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900" w:header="420" w:footer="420"/><w:docGrid w:type="linesAndChars" w:linePitch="360"/><w:headerReference w:type="default" r:id="rIdHeader"/><w:footerReference w:type="default" r:id="rIdFooter"/></w:sectPr>`;
 
 const comments = xml(
   `<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w:comment w:id="0" w:author="Aiko" w:initials="AK" w:date="2025-02-01T09:15:00Z"><w:p w14:paraId="A1000001">${textRun("Please review the marked explanation.")}</w:p></w:comment><w:comment w:id="1" w:author="Morgan" w:initials="MG" w:date="2025-02-02T10:00:00Z"><w:p w14:paraId="A1000002">${textRun("Agreed — the wording is clear.")}</w:p></w:comment></w:comments>`,
@@ -183,7 +247,7 @@ const numbering = xml(
   `<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl><w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="lowerLetter"/><w:lvlText w:val="%1.%2)"/><w:pPr><w:ind w:left="1440" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum><w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:rPr><w:rFonts w:ascii="Arial"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>`,
 );
 const styles = xml(
-  `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:pPrDefault><w:pPr><w:spacing w:after="120"/></w:pPr></w:pPrDefault><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial"/><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="BodyText"><w:name w:val="Body Text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="180" w:line="276" w:lineRule="auto"/></w:pPr><w:rPr><w:sz w:val="22"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:rPr><w:b/><w:sz w:val="36"/><w:color w:val="263C76"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/><w:rPr><w:i/><w:color w:val="68738A"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="300" w:after="100"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/></w:rPr></w:style></w:styles>`,
+  `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:pPrDefault><w:pPr><w:spacing w:after="120"/></w:pPr></w:pPrDefault><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial"/><w:sz w:val="20"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:spacing w:before="100" w:after="120" w:line="300"/></w:pPr></w:style><w:style w:type="paragraph" w:styleId="BodyText"><w:name w:val="Body Text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="180" w:line="276" w:lineRule="auto"/></w:pPr><w:rPr><w:sz w:val="20"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:rPr><w:b/><w:sz w:val="36"/><w:color w:val="263C76"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/><w:rPr><w:i/><w:color w:val="68738A"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="300" w:after="100"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="NumberedHeading"><w:basedOn w:val="Heading1"/><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr></w:style><w:style w:type="table" w:default="1" w:styleId="TableGrid"><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:color="auto"/><w:left w:val="single" w:sz="4" w:color="auto"/><w:bottom w:val="single" w:sz="4" w:color="auto"/><w:right w:val="single" w:sz="4" w:color="auto"/><w:insideH w:val="single" w:sz="4" w:color="auto"/><w:insideV w:val="single" w:sz="4" w:color="auto"/></w:tblBorders><w:tblCellMar><w:left w:w="108" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tcPr><w:shd w:fill="F6F8FC"/></w:tcPr></w:style></w:styles>`,
 );
 const header = xml(
   `<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr>${textRun("orim • Document preview")}</w:p></w:hdr>`,
@@ -192,7 +256,7 @@ const footer = xml(
   `<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr><w:jc w:val="right"/></w:pPr>${textRun("Page ")}${f("PAGE")}${textRun(" of ")}<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> NUMPAGES </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>3</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`,
 );
 const settings = xml(
-  `<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:evenAndOddHeaders/></w:settings>`,
+  `<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:evenAndOddHeaders/><w:defaultTabStop w:val="720"/></w:settings>`,
 );
 const theme = xml(
   `<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:themeElements><a:fontScheme><a:majorFont><a:latin typeface="Aptos Display"/><a:ea typeface="Yu Gothic"/></a:majorFont><a:minorFont><a:latin typeface="Aptos"/><a:ea typeface="Noto Sans JP"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>`,

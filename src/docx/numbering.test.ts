@@ -29,4 +29,15 @@ describe("DOCX numbering", () => {
     expect(numbering.marker("2", 0).text).toBe("iv.");
     expect(numbering.marker("2", 1).text).toBe("A.");
   });
+
+  it("maps Word bullet glyphs and honors simple suffixes", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="&#xf0a7;"/><w:suff w:val="space"/></w:lvl><w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/><w:lvlText w:val="&#xf076;"/></w:lvl><w:lvl w:ilvl="2"><w:numFmt w:val="bullet"/><w:lvlText w:val="&#xf0d8;"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`,
+      "application/xml",
+    );
+    const numbering = parseNumbering(doc);
+    expect(numbering.marker("1", 0)).toMatchObject({ text: "▪", suffix: "space" });
+    expect(numbering.marker("1", 1).text).toBe("❖");
+    expect(numbering.marker("1", 2).text).toBe("➢");
+  });
 });

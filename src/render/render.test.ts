@@ -79,4 +79,37 @@ describe("DOCX renderer", () => {
     expect(container.querySelector("img")).toBeNull();
     expect(container.textContent).toContain("<img src=x onerror=alert(1)>");
   });
+
+  it("keeps moved text green regardless of its run color", async () => {
+    const doc = model("moved");
+    const paragraph = doc.sections[0].blocks[0];
+    if (paragraph.type === "paragraph")
+      paragraph.runs.push({
+        type: "text",
+        text: "move",
+        style: { color: "#ff0000" },
+        change: { kind: "moveTo", author: "Aiko", date: "" },
+      });
+    const container = document.createElement("div");
+    await renderDocx(doc, container);
+    const move = container.querySelector<HTMLElement>(".orim-change--moveTo");
+    expect(move?.style.color).not.toBe("#ff0000");
+    expect(move?.style.textDecoration).toBe("underline double");
+  });
+
+  it("nests comment replies without rendering a second top-level balloon", async () => {
+    const doc = model("anchored text");
+    doc.comments[0].date = "2025-02-01T09:15:00Z";
+    doc.comments.push({
+      id: "1",
+      parentId: "0",
+      author: "Morgan",
+      paragraphs: [],
+    });
+    const container = document.createElement("div");
+    await renderDocx(doc, container);
+    expect(container.querySelectorAll(".orim-page-comments > .orim-comment")).toHaveLength(1);
+    expect(container.querySelectorAll(".orim-comment-replies .orim-comment")).toHaveLength(1);
+    expect(container.querySelector(".orim-comment-author")?.textContent).toContain("Aiko · ");
+  });
 });

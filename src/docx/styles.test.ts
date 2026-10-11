@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { parseStyles } from "./styles";
+import { border, paragraphProperties, parseStyles } from "./styles";
 
 describe("DOCX styles", () => {
   it("applies doc defaults, basedOn, and direct run overrides in order", () => {
@@ -41,5 +41,42 @@ describe("DOCX styles", () => {
         { minorEastAsia: "Noto Sans JP" },
       ).run(undefined, "EastAsia").fontFamily,
     ).toBe("Noto Sans JP");
+  });
+
+  it("preserves inherited paragraph attributes and defaults a line to auto", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Normal"><w:pPr><w:spacing w:before="100" w:after="120" w:line="300"/></w:pPr></w:style></w:styles>`,
+      "application/xml",
+    );
+    const direct = new DOMParser().parseFromString(
+      `<w:pPr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:spacing w:after="0"/></w:pPr>`,
+      "application/xml",
+    ).documentElement;
+    expect(parseStyles(doc).paragraph("Normal", paragraphProperties(direct))).toMatchObject({
+      before: 5,
+      after: 0,
+      line: 1.25,
+      lineRule: "auto",
+    });
+  });
+
+  it("resolves shared borders and table-style inheritance", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="table" w:styleId="Base"><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:color="auto"/><w:right w:val="double" w:sz="8"/></w:tblBorders><w:tblCellMar><w:left w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tcPr><w:shd w:fill="ABCDEF"/></w:tcPr></w:style><w:style w:type="table" w:default="1" w:styleId="TableGrid"><w:basedOn w:val="Base"/><w:tblPr><w:tblBorders><w:top w:val="nil"/></w:tblBorders></w:tblPr></w:style></w:styles>`,
+      "application/xml",
+    );
+    const table = parseStyles(doc).table();
+    expect(table.borders).toMatchObject({
+      top: "none",
+      right: expect.stringContaining("double"),
+    });
+    expect(table.margins?.left).toBe(5.4);
+    expect(table.cellShading).toBe("#ABCDEF");
+    expect(border(undefined)).toBeUndefined();
+    const right = doc.getElementsByTagName("w:right")[0];
+    const inheritedTop = doc.getElementsByTagName("w:top")[1];
+    expect(border(right)).toContain("currentColor");
+    expect(border(right)).toContain("double");
+    expect(border(inheritedTop)).toBe("none");
   });
 });
