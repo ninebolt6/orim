@@ -92,7 +92,7 @@ export function renderDocument(
     if (doc.defaultTabStop !== undefined)
       root.style.setProperty("--orim-tab-size", `${doc.defaultTabStop}pt`);
     const draw = () => {
-      root!.className = `orim-root orim-document orim-${context.changes}`;
+      root!.className = `orim-root orim-${context.changes}`;
       const resolvedDoc = resolveDocumentParagraphMarks(doc, context.changes);
       const pages = paginate(
         root!,
@@ -101,7 +101,6 @@ export function renderDocument(
         (block) => renderBlock(block, context),
         context.comments,
       );
-      root!.classList.add("orim-document");
       if (context.comments) addComments(pages, doc.comments);
     };
     container.replaceChildren(root);

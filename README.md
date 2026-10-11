@@ -31,9 +31,9 @@ const model = await parseDocx(file);
 import { parseDocx } from "@orim/core";
 import { DocxViewer } from "@orim/react";
 
-const document = await parseDocx(file);
+const model = await parseDocx(file);
 
-<DocxViewer document={document} changes="markup" comments />;
+<DocxViewer document={model} changes="markup" comments />;
 ```
 
 Parse the file with `parseDocx` from `@orim/core`, then pass the resulting model to `document`. Page dimensions and margins come from section properties; text, tables, images, comments, basic lists, headers/footers, hyperlinks and tracked changes are rendered from OOXML parts.

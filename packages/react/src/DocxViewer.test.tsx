@@ -41,7 +41,7 @@ describe("DocxViewer", () => {
     const view = render(<DocxViewer document={model} />);
     expect(view.container.textContent).toContain("React viewer");
     expect(renderDocument).toHaveBeenCalledOnce();
-    expect(view.container.querySelectorAll(".orim-document")).toHaveLength(1);
+    expect(view.container.querySelectorAll(".orim-root")).toHaveLength(1);
   });
 
   it("re-renders changed options from the same model and destroys the previous render", () => {
@@ -73,7 +73,7 @@ describe("DocxViewer", () => {
     expect(destroy).toHaveBeenCalledOnce();
     expect(view.container.textContent).toContain("Latest document");
     expect(view.container.textContent).not.toContain("Previous document");
-    expect(view.container.querySelectorAll(".orim-document")).toHaveLength(1);
+    expect(view.container.querySelectorAll(".orim-root")).toHaveLength(1);
   });
 
   it("empties its render container when the document becomes null", () => {
@@ -106,6 +106,6 @@ describe("DocxViewer", () => {
         <DocxViewer document={createDocumentModel("Strict mode")} />
       </StrictMode>,
     );
-    expect(view.container.querySelectorAll(".orim-document")).toHaveLength(1);
+    expect(view.container.querySelectorAll(".orim-root")).toHaveLength(1);
   });
 });

@@ -58,7 +58,7 @@ describe("DOCX renderer", () => {
     const container = document.createElement("div");
     const rendered = renderDocument(model("synchronous"), container);
     expect(container.textContent).toContain("synchronous");
-    expect(container.querySelector(".orim-document")).not.toBeNull();
+    expect(container.querySelector(".orim-root")).not.toBeNull();
     rendered.destroy();
   });
 
@@ -83,7 +83,7 @@ describe("DOCX renderer", () => {
     const container = document.createElement("div");
     const previous = renderDocument(model("previous"), container);
     const current = renderDocument(model("current"), container);
-    expect(container.querySelectorAll(".orim-document")).toHaveLength(1);
+    expect(container.querySelectorAll(".orim-root")).toHaveLength(1);
     expect(container.textContent).toContain("current");
     expect(container.textContent).not.toContain("previous");
     previous.destroy();
