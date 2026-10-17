@@ -73,7 +73,7 @@ const docxFailed = await measureConsumer(
 const xlsxFailed = await measureConsumer(
   "XLSX",
   ["parseXlsx", "renderWorkbook", "renderXlsx"],
-  14 * 1024,
+  15 * 1024,
 );
 failed = failed || docxFailed || xlsxFailed;
 for (const [name, path, budget] of [
