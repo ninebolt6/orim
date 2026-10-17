@@ -34,8 +34,12 @@ export const renderWorkbook = (
   container: HTMLElement,
   options: RenderWorkbookOptions = {},
 ): RenderedWorkbook => {
+  const visibleSheets = workbook.sheets.flatMap((item, index) =>
+    item.state === "visible" ? [{ item, index }] : [],
+  );
   let sheet = options.sheet ?? workbook.activeSheet;
-  validateSheet(workbook, sheet);
+  if (!visibleSheets.length) sheet = -1;
+  else validateSheet(workbook, sheet);
   let root: HTMLDivElement | undefined;
   let worksheetView: RenderedWorksheet | undefined;
   const lease = acquireContainerLease(container, () => {
@@ -52,9 +56,6 @@ export const renderWorkbook = (
     tabs.className = "orim-xlsx-tabs";
     tabs.setAttribute("role", "tablist");
     tabs.setAttribute("aria-label", "Worksheets");
-    const visibleSheets = workbook.sheets.flatMap((item, index) =>
-      item.state === "visible" ? [{ item, index }] : [],
-    );
     const buttons = new Map<number, HTMLButtonElement>();
     const setSelected = (index: number): void => {
       for (const [buttonIndex, button] of buttons) {
@@ -90,8 +91,14 @@ export const renderWorkbook = (
       tabs.append(button);
     }
     root.append(worksheetContainer, tabs);
+    if (sheet < 0) {
+      const note = document.createElement("div");
+      note.className = "orim-xlsx-note";
+      note.append(document.createTextNode("No visible worksheets."));
+      worksheetContainer.append(note);
+    }
     container.replaceChildren(root);
-    worksheetView = renderWorksheet(workbook, sheet, worksheetContainer);
+    if (sheet >= 0) worksheetView = renderWorksheet(workbook, sheet, worksheetContainer);
     return {
       workbook,
       get sheet() {

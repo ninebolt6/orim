@@ -18,20 +18,23 @@ export const XlsxViewer = ({
 }: XlsxViewerProps): JSX.Element => {
   const element = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{ workbook: XlsxWorkbook; index: number }>();
-  const current =
-    sheet ??
-    (selection && selection.workbook === workbook ? selection.index : (workbook?.activeSheet ?? 0));
-
-  useLayoutEffect(() => {
-    const container = element.current;
-    if (!workbook || !container) return;
-    const rendered = renderWorksheet(workbook, current, container);
-    return () => rendered.destroy();
-  }, [workbook, current]);
-
   const visibleSheets = workbook?.sheets.flatMap((item, index) =>
     item.state === "visible" ? [{ item, index }] : [],
   );
+  const fallback =
+    visibleSheets?.find(({ index }) => index === workbook?.activeSheet)?.index ??
+    visibleSheets?.[0]?.index ??
+    -1;
+  const requested =
+    sheet ?? (selection && selection.workbook === workbook ? selection.index : fallback);
+  const current = visibleSheets?.some(({ index }) => index === requested) ? requested : fallback;
+
+  useLayoutEffect(() => {
+    const container = element.current;
+    if (!workbook || !container || current < 0) return;
+    const rendered = renderWorksheet(workbook, current, container);
+    return () => rendered.destroy();
+  }, [workbook, current]);
 
   return (
     <div {...rest} className={["orim-xlsx-react", className].filter(Boolean).join(" ")}>
