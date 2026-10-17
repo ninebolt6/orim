@@ -1,7 +1,7 @@
 {
   "name": "@orim/react",
   "version": "0.1.0",
-  "description": "React components for the orim DOCX renderer",
+  "description": "React components for the orim DOCX and XLSX viewers",
   "license": "MIT",
   "files": [
     "dist"
