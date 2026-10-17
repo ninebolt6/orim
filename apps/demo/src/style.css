@@ -180,6 +180,10 @@ body {
     content: "Word";
     font-size: 11px;
   }
+  .sample-button:nth-of-type(2):after {
+    content: "Excel";
+    font-size: 11px;
+  }
   .comment-toggle {
     font-size: 0;
   }
