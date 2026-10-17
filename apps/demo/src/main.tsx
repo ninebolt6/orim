@@ -2,7 +2,8 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { parseDocx } from "@orim/core";
 import type { DocxDocument } from "@orim/core";
-import "@orim/core/style.css";
+import "@orim/core/docx.css";
+import "@orim/core/xlsx.css";
 import { App } from "./App";
 import "./style.css";
 import sampleUrl from "../../../fixtures/sample.docx?url";
@@ -20,6 +21,9 @@ try {
 
 createRoot(document.getElementById("app")!).render(
   <StrictMode>
-    <App initialDocument={initialDocument} initialError={initialError} />
+    <App
+      initialView={initialDocument ? { kind: "docx", document: initialDocument } : null}
+      initialError={initialError}
+    />
   </StrictMode>,
 );
