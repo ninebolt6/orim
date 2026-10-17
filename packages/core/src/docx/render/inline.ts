@@ -1,6 +1,6 @@
-import type { Inline } from "../docx/model";
+import type { Inline } from "../model";
 import type { RenderContext } from "./context";
-import { safeHref } from "./sanitize";
+import { safeHref } from "../../common/sanitize";
 import { applyTextStyle, changeColor } from "./text-style";
 import { revisionVisibility } from "./revisions";
 

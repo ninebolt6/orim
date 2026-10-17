@@ -1,7 +1,7 @@
 {
   "name": "@orim/core",
   "version": "0.1.0",
-  "description": "A small, dependency-free DOCX renderer for the browser",
+  "description": "Small, dependency-free DOCX and XLSX viewers for the browser",
   "license": "MIT",
   "files": [
     "dist"
@@ -15,7 +15,8 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
-    "./style.css": "./src/render/styles.css"
+    "./docx.css": "./src/docx/render/styles.css",
+    "./xlsx.css": "./src/xlsx/render/styles.css"
   },
   "publishConfig": {
     "exports": {
@@ -23,7 +24,8 @@
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js"
       },
-      "./style.css": "./dist/style.css"
+      "./docx.css": "./dist/docx.css",
+      "./xlsx.css": "./dist/xlsx.css"
     }
   },
   "scripts": {

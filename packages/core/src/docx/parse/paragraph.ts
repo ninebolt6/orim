@@ -1,4 +1,4 @@
-import { attr, first } from "../../xml";
+import { attr, first } from "../xml";
 import type { Paragraph, ParagraphProperties } from "../model";
 import { parseRunProperties, paragraphProperties } from "../styles";
 import type { ParseContext } from "./context";

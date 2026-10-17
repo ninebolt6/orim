@@ -1,4 +1,4 @@
-import type { DocxDocument } from "../docx/model";
+import type { DocxDocument } from "../model";
 import type { ChangesMode } from "./document";
 
 export interface PendingField {

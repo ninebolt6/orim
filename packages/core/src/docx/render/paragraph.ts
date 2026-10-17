@@ -1,7 +1,7 @@
-import type { Paragraph } from "../docx/model";
+import type { Paragraph } from "../model";
 import type { RenderContext } from "./context";
 import { renderInline } from "./inline";
-import { validColor } from "./sanitize";
+import { validColor } from "../../common/sanitize";
 import { applyTextStyle } from "./text-style";
 import { revisionVisibility } from "./revisions";
 

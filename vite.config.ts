@@ -16,9 +16,34 @@ export default defineConfig({
         },
       },
       {
-        files: ["packages/core/src/docx/**", "packages/core/src/opc/**"],
+        files: [
+          "packages/core/src/docx/*.ts",
+          "packages/core/src/docx/parse/**",
+          "packages/core/src/xlsx/*.ts",
+          "packages/core/src/xlsx/parse/**",
+          "packages/core/src/opc/**",
+          "packages/core/src/common/xml.ts",
+        ],
         rules: {
           "no-param-reassign": ["error", { props: true }],
+        },
+      },
+      {
+        files: ["packages/core/src/docx/**"],
+        rules: {
+          "no-restricted-imports": ["error", { patterns: ["**/xlsx/**"] }],
+        },
+      },
+      {
+        files: ["packages/core/src/xlsx/**"],
+        rules: {
+          "no-restricted-imports": ["error", { patterns: ["**/docx/**"] }],
+        },
+      },
+      {
+        files: ["packages/core/src/common/**", "packages/core/src/opc/**"],
+        rules: {
+          "no-restricted-imports": ["error", { patterns: ["**/docx/**", "**/xlsx/**"] }],
         },
       },
     ],

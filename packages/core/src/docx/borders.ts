@@ -1,4 +1,4 @@
-import { attr } from "../xml";
+import { attr } from "./xml";
 
 const safeColor = (value: string | undefined): string | undefined => {
   return value && /^[\da-f]{6}$/i.test(value) ? `#${value}` : undefined;

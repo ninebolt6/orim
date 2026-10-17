@@ -1,6 +1,6 @@
-import type { Block, Table } from "../docx/model";
+import type { Block, Table } from "../model";
 import type { RenderContext } from "./context";
-import { validColor } from "./sanitize";
+import { validColor } from "../../common/sanitize";
 import { changeColor } from "./text-style";
 import { revisionVisibility } from "./revisions";
 

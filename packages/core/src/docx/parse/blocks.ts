@@ -1,5 +1,5 @@
 import type { Block, Inline, Paragraph } from "../model";
-import { children, elements, first } from "../../xml";
+import { children, elements, first } from "../xml";
 
 export const splitAtPageBreaks = (paragraph: Paragraph): Paragraph[] => {
   if (!paragraph.runs.some((run) => run.type === "break" && run.page)) return [paragraph];

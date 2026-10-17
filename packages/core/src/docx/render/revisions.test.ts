@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { Block, Paragraph } from "../docx/model";
+import type { Block, Paragraph } from "../model";
 import { resolveParagraphMarks, revisionVisibility } from "./revisions";
 
 const paragraph = (text: string, change?: "ins" | "del"): Paragraph => ({

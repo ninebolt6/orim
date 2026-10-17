@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { cssWidth, twips } from "./units";
-import { W } from "../xml";
+import { W } from "./xml";
 
 const width = (value: string, type: string): Element => {
   return new DOMParser().parseFromString(

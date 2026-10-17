@@ -1,4 +1,4 @@
-import { attr, children, descendants, elements, first, R, textValue } from "../../xml";
+import { attr, children, descendants, elements, first, R, textValue } from "../xml";
 import type { ChangeKind, ChangeMark, Inline, RevisionInfo, TextStyle } from "../model";
 import type { OpcPackage, Relationship } from "../../opc/package";
 import type { ParseContext } from "./context";

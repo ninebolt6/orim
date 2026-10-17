@@ -1,4 +1,4 @@
-import { attr, descendants, elements, first } from "../xml";
+import { attr, descendants, elements, first } from "./xml";
 import type { Block } from "./model";
 
 export interface NumberLevel {

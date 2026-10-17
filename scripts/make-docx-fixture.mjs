@@ -297,6 +297,6 @@ writeFileSync(
         typeof value === "string" ? strToU8(value) : value,
       ]),
     ),
-    { level: 6 },
+    { level: 6, mtime: new Date("2026-10-11T08:40:58.000Z") },
   ),
 );

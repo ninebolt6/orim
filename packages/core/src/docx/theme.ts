@@ -1,4 +1,4 @@
-import { descendants, elements } from "../xml";
+import { descendants, elements } from "./xml";
 
 export interface ThemeFonts {
   readonly major?: string;

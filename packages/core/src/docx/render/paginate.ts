@@ -1,4 +1,4 @@
-import type { Block, DocxDocument, SectionProperties } from "../docx/model";
+import type { Block, DocxDocument, SectionProperties } from "../model";
 import type { PendingField } from "./context";
 
 export interface Page {

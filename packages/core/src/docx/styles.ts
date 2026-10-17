@@ -1,4 +1,4 @@
-import { attr, boolValue, descendants, first, value as xmlValue } from "../xml";
+import { attr, boolValue, descendants, first, value as xmlValue } from "./xml";
 import { border } from "./borders";
 import { halfPoints, points, twips } from "./units";
 import type { ThemeFonts } from "./theme";

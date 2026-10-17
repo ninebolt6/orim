@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { border } from "./borders";
-import { W } from "../xml";
+import { W } from "./xml";
 
 const parseBorder = (value: string): Element => {
   return new DOMParser().parseFromString(`<w:bottom xmlns:w="${W}" ${value}/>`, "application/xml")

@@ -1,4 +1,4 @@
-import { attr } from "../xml";
+import { attr } from "./xml";
 
 export const twips = ((value: string | undefined, fallback?: number): number | undefined => {
   const number = Number(value);

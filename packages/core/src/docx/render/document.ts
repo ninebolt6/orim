@@ -1,11 +1,12 @@
-import type { Block, DocxDocument } from "../docx/model";
+import type { Block, DocxDocument } from "../model";
 import type { RenderContext } from "./context";
 import { addComments } from "./comments";
 import { renderParagraph } from "./paragraph";
 import { renderTable } from "./table";
-import { parseDocx } from "../docx/parse";
+import { parseDocx } from "../parse";
 import { paginate } from "./paginate";
 import { resolveDocumentParagraphMarks } from "./revisions";
+import { abortError, acquireContainerLease, type RenderLease } from "../../common/lease";
 
 export type ChangesMode = "markup" | "final" | "original";
 
@@ -37,32 +38,6 @@ const renderBlock = (
   return renderTable(block, scopedContext, (nested, nestedContext) =>
     renderBlock(nested, nestedContext, pageNumber, decoration),
   );
-};
-
-interface RenderLease {
-  cancel(): void;
-}
-
-const renderLeases = new WeakMap<HTMLElement, RenderLease>();
-
-const acquireContainerLease = (container: HTMLElement, onCancel: () => void): RenderLease => {
-  let cancelled = false;
-  const lease: RenderLease = {
-    cancel() {
-      if (cancelled) return;
-      cancelled = true;
-      onCancel();
-      if (renderLeases.get(container) === lease) renderLeases.delete(container);
-    },
-  };
-  const previous = renderLeases.get(container);
-  renderLeases.set(container, lease);
-  previous?.cancel();
-  return lease;
-};
-
-const abortError = (): DOMException => {
-  return new DOMException("Rendering was aborted.", "AbortError");
 };
 
 export const renderDocument = (
@@ -141,7 +116,7 @@ export const renderDocument = (
         lease.cancel();
       },
       update(next) {
-        if (cancelled || renderLeases.get(container) !== lease) return;
+        if (cancelled || !lease.active) return;
         const changes = next.changes ?? context.changes;
         const comments = next.comments ?? context.comments;
         if (changes === context.changes && comments === context.comments) return;
@@ -173,8 +148,7 @@ export const renderDocx = async (
   else options.signal?.addEventListener("abort", onAbort, { once: true });
 
   const check = () => {
-    if (cancelled || controller.signal.aborted || renderLeases.get(container) !== lease)
-      throw abortError();
+    if (cancelled || controller.signal.aborted || !lease.active) throw abortError();
   };
 
   let doc: DocxDocument;
@@ -183,7 +157,7 @@ export const renderDocx = async (
     doc = await parseDocx(input);
     check();
   } catch (error) {
-    const aborted = cancelled || controller.signal.aborted || renderLeases.get(container) !== lease;
+    const aborted = cancelled || controller.signal.aborted || !lease.active;
     lease.cancel();
     if (aborted) throw abortError();
     throw error;

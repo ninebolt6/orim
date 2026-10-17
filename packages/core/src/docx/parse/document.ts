@@ -1,4 +1,4 @@
-import { attr, children, descendants, first } from "../../xml";
+import { attr, children, descendants, first } from "../xml";
 import { openOpc, type OpcPackage, type Relationship } from "../../opc/package";
 import type { Block, DocxDocument, DocxSection, SectionProperties } from "../model";
 import { assignListMarkers, parseNumbering } from "../numbering";
