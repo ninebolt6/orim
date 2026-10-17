@@ -153,6 +153,8 @@ export const parseDocxModel = async (input: ArrayBuffer | Uint8Array): Promise<D
     ? opc.resolve("", officeDocument.target)
     : "word/document.xml";
   const doc = await opc.xml(documentPath);
+  if (doc.documentElement.localName !== "document")
+    throw new Error("Not a DOCX package: document part is not a document.");
   const rels = await opc.relationships(documentPath);
   const relatedPart = (suffix: string): string | undefined => {
     const relation = [...rels.values()].find(

@@ -128,6 +128,7 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
   const merges: LayoutMerge[] = [];
   const mergeAt = new Map<string, LayoutMerge>();
   const covered = new Set<string>();
+  const occupied = new Set<string>();
   for (const range of worksheet.merges) {
     const rowIndexes = rows
       .filter((row) => row.index >= range.top && row.index <= range.bottom)
@@ -138,6 +139,10 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
     const anchorRow = rowIndexes[0];
     const anchorColumn = columnIndexes[0];
     if (anchorRow === undefined || anchorColumn === undefined) continue;
+    let overlaps = false;
+    for (const row of rowIndexes)
+      for (const column of columnIndexes) if (occupied.has(key(row, column))) overlaps = true;
+    if (overlaps) continue;
     const merge: LayoutMerge = {
       range,
       anchorRow,
@@ -151,6 +156,8 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
     for (const row of rowIndexes)
       for (const column of columnIndexes)
         if (row !== anchorRow || column !== anchorColumn) covered.add(key(row, column));
+    for (const row of rowIndexes)
+      for (const column of columnIndexes) occupied.add(key(row, column));
   }
   return { rows, columns, merges, truncated, rowAt, columnAt, mergeAt, covered };
 };

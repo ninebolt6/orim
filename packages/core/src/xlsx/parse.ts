@@ -13,12 +13,15 @@ import type {
 } from "./model";
 import { parseCellRef, parseRange } from "./ref";
 import { themeColors } from "./colors";
+import { MAX_COLUMNS, MAX_ROWS } from "./layout";
 import { defaultCellStyle, parseStyles } from "./parse/styles";
 import type { StyleTable } from "./parse/styles";
 
 const EMPTY: CellValue = { type: "empty" };
 const maxRows = 1048576;
 const maxColumns = 16384;
+const maxColumnWidth = 255;
+const maxRowHeight = 409;
 
 const relationship = (
   relationships: ReadonlyMap<string, Relationship>,
@@ -134,7 +137,8 @@ const cellValue = (
 };
 
 const widthInPixels = (width: number): number => {
-  return Math.trunc(((256 * width + Math.trunc(128 / 7)) / 256) * 7);
+  const bounded = Math.min(maxColumnWidth, width);
+  return Math.trunc(((256 * bounded + Math.trunc(128 / 7)) / 256) * 7);
 };
 
 const rowFor = (
@@ -179,10 +183,14 @@ const parseWorksheet = async (
   const defaultColumnWidth =
     Number.isFinite(rawDefaultColumn) && rawDefaultColumn >= 0
       ? widthInPixels(rawDefaultColumn)
-      : (Number.isFinite(baseColumn) && baseColumn >= 0 ? baseColumn : 8) * 7 + 5;
+      : Math.min(maxColumnWidth, Number.isFinite(baseColumn) && baseColumn >= 0 ? baseColumn : 8) *
+          7 +
+        5;
   const rawDefaultRow = Number(attr(sheetFormat, "defaultRowHeight"));
   const defaultRowHeight =
-    Number.isFinite(rawDefaultRow) && rawDefaultRow >= 0 ? rawDefaultRow : 15;
+    Number.isFinite(rawDefaultRow) && rawDefaultRow >= 0
+      ? Math.min(maxRowHeight, rawDefaultRow)
+      : 15;
   const columns = elements(first(root, "cols"), "col").flatMap((column) => {
     const min = Number(attr(column, "min")) - 1;
     const max = Number(attr(column, "max")) - 1;
@@ -223,7 +231,7 @@ const parseWorksheet = async (
     if (rowIndex < 0 || rowIndex >= maxRows) continue;
     const row = rowFor(rows, rowIndex);
     const height = Number(attr(rowElement, "ht"));
-    if (Number.isFinite(height) && height >= 0) row.height = height;
+    if (Number.isFinite(height) && height >= 0) row.height = Math.min(maxRowHeight, height);
     row.hidden = boolAttribute(rowElement, "hidden", false);
     if (boolAttribute(rowElement, "customFormat", false)) {
       const styleId = integerAttribute(rowElement, "s");
@@ -266,11 +274,11 @@ const parseWorksheet = async (
   const frozen = frozenState === "frozen" || frozenState === "frozenSplit";
   const frozenRows =
     frozen && Number.isFinite(Number(attr(pane, "ySplit")))
-      ? Math.min(maxRows, Math.max(0, Math.trunc(Number(attr(pane, "ySplit")))))
+      ? Math.min(MAX_ROWS, Math.max(0, Math.trunc(Number(attr(pane, "ySplit")))))
       : 0;
   const frozenColumns =
     frozen && Number.isFinite(Number(attr(pane, "xSplit")))
-      ? Math.min(maxColumns, Math.max(0, Math.trunc(Number(attr(pane, "xSplit")))))
+      ? Math.min(MAX_COLUMNS, Math.max(0, Math.trunc(Number(attr(pane, "xSplit")))))
       : 0;
   const merges = elements(first(root, "mergeCells"), "mergeCell").flatMap((merge) => {
     const range = parseRange(attr(merge, "ref") ?? "");
@@ -322,6 +330,8 @@ export const parseXlsx = async (input: ArrayBuffer | Uint8Array | Blob): Promise
   if (!workbookRelationship) throw new Error("Not an XLSX package: workbook part not found.");
   const workbookPath = pkg.resolve("", workbookRelationship.target);
   const workbookDocument = await pkg.xml(workbookPath);
+  if (workbookDocument.documentElement.localName !== "workbook")
+    throw new Error("Not an XLSX package: workbook part is not a workbook.");
   const workbookRelationships = await pkg.relationships(workbookPath);
   const stylesPath = relationship(workbookRelationships, "styles");
   const sharedPath = relationship(workbookRelationships, "sharedStrings");

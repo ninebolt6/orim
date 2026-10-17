@@ -41,6 +41,8 @@ const namedColors: Readonly<Record<string, string>> = {
   yellow: "#ffff00",
 };
 
+const maxFormatLength = 4096;
+
 const tokenize = (format: string): FormatSection[] => {
   const sections: FormatSection[] = [{ tokens: [], valid: true }];
   let section = sections[0]!;
@@ -537,6 +539,7 @@ const fractionFormat = (tokens: readonly FormatToken[], value: number): string |
   const fixed = /^\d+$/.test(fixedDenominator);
   if (numeratorPositions.length === 0 || (!fixed && denominatorPositions.length === 0))
     return undefined;
+  if (!fixed && denominatorPositions.length > 4) return undefined;
   const maxDenominator = fixed ? Number(fixedDenominator) : 10 ** denominatorPositions.length - 1;
   if (!Number.isFinite(maxDenominator) || maxDenominator < 1) return undefined;
   const mixed = wholePositions.length > 0;
@@ -755,6 +758,8 @@ export const formatCellValue = (
     if (value.type === "empty") return { text: "" };
     if (value.type === "boolean") return { text: value.value ? "TRUE" : "FALSE" };
     if (value.type === "error") return { text: value.value };
+    if (format.length > maxFormatLength)
+      return { text: value.type === "string" ? value.value : general(value.value) };
     if (value.type === "string") {
       const sections = tokenize(format);
       const textFormat =
