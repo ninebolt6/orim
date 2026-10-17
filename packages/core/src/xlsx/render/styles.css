@@ -57,11 +57,9 @@
   height: 24px;
   position: sticky;
   top: 0;
-  z-index: 3;
 }
 .orim-xlsx-grid .orim-xlsx-corner {
   left: 0;
-  z-index: 4;
 }
 .orim-xlsx-row-header {
   background: #f3f3f3;
@@ -69,7 +67,6 @@
   position: sticky;
   text-align: right !important;
   padding-right: 8px !important;
-  z-index: 3;
 }
 .orim-xlsx-cell {
   box-sizing: border-box;
@@ -88,7 +85,6 @@
 }
 .orim-xlsx-spill {
   overflow: visible;
-  z-index: 2;
 }
 .orim-xlsx-spill .orim-xlsx-content {
   overflow: visible;

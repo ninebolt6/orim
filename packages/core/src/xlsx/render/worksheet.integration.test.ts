@@ -95,6 +95,8 @@ describe("XLSX worksheet rendering", () => {
       "1px",
     );
     expect(container.querySelector("a")?.getAttribute("href")).toBe("https://example.com");
+    expect(container.querySelector("a")?.getAttribute("target")).toBe("_blank");
+    expect(container.querySelector("a")?.getAttribute("rel")).toBe("noopener noreferrer");
     expect(container.querySelectorAll('[role="tab"]')).toHaveLength(2);
     expect(container.querySelectorAll("td[colspan]")).toHaveLength(1);
     const nextTab = container.querySelector<HTMLButtonElement>('[role="tab"]:last-child')!;

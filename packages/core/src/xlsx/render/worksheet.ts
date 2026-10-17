@@ -106,6 +106,16 @@ const effectiveAlignment = (
 
 const MAX_RENDERED_CELLS = 20_000;
 
+const applyStickyZIndex = (
+  element: HTMLElement,
+  isHeader: boolean,
+  stickyTop: boolean,
+  stickyLeft: boolean,
+): void => {
+  if (!stickyTop && !stickyLeft) return;
+  element.style.zIndex = String((isHeader ? 4 : 0) + (stickyTop ? 2 : 0) + (stickyLeft ? 1 : 0));
+};
+
 export const renderWorksheet = (
   workbook: XlsxWorkbook,
   sheetIndex: number,
@@ -167,12 +177,15 @@ export const renderWorksheet = (
       corner.className = "orim-xlsx-corner";
       corner.scope = "col";
       corner.style.width = `${HEADER_WIDTH}px`;
+      applyStickyZIndex(corner, true, true, true);
       row.append(corner);
       for (const column of layout.columns) {
         const header = document.createElement("th");
         header.className = "orim-xlsx-column-header";
         header.scope = "col";
         header.append(document.createTextNode(columnName(column.index)));
+        if (column.stickyLeft !== undefined) header.style.left = `${column.stickyLeft}px`;
+        applyStickyZIndex(header, true, true, column.stickyLeft !== undefined);
         row.append(header);
       }
       head.append(row);
@@ -206,8 +219,8 @@ export const renderWorksheet = (
         header.style.left = "0";
         if (rowLayout.stickyTop !== undefined) {
           header.style.top = `${rowLayout.stickyTop}px`;
-          header.style.zIndex = "3";
         }
+        applyStickyZIndex(header, true, rowLayout.stickyTop !== undefined, true);
         rowElement.append(header);
       }
       for (let columnIndex = 0; columnIndex < layout.columns.length; columnIndex++) {
@@ -282,7 +295,7 @@ export const renderWorksheet = (
           if (rowSticky !== undefined) td.style.top = `${rowSticky}px`;
           if (columnSticky !== undefined) td.style.left = `${columnSticky}px`;
           td.style.backgroundColor = fill ?? "#ffffff";
-          td.style.zIndex = rowSticky !== undefined && columnSticky !== undefined ? "2" : "1";
+          applyStickyZIndex(td, false, rowSticky !== undefined, columnSticky !== undefined);
         }
         const nextColumn = layout.columns[columnIndex + 1];
         const spill =
