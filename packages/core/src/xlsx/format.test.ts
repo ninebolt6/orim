@@ -63,6 +63,11 @@ describe("Excel number formats", () => {
     expect(formatCellValue(number(1.5), "# ?/?", false).text).toBe("1 1/2");
     expect(formatCellValue(number(0.333), "# ?/?", false).text).toBe(" 1/3");
     expect(formatCellValue(number(0.5), "?/8", false).text).toBe("4/8");
+    expect(formatCellValue(number(1), "# ?/?", false).text).toBe("1    ");
+    expect(formatCellValue(number(0), "# ?/?", false).text).toBe("0    ");
+    expect(formatCellValue(number(2), "# ??/??", false).text).toBe("2      ");
+    expect(formatCellValue(number(3), "# ?/4", false).text).toBe("3    ");
+    expect(formatCellValue(number(1), "?/?", false).text).toBe("1/1");
   });
 
   it("handles format literals and bracket directives", () => {

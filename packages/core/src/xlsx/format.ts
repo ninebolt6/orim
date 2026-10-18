@@ -562,7 +562,7 @@ const fractionFormat = (tokens: readonly FormatToken[], value: number): string |
       }
     }
   }
-  if (numerator >= denominator) {
+  if (mixed && numerator >= denominator) {
     whole++;
     numerator = 0;
   }
@@ -593,6 +593,11 @@ const fractionFormat = (tokens: readonly FormatToken[], value: number): string |
     : formatPart(denominatorPositions, String(denominator));
   const denominatorEnd = fixed ? slash + fixedDenominator.length : denominatorPositions.at(-1)!;
   const suffix = joinTokens(tokens.slice(denominatorEnd + 1));
+  if (mixed && numerator === 0) {
+    const fractionStart = wholePositions.at(-1)! + 1;
+    const fractionWidth = joinTokens(tokens.slice(fractionStart, denominatorEnd + 1)).length;
+    return `${prefix}${formatPart(wholePositions, String(whole))}${" ".repeat(fractionWidth)}${suffix}`;
+  }
   return `${prefix}${wholeText}${numeratorText}${numeratorGap}/${denominatorGap}${denominatorOutput}${suffix}`;
 };
 
