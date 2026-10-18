@@ -137,7 +137,11 @@ const splitTable = (table: HTMLTableElement, page: Page, newPage: () => Page): P
     const row = continuedRows[0]!;
     const parent = rowParents.get(row);
     if (!parent) break;
-    parent.append(row);
+    const rowIndex = originalRows.indexOf(row);
+    const anchor = originalRows
+      .slice(rowIndex + 1)
+      .find((candidate) => candidate.parentElement === parent);
+    parent.insertBefore(row, anchor ?? null);
     if (overflows(table, page)) {
       row.remove();
       break;
@@ -148,7 +152,7 @@ const splitTable = (table: HTMLTableElement, page: Page, newPage: () => Page): P
   if (overflows(table, page) && page.content.childElementCount > 1) {
     for (const row of originalRows) {
       const parent = rowParents.get(row);
-      if (parent && row.parentElement !== parent) parent.append(row);
+      if (parent) parent.append(row);
     }
     table.remove();
     const next = newPage();
