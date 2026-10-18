@@ -1,4 +1,4 @@
-import { attr, children, elements, first } from "../../xml";
+import { attr, children, elements, first } from "../xml";
 import type { Block, Table, TableCell, TableRow } from "../model";
 import type { ParseContext } from "./context";
 import { border } from "../borders";

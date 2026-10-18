@@ -1,5 +1,5 @@
 import { openZip, type ZipArchive } from "./zip";
-import { descendants } from "../xml";
+import { descendants } from "../common/xml";
 
 export interface Relationship {
   id: string;
@@ -16,8 +16,6 @@ export interface OpcPackage {
   resolve(source: string, target: string): string;
   mime(path: string): Promise<string>;
 }
-
-export { attr, descendants, elements, first } from "../xml";
 
 const normalize = (path: string): string => {
   const parts: string[] = [];
@@ -50,7 +48,9 @@ export const openOpc = (input: ArrayBuffer | Uint8Array): OpcPackage => {
     : Promise.resolve();
 
   const relPath = (source: string): string => {
-    const path = source.split("/");
+    const normalized = normalize(source);
+    if (!normalized) return "_rels/.rels";
+    const path = normalized.split("/");
     const file = path.pop() ?? "";
     return [...path, "_rels", `${file}.rels`].join("/");
   };

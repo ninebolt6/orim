@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { buildDocx } from "../../test/docx";
+import { buildDocx } from "../../../test/docx";
 import { renderDocx } from "./document";
 
 const documentXml = (content: string) =>

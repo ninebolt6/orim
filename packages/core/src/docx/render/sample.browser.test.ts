@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { parseDocx } from "../docx/parse";
-import type { DocxDocument } from "../docx/model";
+import { parseDocx } from "../parse";
+import type { DocxDocument } from "../model";
 import { renderDocument } from "../index";
 import "./styles.css";
-import sampleUrl from "../../../../fixtures/sample.docx?url";
+import sampleUrl from "../../../../../fixtures/sample.docx?url";
 
 const sampleDocument = async (): Promise<DocxDocument> => {
   const response = await fetch(sampleUrl);

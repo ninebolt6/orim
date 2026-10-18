@@ -1,0 +1,146 @@
+.orim-xlsx,
+.orim-xlsx-book {
+  box-sizing: border-box;
+  color: #202124;
+  font-family: Arial, "Noto Sans", sans-serif;
+}
+.orim-xlsx {
+  height: 100%;
+}
+.orim-xlsx-react {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.orim-xlsx-book {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.orim-xlsx-sheet,
+.orim-xlsx {
+  min-width: 0;
+  min-height: 0;
+}
+.orim-xlsx-sheet {
+  flex: 1;
+}
+.orim-xlsx-scroll {
+  box-sizing: border-box;
+  height: 100%;
+  max-width: 100%;
+  overflow: auto;
+  position: relative;
+}
+.orim-xlsx-grid {
+  background: #fff;
+  color: #202124;
+  font-size: 10pt;
+}
+.orim-xlsx-grid th,
+.orim-xlsx-grid td {
+  box-sizing: border-box;
+  padding: 0;
+}
+.orim-xlsx-grid th {
+  background: #f3f3f3;
+  box-shadow: inset -1px -1px 0 #c8c8c8;
+  color: #595959;
+  font-family: Arial, "Noto Sans", sans-serif;
+  font-size: 9pt;
+  font-weight: 400;
+  text-align: center;
+  user-select: none;
+}
+.orim-xlsx-header-row th {
+  height: 24px;
+  position: sticky;
+  top: 0;
+}
+.orim-xlsx-resize {
+  cursor: col-resize;
+  height: 100%;
+  position: absolute;
+  right: 0;
+  top: 0;
+  touch-action: none;
+  width: 6px;
+}
+.orim-xlsx-resize:focus-visible {
+  outline: 2px solid #217346;
+  outline-offset: -2px;
+}
+.orim-xlsx-grid .orim-xlsx-corner {
+  left: 0;
+}
+.orim-xlsx-row-header {
+  background: #f3f3f3;
+  left: 0;
+  position: sticky;
+  text-align: right !important;
+  padding-right: 8px !important;
+}
+.orim-xlsx-cell {
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+}
+.orim-xlsx-content {
+  box-sizing: border-box;
+  line-height: normal;
+  overflow: visible clip;
+  padding: 2px 4px;
+  position: relative;
+}
+.orim-xlsx-gridline {
+  box-shadow: inset -1px -1px 0 #e1e1e1;
+}
+.orim-xlsx-spill {
+  overflow: visible;
+}
+.orim-xlsx-spill .orim-xlsx-content {
+  overflow: visible;
+  white-space: pre;
+  width: max-content;
+  min-width: 100%;
+}
+.orim-xlsx-content a {
+  color: #0563c1;
+  text-decoration: underline;
+}
+.orim-xlsx-note {
+  color: #5f6368;
+  font-size: 9pt;
+  padding: 6px 8px;
+}
+.orim-xlsx-tabs {
+  align-items: stretch;
+  background: #f8f9fa;
+  border-top: 1px solid #dadce0;
+  display: flex;
+  flex: none;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 4px 8px 0;
+}
+.orim-xlsx-tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: #5f6368;
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+.orim-xlsx-tab[aria-selected="true"] {
+  border-bottom-color: #188038;
+  color: #202124;
+  font-weight: 600;
+}
+.orim-xlsx-tab:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: -2px;
+}

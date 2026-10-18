@@ -1,5 +1,5 @@
 import type { Block, DocxComment } from "../model";
-import { attr, children, descendants, elements, W14, W15 } from "../../xml";
+import { attr, children, descendants, elements, W14, W15 } from "../xml";
 import type { OpcPackage } from "../../opc/package";
 import type { ParseContext } from "./context";
 import { createParseState } from "./context";

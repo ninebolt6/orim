@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { renderDocx, renderDocument } from "./document";
-import type { DocxDocument, Inline } from "../docx/model";
-import { splitAtPageBreaks } from "../docx/parse/blocks";
+import type { DocxDocument, Inline } from "../model";
+import { splitAtPageBreaks } from "../parse/blocks";
 
 const model = (text: string): DocxDocument => {
   return {

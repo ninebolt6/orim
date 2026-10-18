@@ -1,4 +1,4 @@
-import type { DocxComment } from "../docx/model";
+import type { DocxComment } from "../model";
 import type { Page } from "./paginate";
 
 const renderCommentText = (comment: DocxComment): string => {

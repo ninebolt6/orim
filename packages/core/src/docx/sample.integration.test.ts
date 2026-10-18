@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 import { parseDocx } from "./parse";
 import type { Block, Inline } from "./model";
-import { renderDocument } from "../render/document";
+import { renderDocument } from "./render/document";
 
 const collectInlines = (blocks: readonly Block[]): Inline[] => {
   return blocks.flatMap((block) =>

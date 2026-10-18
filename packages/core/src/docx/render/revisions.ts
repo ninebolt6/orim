@@ -5,7 +5,7 @@ import type {
   Paragraph,
   SectionProperties,
   Table,
-} from "../docx/model";
+} from "../model";
 import type { ChangesMode } from "./document";
 
 export const revisionVisibility = (

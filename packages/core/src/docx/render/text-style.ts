@@ -1,5 +1,5 @@
-import type { ChangeMark, TextStyle } from "../docx/model";
-import { validColor } from "./sanitize";
+import type { ChangeMark, TextStyle } from "../model";
+import { validColor } from "../../common/sanitize";
 
 const palette = ["#137333", "#c5221f", "#185abc", "#a142f4", "#b06000"];
 const highlightColors: Record<string, string> = {

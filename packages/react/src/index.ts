@@ -1,5 +1,7 @@
 export { DocxViewer } from "./DocxViewer";
 export type { DocxViewerProps } from "./DocxViewer";
+export { XlsxViewer } from "./XlsxViewer";
+export type { XlsxViewerProps } from "./XlsxViewer";
 export type {
   Block,
   ChangeKind,
@@ -17,4 +19,22 @@ export type {
   TableCell,
   TableRow,
   TextStyle,
+} from "@orim/core";
+export type {
+  Alignment,
+  BorderEdge,
+  BorderLine,
+  BorderSet,
+  Cell,
+  CellRange,
+  CellStyle,
+  CellValue,
+  ColumnRange,
+  FontStyle,
+  Hyperlink,
+  SheetRow,
+  SheetState,
+  TextRun,
+  Worksheet,
+  XlsxWorkbook,
 } from "@orim/core";
