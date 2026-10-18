@@ -92,6 +92,49 @@ const tableAfterContentDocument = (): DocxDocument => {
   };
 };
 
+const longTableDocument = (): DocxDocument => {
+  const paragraph = (text: string) => ({
+    type: "paragraph" as const,
+    properties: {},
+    runs: [{ type: "text" as const, text }],
+  });
+  return {
+    sections: [
+      {
+        properties: {
+          width: 595,
+          height: 842,
+          orientation: "portrait",
+          margins: { top: 48, right: 48, bottom: 48, left: 48, header: 20, footer: 20 },
+        },
+        blocks: [
+          {
+            type: "table",
+            widths: ["50%", "50%"],
+            rows: [
+              {
+                header: true,
+                cells: [
+                  { gridSpan: 1, rowSpan: 1, blocks: [paragraph("Header")] },
+                  { gridSpan: 1, rowSpan: 1, blocks: [paragraph("Value")] },
+                ],
+              },
+              ...Array.from({ length: 300 }, (_, index) => ({
+                cells: [
+                  { gridSpan: 1, rowSpan: 1, blocks: [paragraph(`Body row ${index + 1}`)] },
+                  { gridSpan: 1, rowSpan: 1, blocks: [paragraph(`Value ${index + 1}`)] },
+                ],
+              })),
+            ],
+          },
+        ],
+      },
+    ],
+    comments: [],
+    imageParts: {},
+  };
+};
+
 describe("sample DOCX in Chromium", () => {
   it("uses portrait and landscape page geometry without overflow", async () => {
     const container = createContainer();
@@ -138,6 +181,36 @@ describe("sample DOCX in Chromium", () => {
       Array.from({ length: 30 }, (_, index) => `Body row ${index + 1}Value ${index + 1}`),
     );
     expect(new Set(rows).size).toBe(30);
+    rendered.destroy();
+    container.remove();
+  });
+
+  it("conserves and fills pages when splitting a 300-row table", () => {
+    const container = createContainer();
+    const rendered = renderDocument(longTableDocument(), container);
+    const tables = Array.from(container.querySelectorAll<HTMLTableElement>(".orim-table"));
+    const bodyRows = tables.flatMap((table) =>
+      Array.from(table.rows)
+        .filter((row) => row.dataset.orimHeader !== "true")
+        .map((row) => row.textContent?.trim() ?? ""),
+    );
+    expect(tables.length).toBeGreaterThan(1);
+    expect(bodyRows).toEqual(
+      Array.from({ length: 300 }, (_, index) => `Body row ${index + 1}Value ${index + 1}`),
+    );
+    expect(new Set(bodyRows).size).toBe(300);
+    for (const table of tables) {
+      const content = table.closest<HTMLElement>(".orim-content")!;
+      expect(table.querySelector('[data-orim-header="true"]')?.textContent).toBe("HeaderValue");
+      expect(table.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        content.getBoundingClientRect().bottom + 1,
+      );
+    }
+    for (const table of tables.slice(0, -1)) {
+      expect(
+        Array.from(table.rows).filter((row) => row.dataset.orimHeader !== "true").length,
+      ).toBeGreaterThanOrEqual(2);
+    }
     rendered.destroy();
     container.remove();
   });

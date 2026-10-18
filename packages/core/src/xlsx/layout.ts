@@ -39,6 +39,28 @@ export interface WorksheetLayout {
   readonly covered: ReadonlySet<string>;
 }
 
+export const visibleSpan = (
+  items: readonly { readonly index: number }[],
+  start: number,
+  end: number,
+): readonly [from: number, to: number] => {
+  let low = 0;
+  let high = items.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (items[middle]!.index < start) low = middle + 1;
+    else high = middle;
+  }
+  const from = low;
+  high = items.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (items[middle]!.index <= end) low = middle + 1;
+    else high = middle;
+  }
+  return [from, low];
+};
+
 const key = (row: number, column: number): string => `${row}:${column}`;
 
 const extendsExtent = (cell: Cell): boolean => {
@@ -153,10 +175,10 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
   const occupied = new Set<string>();
   for (const range of worksheet.merges) {
     const rowIndexes = rows
-      .filter((row) => row.index >= range.top && row.index <= range.bottom)
+      .slice(...visibleSpan(rows, range.top, range.bottom))
       .map((row) => row.index);
     const columnIndexes = columns
-      .filter((column) => column.index >= range.left && column.index <= range.right)
+      .slice(...visibleSpan(columns, range.left, range.right))
       .map((column) => column.index);
     const anchorRow = rowIndexes[0];
     const anchorColumn = columnIndexes[0];

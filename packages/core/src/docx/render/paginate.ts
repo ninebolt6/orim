@@ -121,16 +121,35 @@ const splitTable = (table: HTMLTableElement, page: Page, newPage: () => Page): P
   const headerRows = originalRows.filter((row) => row.dataset.orimHeader === "true");
   const movable = originalRows.filter((row) => row.dataset.orimHeader !== "true");
   if (!movable.length) return page;
-  const continuedRows: HTMLTableRowElement[] = [];
-  for (let index = movable.length - 1; index > 0; index--) {
-    const row = movable[index];
+  const rowParents = new Map(originalRows.map((row) => [row, row.parentElement]));
+  const bounds = page.content.getBoundingClientRect();
+  const rowBottoms = movable.map((row) => row.getBoundingClientRect().bottom);
+  const firstOverflowing = rowBottoms.findIndex((bottom) => bottom > bounds.bottom + 1);
+  let keep = Math.max(1, firstOverflowing < 0 ? movable.length : firstOverflowing);
+  const continuedRows = movable.slice(keep);
+  for (const row of continuedRows) row.remove();
+  while (overflows(table, page) && keep > 1) {
+    const row = movable[--keep]!;
     row.remove();
     continuedRows.unshift(row);
-    if (!overflows(table, page)) break;
+  }
+  while (continuedRows.length) {
+    const row = continuedRows[0]!;
+    const parent = rowParents.get(row);
+    if (!parent) break;
+    parent.append(row);
+    if (overflows(table, page)) {
+      row.remove();
+      break;
+    }
+    continuedRows.shift();
+    keep++;
   }
   if (overflows(table, page) && page.content.childElementCount > 1) {
-    const body = table.tBodies[0];
-    if (body) for (const row of originalRows) body.append(row);
+    for (const row of originalRows) {
+      const parent = rowParents.get(row);
+      if (parent && row.parentElement !== parent) parent.append(row);
+    }
     table.remove();
     const next = newPage();
     next.content.append(table);

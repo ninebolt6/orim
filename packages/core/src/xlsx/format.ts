@@ -1,9 +1,9 @@
 import type { CellValue } from "./model";
 import { defaultIndexedPalette } from "./colors";
 
-type Condition = { operator: string; value: number };
+type Condition = { readonly operator: string; readonly value: number };
 type FormatToken = {
-  kind:
+  readonly kind:
     | "literal"
     | "symbol"
     | "placeholder"
@@ -18,12 +18,18 @@ type FormatToken = {
     | "japaneseDay"
     | "scientific"
     | "unknown";
-  value: string;
-  exponentMarker?: string;
-  exponentSign?: string;
-  exponentPadding?: number;
+  readonly value: string;
+  readonly exponentMarker?: string;
+  readonly exponentSign?: string;
+  readonly exponentPadding?: number;
 };
 type FormatSection = {
+  readonly tokens: readonly FormatToken[];
+  readonly condition?: Condition;
+  readonly color?: string;
+  readonly valid: boolean;
+};
+type MutableFormatSection = {
   tokens: FormatToken[];
   condition?: Condition;
   color?: string;
@@ -42,9 +48,12 @@ const namedColors: Readonly<Record<string, string>> = {
 };
 
 const maxFormatLength = 4096;
+const tokenizedFormats = new Map<string, readonly FormatSection[]>();
 
-const tokenize = (format: string): FormatSection[] => {
-  const sections: FormatSection[] = [{ tokens: [], valid: true }];
+const tokenize = (format: string): readonly FormatSection[] => {
+  const cached = tokenizedFormats.get(format);
+  if (cached) return cached;
+  const sections: MutableFormatSection[] = [{ tokens: [], valid: true }];
   let section = sections[0]!;
   const push = (kind: FormatToken["kind"], value: string): void => {
     section.tokens.push({ kind, value });
@@ -188,6 +197,8 @@ const tokenize = (format: string): FormatSection[] => {
     push(character === "@" ? "text" : "symbol", character);
     index++;
   }
+  if (tokenizedFormats.size >= 256) tokenizedFormats.clear();
+  tokenizedFormats.set(format, sections);
   return sections;
 };
 

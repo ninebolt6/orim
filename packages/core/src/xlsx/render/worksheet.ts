@@ -1,7 +1,7 @@
 import { safeHref, validColor } from "../../common/sanitize";
 import type { Cell, CellStyle, CellValue, XlsxWorkbook } from "../model";
 import { columnName } from "../ref";
-import { computeLayout, HEADER_WIDTH, layoutKey } from "../layout";
+import { computeLayout, HEADER_WIDTH, layoutKey, visibleSpan } from "../layout";
 import { formatCellValue } from "../format";
 import { defaultCellStyle } from "../parse/styles";
 import { acquireContainerLease } from "../../common/lease";
@@ -250,13 +250,16 @@ export const renderWorksheet = (
     }
     const body = document.createElement("tbody");
     const hyperlinks = new Map<string, string>();
+    const rowHeightPrefix: number[] = [0];
+    for (const row of layout.rows)
+      rowHeightPrefix.push(rowHeightPrefix[rowHeightPrefix.length - 1]! + row.height);
     for (const link of worksheet.hyperlinks) {
       const href = safeHref(link.href);
       if (!href) continue;
-      for (const row of layout.rows) {
-        if (row.index < link.range.top || row.index > link.range.bottom) continue;
-        for (const column of layout.columns) {
-          if (column.index < link.range.left || column.index > link.range.right) continue;
+      const [rowFrom, rowTo] = visibleSpan(layout.rows, link.range.top, link.range.bottom);
+      const [columnFrom, columnTo] = visibleSpan(layout.columns, link.range.left, link.range.right);
+      for (const row of layout.rows.slice(rowFrom, rowTo)) {
+        for (const column of layout.columns.slice(columnFrom, columnTo)) {
           const key = layoutKey(row.index, column.index);
           if (!layout.covered.has(key) && !hyperlinks.has(key)) hyperlinks.set(key, href);
         }
@@ -292,6 +295,7 @@ export const renderWorksheet = (
         const columnStyle = columnLayout.style;
         const style = cell?.style ?? cellRow?.style ?? columnStyle ?? defaultCellStyle;
         const value = cell?.value ?? { type: "empty" as const };
+        const alignment = effectiveAlignment(style, value);
         const formatted = formatCellValue(value, style.numberFormat, workbook.date1904);
         const td = document.createElement("td");
         td.className = "orim-xlsx-cell";
@@ -311,20 +315,17 @@ export const renderWorksheet = (
         fontStyle(td, style.font);
         const renderedColor = validColor(formatted.color);
         if (renderedColor) td.style.color = renderedColor;
-        td.style.textAlign = effectiveAlignment(style, value);
+        td.style.textAlign = alignment;
         td.style.verticalAlign = style.alignment.vertical ?? "bottom";
         td.style.whiteSpace = style.alignment.wrap ? "pre-wrap" : "pre";
         if (style.alignment.indent > 0) td.style.paddingLeft = `${style.alignment.indent * 9}px`;
         const content = document.createElement("div");
         content.className = "orim-xlsx-content";
-        const spanHeight = merge
-          ? layout.rows
-              .filter(
-                (candidate) =>
-                  candidate.index >= merge.range.top && candidate.index <= merge.range.bottom,
-              )
-              .reduce((total, candidate) => total + candidate.height, 0)
-          : rowLayout.height;
+        let spanHeight = rowLayout.height;
+        if (merge) {
+          const [from, to] = visibleSpan(layout.rows, merge.range.top, merge.range.bottom);
+          spanHeight = rowHeightPrefix[to]! - rowHeightPrefix[from]!;
+        }
         content.style.height = `${spanHeight}pt`;
         content.style.overflow = "visible clip";
         const hyperlink = hyperlinks.get(key);
@@ -366,7 +367,7 @@ export const renderWorksheet = (
           value.type === "string" &&
           value.value.length > 0 &&
           !style.alignment.wrap &&
-          effectiveAlignment(style, value) === "left" &&
+          alignment === "left" &&
           !merge &&
           nextColumn !== undefined &&
           !layout.covered.has(layoutKey(rowLayout.index, nextColumn.index)) &&
