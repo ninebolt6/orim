@@ -68,6 +68,10 @@
   touch-action: none;
   width: 6px;
 }
+.orim-xlsx-resize:focus-visible {
+  outline: 2px solid #217346;
+  outline-offset: -2px;
+}
 .orim-xlsx-grid .orim-xlsx-corner {
   left: 0;
 }

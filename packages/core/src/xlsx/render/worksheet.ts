@@ -147,6 +147,7 @@ export const renderWorksheet = (
     const headerWidth = showHeaders ? HEADER_WIDTH : 0;
     const widths = layout.columns.map((column) => column.width);
     const columnElements: HTMLTableColElement[] = [];
+    const resizeHandles: HTMLDivElement[] = [];
     table.style.width = `${headerWidth + widths.reduce((total, width) => total + width, 0)}px`;
     const colgroup = document.createElement("colgroup");
     if (showHeaders) {
@@ -163,8 +164,10 @@ export const renderWorksheet = (
     table.append(colgroup);
     const stickyCellsByColumn = layout.columns.map((): HTMLElement[] => []);
     const resizeColumn = (columnIndex: number, width: number): void => {
-      widths[columnIndex] = width;
-      columnElements[columnIndex]!.style.width = `${width}px`;
+      const resizedWidth = Math.max(MIN_COLUMN_WIDTH, width);
+      widths[columnIndex] = resizedWidth;
+      columnElements[columnIndex]!.style.width = `${resizedWidth}px`;
+      resizeHandles[columnIndex]?.setAttribute("aria-valuenow", String(Math.round(resizedWidth)));
       table.style.width = `${headerWidth + widths.reduce((total, current) => total + current, 0)}px`;
       if (layout.columns[columnIndex]!.stickyLeft === undefined) return;
       let left = headerWidth;
@@ -201,6 +204,16 @@ export const renderWorksheet = (
         handle.setAttribute("role", "separator");
         handle.setAttribute("aria-orientation", "vertical");
         handle.setAttribute("aria-label", `Resize column ${columnName(column.index)}`);
+        handle.tabIndex = 0;
+        handle.setAttribute("aria-valuemin", String(MIN_COLUMN_WIDTH));
+        handle.setAttribute("aria-valuenow", String(Math.round(widths[columnIndex]!)));
+        resizeHandles[columnIndex] = handle;
+        handle.addEventListener("keydown", (event: KeyboardEvent) => {
+          if (event.key === "ArrowRight") resizeColumn(columnIndex, widths[columnIndex]! + 8);
+          else if (event.key === "ArrowLeft") resizeColumn(columnIndex, widths[columnIndex]! - 8);
+          else return;
+          event.preventDefault();
+        });
         let activePointer: number | undefined;
         let startX = 0;
         let startWidth = 0;

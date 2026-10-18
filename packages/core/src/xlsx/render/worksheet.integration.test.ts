@@ -114,14 +114,28 @@ describe("XLSX worksheet rendering", () => {
     const headers = container.querySelectorAll<HTMLElement>(".orim-xlsx-column-header");
     expect(headers).toHaveLength(3);
     for (const [index, header] of Array.from(headers).entries()) {
-      const handles = header.querySelectorAll(".orim-xlsx-resize");
+      const handles = header.querySelectorAll<HTMLDivElement>(".orim-xlsx-resize");
       expect(handles).toHaveLength(1);
       expect(handles[0]?.getAttribute("role")).toBe("separator");
       expect(handles[0]?.getAttribute("aria-orientation")).toBe("vertical");
       expect(handles[0]?.getAttribute("aria-label")).toBe(
         `Resize column ${String.fromCharCode(65 + index)}`,
       );
+      expect(handles[0]?.tabIndex).toBe(0);
+      expect(handles[0]?.getAttribute("aria-valuemin")).toBe("8");
+      expect(handles[0]?.getAttribute("aria-valuenow")).toBe("72");
     }
+    const handle = headers[1]!.querySelector<HTMLDivElement>(".orim-xlsx-resize")!;
+    const column = container.querySelectorAll<HTMLTableColElement>("colgroup col")[2]!;
+    const arrowRight = new KeyboardEvent("keydown", { key: "ArrowRight", cancelable: true });
+    handle.dispatchEvent(arrowRight);
+    expect(arrowRight.defaultPrevented).toBe(true);
+    expect(column.style.width).toBe("80px");
+    expect(handle.getAttribute("aria-valuenow")).toBe("80");
+    for (let index = 0; index < 20; index++)
+      handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+    expect(column.style.width).toBe("8px");
+    expect(handle.getAttribute("aria-valuenow")).toBe("8");
     rendered.destroy();
 
     const withoutHeaders: XlsxWorkbook = {
