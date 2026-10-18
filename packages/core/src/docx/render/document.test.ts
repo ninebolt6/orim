@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { renderDocx, renderDocument } from "./document";
 import type { DocxDocument, Inline } from "../model";
 import { splitAtPageBreaks } from "../parse/blocks";
@@ -54,6 +54,10 @@ const model = (text: string): DocxDocument => {
 };
 
 describe("DOCX renderer", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders a parsed model synchronously", () => {
     const container = document.createElement("div");
     const rendered = renderDocument(model("synchronous"), container);
