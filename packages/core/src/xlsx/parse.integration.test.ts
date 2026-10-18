@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { buildXlsx } from "../../test/xlsx";
+import { renderWorkbook } from "./render/workbook";
 import { parseXlsx } from "./parse";
 
 const relationshipBase = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -159,6 +160,27 @@ describe("XLSX parser integration", () => {
       ["Visible", "visible"],
     ]);
     expect(workbook.activeSheet).toBe(1);
+  });
+
+  it("falls back when the active worksheet is hidden", async () => {
+    const workbook = await parseXlsx(
+      buildXlsx({
+        activeTab: 0,
+        sheets: [
+          { name: "Hidden", state: "hidden", xml: "<worksheet/>" },
+          {
+            name: "Visible",
+            xml: `<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>`,
+          },
+        ],
+      }),
+    );
+    expect(workbook.activeSheet).toBe(1);
+    const container = document.createElement("div");
+    const rendered = renderWorkbook(workbook, container);
+    expect(rendered.sheet).toBe(1);
+    expect(container.querySelector(".orim-xlsx-grid")).not.toBeNull();
+    rendered.destroy();
   });
 
   it("throws the specified error when the workbook relationship is absent", async () => {

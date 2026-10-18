@@ -382,7 +382,12 @@ export const parseXlsx = async (input: ArrayBuffer | Uint8Array | Blob): Promise
   const activeTab = integerAttribute(workbookView, "activeTab") ?? 0;
   const mappedActive = sheetIndexes.get(activeTab);
   const firstVisible = sheets.findIndex((sheet) => sheet.state === "visible");
-  const activeSheet = mappedActive ?? (firstVisible >= 0 ? firstVisible : 0);
+  const activeSheet =
+    mappedActive !== undefined && sheets[mappedActive]!.state === "visible"
+      ? mappedActive
+      : firstVisible >= 0
+        ? firstVisible
+        : 0;
   return { sheets, activeSheet, date1904 };
 };
 
