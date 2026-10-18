@@ -4,6 +4,56 @@ import { renderWorksheet } from "./worksheet";
 import type { XlsxWorkbook } from "../model";
 
 describe("XLSX rendering in Chromium", () => {
+  it("shows header edges when worksheet gridlines are disabled", () => {
+    const workbook: XlsxWorkbook = {
+      activeSheet: 0,
+      date1904: false,
+      sheets: [
+        {
+          name: "No gridlines",
+          state: "visible",
+          rows: [
+            {
+              index: 0,
+              hidden: false,
+              cells: [
+                {
+                  column: 0,
+                  value: { type: "string", value: "value" },
+                  style: {
+                    numberFormat: "General",
+                    font: { bold: false, italic: false, strike: false },
+                    border: {},
+                    alignment: { wrap: false, indent: 0 },
+                  },
+                },
+              ],
+            },
+          ],
+          columns: [],
+          merges: [],
+          hyperlinks: [],
+          defaultColumnWidth: 100,
+          defaultRowHeight: 24,
+          frozen: { rows: 0, columns: 0 },
+          showGridLines: false,
+          showHeaders: true,
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    document.body.append(container);
+    const rendered = renderWorksheet(workbook, 0, container);
+    const columnHeader = container.querySelector<HTMLElement>(".orim-xlsx-column-header")!;
+    const rowHeader = container.querySelector<HTMLElement>(".orim-xlsx-row-header")!;
+    const corner = container.querySelector<HTMLElement>(".orim-xlsx-corner")!;
+    expect(getComputedStyle(columnHeader).boxShadow).not.toBe("none");
+    expect(getComputedStyle(rowHeader).boxShadow).not.toBe("none");
+    expect(getComputedStyle(corner).boxShadow).not.toBe("none");
+    rendered.destroy();
+    container.remove();
+  });
+
   it("keeps headers and frozen panes sticky inside the worksheet scroller", () => {
     const workbook: XlsxWorkbook = {
       activeSheet: 0,

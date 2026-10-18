@@ -46,6 +46,7 @@
 }
 .orim-xlsx-grid th {
   background: #f3f3f3;
+  box-shadow: inset -1px -1px 0 #c8c8c8;
   color: #595959;
   font-family: Arial, "Noto Sans", sans-serif;
   font-size: 9pt;
