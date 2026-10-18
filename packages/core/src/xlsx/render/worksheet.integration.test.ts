@@ -147,6 +147,24 @@ describe("XLSX worksheet rendering", () => {
     noHeadersRender.destroy();
   });
 
+  it("keeps resize ARIA bounds valid for zero-width columns", () => {
+    const container = document.createElement("div");
+    const zeroWidth: XlsxWorkbook = {
+      ...workbook,
+      sheets: [
+        {
+          ...workbook.sheets[0]!,
+          columns: [{ min: 1, max: 1, width: 0, hidden: false }],
+        },
+      ],
+    };
+    const rendered = renderWorksheet(zeroWidth, 0, container);
+    const handle = container.querySelectorAll<HTMLDivElement>(".orim-xlsx-resize")[1]!;
+    expect(handle.getAttribute("aria-valuenow")).toBe("0");
+    expect(handle.getAttribute("aria-valuemin")).toBe("0");
+    rendered.destroy();
+  });
+
   it("rejects hidden and out-of-range selections", () => {
     const container = document.createElement("div");
     expect(() => renderWorkbook(workbook, container, { sheet: 1 })).toThrow(RangeError);

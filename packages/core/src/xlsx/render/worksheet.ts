@@ -205,7 +205,10 @@ export const renderWorksheet = (
         handle.setAttribute("aria-orientation", "vertical");
         handle.setAttribute("aria-label", `Resize column ${columnName(column.index)}`);
         handle.tabIndex = 0;
-        handle.setAttribute("aria-valuemin", String(MIN_COLUMN_WIDTH));
+        handle.setAttribute(
+          "aria-valuemin",
+          String(Math.min(MIN_COLUMN_WIDTH, Math.round(widths[columnIndex]!))),
+        );
         handle.setAttribute("aria-valuenow", String(Math.round(widths[columnIndex]!)));
         resizeHandles[columnIndex] = handle;
         handle.addEventListener("keydown", (event: KeyboardEvent) => {
