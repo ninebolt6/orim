@@ -6,6 +6,8 @@ import { formatCellValue } from "../format";
 import { defaultCellStyle } from "../parse/styles";
 import { acquireContainerLease } from "../../common/lease";
 
+const MIN_COLUMN_WIDTH = 8;
+
 export interface RenderedWorksheet {
   readonly workbook: XlsxWorkbook;
   readonly sheet: number;
@@ -143,19 +145,37 @@ export const renderWorksheet = (
     table.style.borderCollapse = "collapse";
     const showHeaders = worksheet.showHeaders;
     const headerWidth = showHeaders ? HEADER_WIDTH : 0;
-    table.style.width = `${headerWidth + layout.columns.reduce((total, column) => total + column.width, 0)}px`;
+    const widths = layout.columns.map((column) => column.width);
+    const columnElements: HTMLTableColElement[] = [];
+    table.style.width = `${headerWidth + widths.reduce((total, width) => total + width, 0)}px`;
     const colgroup = document.createElement("colgroup");
     if (showHeaders) {
       const rowHeaderColumn = document.createElement("col");
       rowHeaderColumn.style.width = `${HEADER_WIDTH}px`;
       colgroup.append(rowHeaderColumn);
     }
-    for (const column of layout.columns) {
+    for (const [columnIndex] of layout.columns.entries()) {
       const col = document.createElement("col");
-      col.style.width = `${column.width}px`;
+      col.style.width = `${widths[columnIndex]}px`;
       colgroup.append(col);
+      columnElements.push(col);
     }
     table.append(colgroup);
+    const stickyCellsByColumn = layout.columns.map((): HTMLElement[] => []);
+    const resizeColumn = (columnIndex: number, width: number): void => {
+      widths[columnIndex] = width;
+      columnElements[columnIndex]!.style.width = `${width}px`;
+      table.style.width = `${headerWidth + widths.reduce((total, current) => total + current, 0)}px`;
+      if (layout.columns[columnIndex]!.stickyLeft === undefined) return;
+      let left = headerWidth;
+      for (let stickyIndex = 0; stickyIndex < layout.columns.length; stickyIndex++) {
+        if (layout.columns[stickyIndex]!.stickyLeft === undefined) break;
+        if (stickyIndex > columnIndex) {
+          for (const element of stickyCellsByColumn[stickyIndex]!) element.style.left = `${left}px`;
+        }
+        left += widths[stickyIndex]!;
+      }
+    };
     if (showHeaders) {
       const head = document.createElement("thead");
       const row = document.createElement("tr");
@@ -166,13 +186,47 @@ export const renderWorksheet = (
       corner.style.width = `${HEADER_WIDTH}px`;
       applyStickyZIndex(corner, true, true, true);
       row.append(corner);
-      for (const column of layout.columns) {
+      for (const [columnIndex, column] of layout.columns.entries()) {
         const header = document.createElement("th");
         header.className = "orim-xlsx-column-header";
         header.scope = "col";
         header.append(document.createTextNode(columnName(column.index)));
-        if (column.stickyLeft !== undefined) header.style.left = `${column.stickyLeft}px`;
+        if (column.stickyLeft !== undefined) {
+          header.style.left = `${column.stickyLeft}px`;
+          stickyCellsByColumn[columnIndex]!.push(header);
+        }
         applyStickyZIndex(header, true, true, column.stickyLeft !== undefined);
+        const handle = document.createElement("div");
+        handle.className = "orim-xlsx-resize";
+        handle.setAttribute("role", "separator");
+        handle.setAttribute("aria-orientation", "vertical");
+        handle.setAttribute("aria-label", `Resize column ${columnName(column.index)}`);
+        let activePointer: number | undefined;
+        let startX = 0;
+        let startWidth = 0;
+        handle.addEventListener("pointerdown", (event: PointerEvent) => {
+          event.preventDefault();
+          activePointer = event.pointerId;
+          startX = event.clientX;
+          startWidth = widths[columnIndex]!;
+          handle.setPointerCapture(event.pointerId);
+        });
+        handle.addEventListener("pointermove", (event: PointerEvent) => {
+          if (activePointer !== event.pointerId) return;
+          resizeColumn(
+            columnIndex,
+            Math.max(MIN_COLUMN_WIDTH, startWidth + event.clientX - startX),
+          );
+        });
+        const stopResizing = (event: PointerEvent): void => {
+          if (activePointer !== event.pointerId) return;
+          if (handle.hasPointerCapture(event.pointerId))
+            handle.releasePointerCapture(event.pointerId);
+          activePointer = undefined;
+        };
+        handle.addEventListener("pointerup", stopResizing);
+        handle.addEventListener("pointercancel", stopResizing);
+        header.append(handle);
         row.append(header);
       }
       head.append(row);
@@ -284,7 +338,10 @@ export const renderWorksheet = (
         if (rowSticky !== undefined || columnSticky !== undefined) {
           td.style.position = "sticky";
           if (rowSticky !== undefined) td.style.top = `${rowSticky}px`;
-          if (columnSticky !== undefined) td.style.left = `${columnSticky}px`;
+          if (columnSticky !== undefined) {
+            td.style.left = `${columnSticky}px`;
+            stickyCellsByColumn[columnIndex]!.push(td);
+          }
           td.style.backgroundColor = fill ?? "#ffffff";
           applyStickyZIndex(td, false, rowSticky !== undefined, columnSticky !== undefined);
         }

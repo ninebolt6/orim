@@ -108,6 +108,31 @@ describe("XLSX worksheet rendering", () => {
     expect(container.childElementCount).toBe(0);
   });
 
+  it("adds accessible resize handles only to visible column headers", () => {
+    const container = document.createElement("div");
+    const rendered = renderWorksheet(workbook, 0, container);
+    const headers = container.querySelectorAll<HTMLElement>(".orim-xlsx-column-header");
+    expect(headers).toHaveLength(3);
+    for (const [index, header] of Array.from(headers).entries()) {
+      const handles = header.querySelectorAll(".orim-xlsx-resize");
+      expect(handles).toHaveLength(1);
+      expect(handles[0]?.getAttribute("role")).toBe("separator");
+      expect(handles[0]?.getAttribute("aria-orientation")).toBe("vertical");
+      expect(handles[0]?.getAttribute("aria-label")).toBe(
+        `Resize column ${String.fromCharCode(65 + index)}`,
+      );
+    }
+    rendered.destroy();
+
+    const withoutHeaders: XlsxWorkbook = {
+      ...workbook,
+      sheets: [{ ...workbook.sheets[0]!, showHeaders: false }],
+    };
+    const noHeadersRender = renderWorksheet(withoutHeaders, 0, container);
+    expect(container.querySelectorAll(".orim-xlsx-resize")).toHaveLength(0);
+    noHeadersRender.destroy();
+  });
+
   it("rejects hidden and out-of-range selections", () => {
     const container = document.createElement("div");
     expect(() => renderWorkbook(workbook, container, { sheet: 1 })).toThrow(RangeError);

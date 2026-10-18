@@ -3,6 +3,70 @@ import "./styles.css";
 import { renderWorksheet } from "./worksheet";
 import type { XlsxWorkbook } from "../model";
 
+const resizeWorkbook = (frozenColumns: number, columnCount: number): XlsxWorkbook => {
+  const style = {
+    numberFormat: "General",
+    font: { bold: false, italic: false, strike: false },
+    border: {},
+    alignment: { wrap: false, indent: 0 },
+  };
+  return {
+    activeSheet: 0,
+    date1904: false,
+    sheets: [
+      {
+        name: "Resize",
+        state: "visible",
+        rows: Array.from({ length: 8 }, (_, rowIndex) => ({
+          index: rowIndex,
+          hidden: false,
+          cells: Array.from({ length: columnCount }, (_, column) => ({
+            column,
+            value: { type: "string" as const, value: `cell-${rowIndex}-${column}` },
+            style,
+          })),
+        })),
+        columns: [],
+        merges: [],
+        hyperlinks: [],
+        defaultColumnWidth: 100,
+        defaultRowHeight: 24,
+        frozen: { rows: 0, columns: frozenColumns },
+        showGridLines: true,
+        showHeaders: true,
+      },
+    ],
+  };
+};
+
+const mockPointerCapture = (handle: HTMLElement): void => {
+  let capturedPointer: number | undefined;
+  handle.setPointerCapture = (pointerId) => {
+    capturedPointer = pointerId;
+  };
+  handle.hasPointerCapture = (pointerId) => capturedPointer === pointerId;
+  handle.releasePointerCapture = (pointerId) => {
+    if (capturedPointer === pointerId) capturedPointer = undefined;
+  };
+};
+
+const dispatchPointer = (
+  handle: HTMLElement,
+  type: string,
+  pointerId: number,
+  clientX: number,
+): void => {
+  handle.dispatchEvent(
+    new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      clientX,
+      pointerId,
+      pointerType: "mouse",
+    }),
+  );
+};
+
 describe("XLSX rendering in Chromium", () => {
   it("shows header edges when worksheet gridlines are disabled", () => {
     const workbook: XlsxWorkbook = {
@@ -191,6 +255,73 @@ describe("XLSX rendering in Chromium", () => {
     );
     expect(elementAtCenter(corner)).toBe(corner);
     expect(elementAtCenter(frozenCell)?.closest("td")?.textContent).toBe("A1");
+    rendered.destroy();
+    container.remove();
+  });
+
+  it("resizes columns by pointer and enforces the minimum width", () => {
+    const container = document.createElement("div");
+    container.style.width = "600px";
+    container.style.height = "300px";
+    document.body.append(container);
+    const rendered = renderWorksheet(resizeWorkbook(0, 8), 0, container);
+    const table = container.querySelector<HTMLTableElement>("table")!;
+    const column = container.querySelectorAll<HTMLTableColElement>("colgroup col")[2]!;
+    const header = container.querySelectorAll<HTMLElement>(".orim-xlsx-column-header")[1]!;
+    const handle = header.querySelector<HTMLElement>(".orim-xlsx-resize")!;
+    const initialColumnWidth = Number.parseFloat(column.style.width);
+    const initialHeaderWidth = header.getBoundingClientRect().width;
+    const initialTableWidth = table.getBoundingClientRect().width;
+    mockPointerCapture(handle);
+    const pointerDown = new PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 100,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+    handle.dispatchEvent(pointerDown);
+    expect(pointerDown.defaultPrevented).toBe(true);
+    dispatchPointer(handle, "pointermove", 1, 150);
+    dispatchPointer(handle, "pointerup", 1, 150);
+    expect(Number.parseFloat(column.style.width)).toBe(initialColumnWidth + 50);
+    expect(header.getBoundingClientRect().width).toBeCloseTo(initialHeaderWidth + 50, 0);
+    expect(table.getBoundingClientRect().width).toBeCloseTo(initialTableWidth + 50, 0);
+
+    dispatchPointer(handle, "pointerdown", 2, 200);
+    dispatchPointer(handle, "pointermove", 2, -800);
+    dispatchPointer(handle, "pointerup", 2, -800);
+    expect(Number.parseFloat(column.style.width)).toBe(8);
+    rendered.destroy();
+    container.remove();
+  });
+
+  it("updates frozen column offsets when resizing and keeps them pinned on scroll", async () => {
+    const container = document.createElement("div");
+    container.style.width = "240px";
+    container.style.height = "140px";
+    document.body.append(container);
+    const rendered = renderWorksheet(resizeWorkbook(2, 8), 0, container);
+    const scroll = container.querySelector<HTMLElement>(".orim-xlsx-scroll")!;
+    const headers = container.querySelectorAll<HTMLElement>(".orim-xlsx-column-header");
+    const columnAHandle = headers[0]!.querySelector<HTMLElement>(".orim-xlsx-resize")!;
+    const headerB = headers[1]!;
+    const cellB = container.querySelector<HTMLElement>("tbody tr:first-child td:nth-of-type(2)")!;
+    mockPointerCapture(columnAHandle);
+    dispatchPointer(columnAHandle, "pointerdown", 3, 100);
+    dispatchPointer(columnAHandle, "pointermove", 3, 130);
+    dispatchPointer(columnAHandle, "pointerup", 3, 130);
+    expect(headerB.style.left).toBe("178px");
+    expect(cellB.style.left).toBe("178px");
+
+    scroll.scrollLeft = 500;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    const scrollLeft = scroll.getBoundingClientRect().left;
+    expect(scroll.scrollLeft).toBeGreaterThan(0);
+    expect(headerB.getBoundingClientRect().left).toBeCloseTo(scrollLeft + 178, 0);
+    expect(cellB.getBoundingClientRect().left).toBeCloseTo(scrollLeft + 178, 0);
     rendered.destroy();
     container.remove();
   });
