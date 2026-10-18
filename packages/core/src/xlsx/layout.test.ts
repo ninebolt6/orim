@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { Worksheet } from "./model";
-import { computeLayout, HEADER_HEIGHT, HEADER_WIDTH } from "./layout";
+import { computeLayout, HEADER_HEIGHT, HEADER_WIDTH, MAX_CELLS } from "./layout";
 
 const worksheet = (overrides: Partial<Worksheet> = {}): Worksheet => ({
   name: "Sheet",
@@ -91,10 +91,34 @@ describe("XLSX layout", () => {
         ],
       }),
     );
-    expect(layout.rows).toHaveLength(5000);
+    expect(layout.rows).toHaveLength(100);
     expect(layout.columns).toHaveLength(200);
     expect(layout.truncated).toBe(true);
   });
+
+  it("bounds merge coverage by the cell cap", () => {
+    const layout = computeLayout(
+      worksheet({
+        merges: [{ top: 0, left: 0, bottom: 4999, right: 199 }],
+      }),
+    );
+    expect(layout.rows).toHaveLength(100);
+    expect(layout.columns).toHaveLength(200);
+    expect(layout.covered.size).toBeLessThan(MAX_CELLS);
+    expect(layout.truncated).toBe(true);
+  });
+
+  it("short-circuits duplicate full-sheet merges", () => {
+    const merge = { top: 0, left: 0, bottom: 4999, right: 199 };
+    const start = performance.now();
+    const layout = computeLayout(
+      worksheet({
+        merges: Array.from({ length: 10_000 }, () => merge),
+      }),
+    );
+    expect(layout.merges).toHaveLength(1);
+    expect(performance.now() - start).toBeLessThan(2000);
+  }, 2000);
 
   it("anchors frozen cells at the origin when headers are hidden", () => {
     const layout = computeLayout(

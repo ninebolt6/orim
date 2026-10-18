@@ -104,8 +104,6 @@ const effectiveAlignment = (
   return "left";
 };
 
-const MAX_RENDERED_CELLS = 20_000;
-
 const applyStickyZIndex = (
   element: HTMLElement,
   isHeader: boolean,
@@ -124,22 +122,11 @@ export const renderWorksheet = (
   const worksheet = workbook.sheets[sheetIndex];
   if (!worksheet) throw new RangeError("Worksheet index is out of range.");
   const layout = computeLayout(worksheet);
-  const visibleRows =
-    layout.columns.length > 0
-      ? layout.rows.slice(0, Math.max(1, Math.floor(MAX_RENDERED_CELLS / layout.columns.length)))
-      : layout.rows;
-  const truncated = layout.truncated || visibleRows.length < layout.rows.length;
+  const truncated = layout.truncated;
   const worksheetRows = new Map(worksheet.rows.map((row) => [row.index, row]));
   const worksheetCells = new Map<string, Cell>();
   for (const row of worksheet.rows)
     for (const cell of row.cells) worksheetCells.set(layoutKey(row.index, cell.column), cell);
-  const renderedMergeRows = new Map<string, (typeof layout.rows)[number][]>();
-  for (const merge of layout.merges) {
-    const rows = visibleRows.filter(
-      (row) => row.index >= merge.range.top && row.index <= merge.range.bottom,
-    );
-    if (rows.length) renderedMergeRows.set(layoutKey(merge.anchorRow, merge.anchorColumn), rows);
-  }
   let root: HTMLDivElement | undefined;
   const lease = acquireContainerLease(container, () => {
     if (root?.parentElement === container) container.replaceChildren();
@@ -196,7 +183,7 @@ export const renderWorksheet = (
     for (const link of worksheet.hyperlinks) {
       const href = safeHref(link.href);
       if (!href) continue;
-      for (const row of visibleRows) {
+      for (const row of layout.rows) {
         if (row.index < link.range.top || row.index > link.range.bottom) continue;
         for (const column of layout.columns) {
           if (column.index < link.range.left || column.index > link.range.right) continue;
@@ -205,7 +192,7 @@ export const renderWorksheet = (
         }
       }
     }
-    for (const rowLayout of visibleRows) {
+    for (const rowLayout of layout.rows) {
       const rowElement = document.createElement("tr");
       rowElement.className = "orim-xlsx-row";
       rowElement.style.height = `${rowLayout.height}pt`;
@@ -228,7 +215,6 @@ export const renderWorksheet = (
         const key = layoutKey(rowLayout.index, columnLayout.index);
         if (layout.covered.has(key)) continue;
         const merge = layout.mergeAt.get(key);
-        const mergeRows = merge ? renderedMergeRows.get(key) : undefined;
         const cell = merge?.cell ?? worksheetCells.get(key);
         const cellRow = merge
           ? worksheetRows.get(merge.range.top)
@@ -239,8 +225,8 @@ export const renderWorksheet = (
         const formatted = formatCellValue(value, style.numberFormat, workbook.date1904);
         const td = document.createElement("td");
         td.className = "orim-xlsx-cell";
-        if (merge && mergeRows) {
-          td.rowSpan = mergeRows.length;
+        if (merge) {
+          td.rowSpan = merge.rowSpan;
           td.colSpan = merge.columnSpan;
         }
         const fill = validColor(style.fill);
@@ -261,8 +247,13 @@ export const renderWorksheet = (
         if (style.alignment.indent > 0) td.style.paddingLeft = `${style.alignment.indent * 9}px`;
         const content = document.createElement("div");
         content.className = "orim-xlsx-content";
-        const spanHeight = mergeRows
-          ? mergeRows.reduce((total, candidate) => total + candidate.height, 0)
+        const spanHeight = merge
+          ? layout.rows
+              .filter(
+                (candidate) =>
+                  candidate.index >= merge.range.top && candidate.index <= merge.range.bottom,
+              )
+              .reduce((total, candidate) => total + candidate.height, 0)
           : rowLayout.height;
         content.style.height = `${spanHeight}pt`;
         content.style.overflow = "visible clip";
@@ -324,7 +315,7 @@ export const renderWorksheet = (
       note.className = "orim-xlsx-note";
       note.append(
         document.createTextNode(
-          `Showing the first ${visibleRows.length} rows and ${layout.columns.length} columns.`,
+          `Showing the first ${layout.rows.length} rows and ${layout.columns.length} columns.`,
         ),
       );
       scroll.append(note);

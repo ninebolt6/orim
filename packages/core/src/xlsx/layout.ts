@@ -2,6 +2,7 @@ import type { Cell, CellRange, CellStyle, Worksheet } from "./model";
 
 export const MAX_ROWS = 5000;
 export const MAX_COLUMNS = 200;
+export const MAX_CELLS = 20_000;
 export const HEADER_HEIGHT = 24;
 export const HEADER_WIDTH = 48;
 
@@ -76,19 +77,6 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
     }
   }
   let truncated = false;
-  const rows: LayoutRow[] = [];
-  for (let index = 0; index <= bottom; index++) {
-    if (rowsByIndex.get(index)?.hidden) continue;
-    if (rows.length >= MAX_ROWS) {
-      truncated = true;
-      break;
-    }
-    const source = rowsByIndex.get(index);
-    rows.push({
-      index,
-      height: source?.height ?? worksheet.defaultRowHeight,
-    });
-  }
   const columns: LayoutColumn[] = [];
   for (let index = 0; index <= right; index++) {
     const source = columnRange(worksheet, index);
@@ -101,6 +89,23 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
       index,
       width: source?.width ?? worksheet.defaultColumnWidth,
       ...(source?.style ? { style: source.style } : {}),
+    });
+  }
+  const maxRows = Math.min(
+    MAX_ROWS,
+    Math.max(1, Math.floor(MAX_CELLS / Math.max(1, columns.length))),
+  );
+  const rows: LayoutRow[] = [];
+  for (let index = 0; index <= bottom; index++) {
+    if (rowsByIndex.get(index)?.hidden) continue;
+    if (rows.length >= maxRows) {
+      truncated = true;
+      break;
+    }
+    const source = rowsByIndex.get(index);
+    rows.push({
+      index,
+      height: source?.height ?? worksheet.defaultRowHeight,
     });
   }
   const visibleRows = new Map(rows.map((row, index) => [row.index, index]));
@@ -140,8 +145,15 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
     const anchorColumn = columnIndexes[0];
     if (anchorRow === undefined || anchorColumn === undefined) continue;
     let overlaps = false;
-    for (const row of rowIndexes)
-      for (const column of columnIndexes) if (occupied.has(key(row, column))) overlaps = true;
+    for (const row of rowIndexes) {
+      for (const column of columnIndexes) {
+        if (occupied.has(key(row, column))) {
+          overlaps = true;
+          break;
+        }
+      }
+      if (overlaps) break;
+    }
     if (overlaps) continue;
     const merge: LayoutMerge = {
       range,
