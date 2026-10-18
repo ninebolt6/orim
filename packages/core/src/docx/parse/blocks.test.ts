@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
-import { applyContextualSpacing, splitAtPageBreaks } from "./blocks";
+import { children } from "../xml";
+import { wordElement } from "../../../test/docx-context";
+import { applyContextualSpacing, blockNodes, splitAtPageBreaks } from "./blocks";
 import type { Paragraph } from "../model";
 
 describe("block sequence helpers", () => {
@@ -37,5 +39,13 @@ describe("block sequence helpers", () => {
     expect(
       segments.map((item) => item.runs.map((run) => (run.type === "text" ? run.text : ""))),
     ).toEqual([["A"], ["B"]]);
+  });
+
+  it("unwraps nested block-level content controls", () => {
+    const body = wordElement(
+      "<w:body><w:sdt><w:sdtContent><w:p><w:r><w:t>TOC entry</w:t></w:r></w:p></w:sdtContent></w:sdt></w:body>",
+    );
+
+    expect(blockNodes(children(body)).map((node) => node.localName)).toEqual(["p"]);
   });
 });

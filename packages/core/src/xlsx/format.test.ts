@@ -102,4 +102,21 @@ describe("Excel number formats", () => {
     expect(formatCellValue(number(-1), "yyyy-mm-dd", false).text).toBe("########");
     expect(formatCellValue(number(2958466), "yyyy-mm-dd", false).text).toBe("########");
   });
+
+  it("keeps hostile formats and numeric extremes bounded and non-throwing", () => {
+    const formats = [
+      "0".repeat(10_000),
+      '"'.repeat(10_000),
+      "[".repeat(10_000),
+      "[>]",
+      "[Red",
+      ";;;",
+    ];
+    const values = [NaN, Infinity, -Infinity, 1e308, -0, 5e-324, -1e100, 1e10];
+    for (const format of formats)
+      for (const value of values)
+        expect(typeof formatCellValue(number(value), format, false).text).toBe("string");
+    expect(formatCellValue(number(1e10), "[h]:mm", false).text).toBe("########");
+    expect(formatCellValue(number(1e100), "yyyy-mm-dd", false).text).toBe("########");
+  });
 });

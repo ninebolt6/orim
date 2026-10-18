@@ -49,6 +49,18 @@ export default defineConfig({
     ],
   },
   test: {
+    coverage: {
+      provider: "v8",
+      include: ["packages/*/src/**/*.{ts,tsx}"],
+      exclude: [
+        "**/*.test.{ts,tsx}",
+        "**/*.integration.test.{ts,tsx}",
+        "**/*.browser.test.{ts,tsx}",
+        "**/*.d.ts",
+        "**/index.ts",
+      ],
+      reporter: ["text", "json"],
+    },
     projects: [
       {
         test: {
