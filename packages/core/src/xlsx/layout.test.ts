@@ -48,6 +48,32 @@ describe("XLSX layout", () => {
     expect(layout.columns[2]!.stickyLeft).toBe(HEADER_WIDTH + 140);
   });
 
+  it("adds a minimal opposite dimension for styled-only extents", () => {
+    const styledRow = computeLayout(
+      worksheet({
+        rows: [{ index: 2, hidden: false, style: style("#000000"), cells: [] }],
+      }),
+    );
+    expect(styledRow.rows.map((row) => row.index)).toEqual([0, 1, 2]);
+    expect(styledRow.columns.map((column) => column.index)).toEqual([0]);
+
+    const styledColumns = computeLayout(
+      worksheet({
+        columns: [{ min: 0, max: 1, hidden: false, style: style("#000000") }],
+      }),
+    );
+    expect(styledColumns.columns.map((column) => column.index)).toEqual([0, 1]);
+    expect(styledColumns.rows.map((row) => row.index)).toEqual([0]);
+
+    const fullColumn = computeLayout(
+      worksheet({
+        columns: [{ min: 0, max: 16383, hidden: false, style: style("#000000") }],
+      }),
+    );
+    expect(fullColumn.rows).toHaveLength(0);
+    expect(fullColumn.columns).toHaveLength(0);
+  });
+
   it("omits hidden rows and columns and anchors merges at the first visible position", () => {
     const layout = computeLayout(
       worksheet({

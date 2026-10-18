@@ -68,12 +68,16 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
   const cells = cellMap(worksheet);
   let bottom = Math.max(-1, worksheet.frozen.rows - 1);
   let right = Math.max(-1, worksheet.frozen.columns - 1);
+  let styledExtent = false;
   for (const range of worksheet.merges) {
     bottom = Math.max(bottom, range.bottom);
     right = Math.max(right, range.right);
   }
   for (const row of worksheet.rows) {
-    if (hasStyledExtent(row.style)) bottom = Math.max(bottom, row.index);
+    if (hasStyledExtent(row.style)) {
+      styledExtent = true;
+      bottom = Math.max(bottom, row.index);
+    }
     for (const cell of row.cells) {
       if (extendsExtent(cell)) {
         bottom = Math.max(bottom, row.index);
@@ -81,8 +85,14 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
       }
     }
   }
-  for (const range of worksheet.columns)
-    if (range.max < 16383 && hasStyledExtent(range.style)) right = Math.max(right, range.max);
+  for (const range of worksheet.columns) {
+    if (range.max < 16383 && hasStyledExtent(range.style)) {
+      styledExtent = true;
+      right = Math.max(right, range.max);
+    }
+  }
+  if (styledExtent && bottom >= 0 && right < 0) right = 0;
+  if (styledExtent && right >= 0 && bottom < 0) bottom = 0;
   let truncated = false;
   const columns: LayoutColumn[] = [];
   for (let index = 0; index <= right; index++) {
