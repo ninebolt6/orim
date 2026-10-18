@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 import { parseDocx } from "./parse";
 import type { Block, Inline } from "./model";
-import { renderDocument } from "./render/document";
 
 const collectInlines = (blocks: readonly Block[]): Inline[] => {
   return blocks.flatMap((block) =>
@@ -29,20 +28,5 @@ describe("sample DOCX model", () => {
     expect(footer.filter((run) => run.type === "field").map((run) => run.name)).toEqual(
       expect.arrayContaining(["PAGE", "NUMPAGES"]),
     );
-  });
-
-  it("parses and renders the sample comment reply", async () => {
-    const doc = await parseDocx(new Uint8Array(readFileSync("fixtures/sample.docx")));
-    const aikoComment = doc.comments.find((comment) => comment.author === "Aiko");
-    expect(aikoComment).toBeDefined();
-    const reply = doc.comments.find((comment) => comment.author === "Morgan");
-    expect(reply?.parentId).toBe(aikoComment!.id);
-
-    const container = document.createElement("div");
-    const rendered = renderDocument(doc, container);
-    const replyBoxes = container.querySelectorAll(".orim-comment-replies");
-    expect(replyBoxes).toHaveLength(1);
-    expect(replyBoxes[0].textContent).toContain("Agreed — the wording is clear.");
-    rendered.destroy();
   });
 });

@@ -42,6 +42,38 @@ describe("DOCX numbering", () => {
     expect(numbering.marker("2", 1).text).toBe("A.");
   });
 
+  it.each([
+    ["upperRoman", 9, "IX."],
+    ["upperLetter", 27, "AA."],
+    ["lowerLetter", 26, "z."],
+    ["decimalFullWidth", 12, "１２."],
+    ["japaneseCounting", 12, "12."],
+    ["unknown", 12, "12."],
+  ])("formats %s markers", (format, start, expected) => {
+    const doc = new DOMParser().parseFromString(
+      `<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="${start}"/><w:numFmt w:val="${format}"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`,
+      "application/xml",
+    );
+    expect(parseNumbering(doc).marker("1", 0).text).toBe(expected);
+  });
+
+  it("uses concrete-level overrides and maps unknown bullet glyphs to the default", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="4"/><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="&#xf123;"/><w:pPr><w:ind w:start="400" w:hanging="200"/></w:pPr><w:rPr><w:rFonts w:hAnsi="Wingdings"/></w:rPr></w:lvl></w:lvlOverride></w:num></w:numbering>`,
+      "application/xml",
+    );
+    const numbering = parseNumbering(doc);
+
+    expect(numbering.level("1", 0)).toMatchObject({
+      start: 4,
+      left: 20,
+      hanging: 10,
+      font: "Wingdings",
+    });
+    expect(numbering.marker("1", 0).text).toBe("•");
+    expect(numbering.marker("missing", 2).text).toBe("1.");
+  });
+
   it("maps Word bullet glyphs and honors simple suffixes", () => {
     const doc = new DOMParser().parseFromString(
       `<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="&#xf0a7;"/><w:suff w:val="space"/></w:lvl><w:lvl w:ilvl="1"><w:numFmt w:val="bullet"/><w:lvlText w:val="&#xf076;"/></w:lvl><w:lvl w:ilvl="2"><w:numFmt w:val="bullet"/><w:lvlText w:val="&#xf0d8;"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`,

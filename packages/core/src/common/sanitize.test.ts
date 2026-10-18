@@ -11,6 +11,16 @@ describe("render input sanitization", () => {
     expect(safeHref("../document.xml")).toBeUndefined();
   });
 
+  it.each([
+    "JaVaScRiPt:alert(1)",
+    "java\tscript:alert(1)",
+    " \tjavascript:alert(1)",
+    "vbscript:alert(1)",
+    "file:///etc/passwd",
+  ])("rejects hostile link target %s", (target) => {
+    expect(safeHref(target)).toBeUndefined();
+  });
+
   it("accepts only hexadecimal colors", () => {
     expect(validColor("#aabbcc")).toBe("#aabbcc");
     expect(validColor("red;background:url(x)")).toBeUndefined();

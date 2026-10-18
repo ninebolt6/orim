@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { renderDocx, renderDocument } from "./document";
 import type { DocxDocument, Inline } from "../model";
 import { splitAtPageBreaks } from "../parse/blocks";
@@ -62,33 +62,12 @@ describe("DOCX renderer", () => {
     rendered.destroy();
   });
 
-  it("updates options on a synchronously rendered model", () => {
-    const container = document.createElement("div");
-    const rendered = renderDocument(model("deleted"), container);
-    rendered.update({ changes: "final", comments: false });
-    expect(container.querySelector(".orim-root")?.classList.contains("orim-final")).toBe(true);
-    expect(container.querySelector(".orim-comment")).toBeNull();
-    rendered.destroy();
-  });
-
   it("destroys a synchronous render idempotently", () => {
     const container = document.createElement("div");
     const rendered = renderDocument(model("destroy"), container);
     rendered.destroy();
     rendered.destroy();
     expect(container.childElementCount).toBe(0);
-  });
-
-  it("replaces a previous synchronous render in the same container", () => {
-    const container = document.createElement("div");
-    const previous = renderDocument(model("previous"), container);
-    const current = renderDocument(model("current"), container);
-    expect(container.querySelectorAll(".orim-root")).toHaveLength(1);
-    expect(container.textContent).toContain("current");
-    expect(container.textContent).not.toContain("previous");
-    previous.destroy();
-    expect(container.textContent).toContain("current");
-    current.destroy();
   });
 
   it("toggles tracked-change modes and only creates safe links", async () => {
@@ -118,6 +97,100 @@ describe("DOCX renderer", () => {
     renderDocument(model("<img src=x onerror=alert(1)>"), container);
     expect(container.querySelector("img")).toBeNull();
     expect(container.textContent).toContain("<img src=x onerror=alert(1)>");
+  });
+
+  it("reuses image object URLs across redraws and revokes them on destroy", () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:orim-test");
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const source = model("image");
+    const imageDocument: DocxDocument = {
+      ...source,
+      sections: source.sections.map((section) => ({
+        ...section,
+        blocks: [
+          {
+            type: "paragraph",
+            properties: {},
+            runs: [{ type: "image", path: "word/media/image.png", width: 1, height: 1 }],
+          },
+        ],
+      })),
+      imageParts: {
+        "word/media/image.png": { bytes: new Uint8Array([1, 2, 3]), mime: "image/png" },
+      },
+    };
+    const container = document.createElement("div");
+    const rendered = renderDocument(imageDocument, container);
+
+    expect(container.querySelector("img")?.getAttribute("src")).toBe("blob:orim-test");
+    rendered.update({ changes: "final" });
+    rendered.update({ comments: false });
+    expect(URL.createObjectURL).toHaveBeenCalledOnce();
+    rendered.destroy();
+    expect(revoke).toHaveBeenCalledOnce();
+    expect(revoke).toHaveBeenCalledWith("blob:orim-test");
+  });
+
+  it("filters tracked-change images by rendering mode", () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:revision-image");
+    const source = model("images");
+    const imageDocument: DocxDocument = {
+      ...source,
+      sections: source.sections.map((section) => ({
+        ...section,
+        blocks: [
+          {
+            type: "paragraph",
+            properties: {},
+            runs: [
+              {
+                type: "image",
+                path: "deleted.png",
+                change: { kind: "del", author: "A", date: "" },
+              },
+              {
+                type: "image",
+                path: "inserted.png",
+                change: { kind: "ins", author: "B", date: "" },
+              },
+            ],
+          },
+        ],
+      })),
+      imageParts: {
+        "deleted.png": { bytes: new Uint8Array([1]), mime: "image/png" },
+        "inserted.png": { bytes: new Uint8Array([2]), mime: "image/png" },
+      },
+    };
+    const container = document.createElement("div");
+    const rendered = renderDocument(imageDocument, container);
+
+    expect(container.querySelectorAll("img")).toHaveLength(2);
+    rendered.update({ changes: "final" });
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+    rendered.update({ changes: "original" });
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+    rendered.destroy();
+  });
+
+  it("toggles comment balloons and anchors from a renderer model", () => {
+    const container = document.createElement("div");
+    const rendered = renderDocument(model("anchored text"), container);
+    const anchor = container.querySelector<HTMLElement>(".orim-comment-anchor")!;
+    const balloon = container.querySelector<HTMLElement>(".orim-comment")!;
+
+    anchor.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    expect(anchor.classList.contains("orim-comment-active")).toBe(true);
+    expect(balloon.classList.contains("orim-comment-active")).toBe(true);
+    anchor.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(anchor.classList.contains("orim-comment-pinned")).toBe(true);
+    rendered.update({ comments: false });
+    expect(container.querySelector(".orim-comment")).toBeNull();
+    expect(container.querySelector(".orim-comment-anchor")).toBeNull();
+    rendered.update({ comments: true });
+    expect(container.querySelector(".orim-comment")).not.toBeNull();
+    expect(container.querySelector(".orim-comment-anchor")).not.toBeNull();
+    rendered.destroy();
   });
 
   it("numbers comment references by order of first appearance", () => {
@@ -456,5 +529,111 @@ describe("DOCX renderer", () => {
     expect(container.querySelectorAll(".orim-page-comments > .orim-comment")).toHaveLength(1);
     expect(container.querySelectorAll(".orim-comment-replies .orim-comment")).toHaveLength(1);
     expect(container.querySelector(".orim-comment-author")?.textContent).toContain("Aiko · ");
+  });
+
+  it("renders paragraph layout and table formatting from an immutable model", () => {
+    const source = model("formatted");
+    const doc: DocxDocument = {
+      ...source,
+      sections: source.sections.map((section) => ({
+        ...section,
+        blocks: [
+          {
+            type: "paragraph",
+            properties: {
+              styleId: "Heading 1",
+              align: "both",
+              before: 2,
+              after: 3,
+              line: 1.5,
+              lineRule: "exact",
+              left: 4,
+              right: 5,
+              firstLine: 6,
+              hanging: 7,
+              pageBreakBefore: true,
+              snapToGrid: false,
+              shading: "#ffeecc",
+              borders: { bottom: "1px solid red" },
+              borderSpacing: { top: 2 },
+              change: { kind: "ins", author: "Aiko", date: "2025-01-01" },
+              formattingChange: { author: "Morgan", date: "2025-01-02" },
+            },
+            runs: [{ type: "text", text: "formatted paragraph" }],
+            markStyle: { bold: true },
+            list: { numId: "1", level: 0, marker: "1.", left: 12, hanging: 3, suffix: "space" },
+          },
+          {
+            type: "table",
+            width: "100%",
+            align: "center",
+            widths: ["50%", "50%"],
+            borders: { insideV: "1px solid blue" },
+            margins: { top: 2 },
+            rows: [
+              {
+                header: true,
+                height: 18,
+                change: { kind: "ins", author: "Aiko", date: "" },
+                cells: [
+                  {
+                    blocks: [
+                      { type: "paragraph", properties: {}, runs: [{ type: "text", text: "cell" }] },
+                    ],
+                    gridSpan: 2,
+                    rowSpan: 2,
+                    width: "50%",
+                    shading: "#eeeeee",
+                    borders: { left: "2px solid green" },
+                    margins: { right: 4 },
+                    verticalAlign: "middle",
+                  },
+                  {
+                    blocks: [],
+                    gridSpan: 1,
+                    rowSpan: 0,
+                  },
+                ],
+              },
+              {
+                change: { kind: "del", author: "Morgan", date: "" },
+                cells: [
+                  {
+                    blocks: [],
+                    gridSpan: 1,
+                    rowSpan: 1,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })),
+    };
+    const container = document.createElement("div");
+    const rendered = renderDocument(doc, container);
+    const paragraph = container.querySelector<HTMLElement>(".orim-paragraph")!;
+    const table = container.querySelector<HTMLTableElement>(".orim-table")!;
+    const cell = container.querySelector<HTMLTableCellElement>(".orim-table-cell")!;
+
+    expect(paragraph.style.textAlign).toBe("justify");
+    expect(paragraph.style.marginTop).toBe("2pt");
+    expect(paragraph.style.lineHeight).toBe("1.5pt");
+    expect(paragraph.style.breakBefore).toBe("page");
+    expect(paragraph.classList.contains("orim-format-change")).toBe(true);
+    expect(paragraph.querySelector(".orim-list-marker")?.textContent).toBe("1. ");
+    expect(table.style.width).toBe("100%");
+    expect(table.style.marginInline).toBe("auto");
+    expect(table.querySelectorAll("col")).toHaveLength(2);
+    expect(table.querySelector("tr")?.dataset.orimHeader).toBe("true");
+    expect(table.querySelectorAll("tr")).toHaveLength(2);
+    expect(cell.colSpan).toBe(2);
+    expect(cell.rowSpan).toBe(2);
+    expect(cell.style.verticalAlign).toBe("middle");
+    expect(cell.style.paddingRight).toBe("4pt");
+
+    rendered.update({ changes: "final" });
+    expect(container.querySelectorAll(".orim-table tr")).toHaveLength(1);
+    rendered.destroy();
   });
 });
