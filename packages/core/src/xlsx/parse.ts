@@ -68,7 +68,9 @@ const richText = (
   const runs: TextRun[] = [];
   for (const child of children(element)) {
     if (child.localName === "t") {
-      value += decodeXstring(child.textContent ?? "");
+      const runText = decodeXstring(child.textContent ?? "");
+      value += runText;
+      runs.push({ text: runText });
     } else if (child.localName === "r") {
       hasRuns = true;
       const runText = decodeXstring(first(child, "t")?.textContent ?? "");

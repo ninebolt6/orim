@@ -183,6 +183,29 @@ describe("XLSX parser integration", () => {
     rendered.destroy();
   });
 
+  it("preserves top-level text around rich string runs", async () => {
+    const workbook = await parseXlsx(
+      buildXlsx({
+        sheets: [
+          {
+            name: "Rich",
+            xml: `<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c></row></sheetData></worksheet>`,
+          },
+        ],
+        sharedStrings: {
+          xml: `<sst><si><t>Plain </t><r><rPr><b/></rPr><t>Bold</t></r></si></sst>`,
+        },
+      }),
+    );
+    const cell = workbook.sheets[0]!.rows[0]!.cells[0]!;
+    expect(cell.value).toEqual({ type: "string", value: "Plain Bold" });
+    expect(cell.runs).toMatchObject([{ text: "Plain " }, { text: "Bold", font: { bold: true } }]);
+    const container = document.createElement("div");
+    const rendered = renderWorkbook(workbook, container);
+    expect(container.querySelector("td")?.textContent).toBe("Plain Bold");
+    rendered.destroy();
+  });
+
   it("throws the specified error when the workbook relationship is absent", async () => {
     await expect(parseXlsx(buildXlsx({ includeWorkbook: false }))).rejects.toThrow(
       "Not an XLSX package: workbook part not found.",
