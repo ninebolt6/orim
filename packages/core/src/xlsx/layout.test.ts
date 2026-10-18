@@ -43,7 +43,7 @@ describe("XLSX layout", () => {
       }),
     );
     expect(layout.rows.map((row) => row.index)).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    expect(layout.columns.map((column) => column.index)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(layout.columns.map((column) => column.index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(layout.rows[0]!.stickyTop).toBe(HEADER_HEIGHT);
     expect(layout.columns[2]!.stickyLeft).toBe(HEADER_WIDTH + 140);
   });

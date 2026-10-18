@@ -48,6 +48,10 @@ const extendsExtent = (cell: Cell): boolean => {
   return Boolean(cell.style.fill || Object.keys(cell.style.border).length);
 };
 
+const hasStyledExtent = (style: CellStyle | undefined): boolean => {
+  return Boolean(style?.fill || (style && Object.keys(style.border).length));
+};
+
 const cellMap = (worksheet: Worksheet): Map<string, Cell> => {
   const result = new Map<string, Cell>();
   for (const row of worksheet.rows)
@@ -69,6 +73,7 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
     right = Math.max(right, range.right);
   }
   for (const row of worksheet.rows) {
+    if (hasStyledExtent(row.style)) bottom = Math.max(bottom, row.index);
     for (const cell of row.cells) {
       if (extendsExtent(cell)) {
         bottom = Math.max(bottom, row.index);
@@ -76,6 +81,8 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
       }
     }
   }
+  for (const range of worksheet.columns)
+    if (range.max < 16383 && hasStyledExtent(range.style)) right = Math.max(right, range.max);
   let truncated = false;
   const columns: LayoutColumn[] = [];
   for (let index = 0; index <= right; index++) {

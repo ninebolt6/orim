@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import { buildXlsx } from "../../test/xlsx";
-import { renderWorkbook } from "./render/workbook";
+import { computeLayout } from "./layout";
 import { parseXlsx } from "./parse";
+import { renderWorkbook } from "./render/workbook";
 
 const relationshipBase = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
@@ -204,6 +205,74 @@ describe("XLSX parser integration", () => {
     const rendered = renderWorkbook(workbook, container);
     expect(container.querySelector("td")?.textContent).toBe("Plain Bold");
     rendered.destroy();
+  });
+
+  it("extends layout and paints styled blank rows and columns", async () => {
+    const styles = {
+      xml: `<styleSheet>
+        <fills>
+          <fill><patternFill patternType="none"/></fill>
+          <fill><patternFill patternType="solid"><fgColor rgb="FFFF0000"/></patternFill></fill>
+        </fills>
+        <cellXfs><xf fillId="0"/><xf fillId="1"/></cellXfs>
+      </styleSheet>`,
+    };
+    const styledRow = await parseXlsx(
+      buildXlsx({
+        sheets: [
+          {
+            name: "Row style",
+            xml: `<worksheet><sheetData>
+              <row r="1"><c r="A1"><v>1</v></c></row>
+              <row r="3" s="1" customFormat="1"/>
+            </sheetData></worksheet>`,
+          },
+        ],
+        styles,
+      }),
+    );
+    expect(computeLayout(styledRow.sheets[0]!).rows.map((row) => row.index)).toEqual([0, 1, 2]);
+
+    const styledColumns = await parseXlsx(
+      buildXlsx({
+        sheets: [
+          {
+            name: "Column styles",
+            xml: `<worksheet><cols><col min="3" max="5" style="1"/></cols>
+              <sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>`,
+          },
+        ],
+        styles,
+      }),
+    );
+    expect(computeLayout(styledColumns.sheets[0]!).columns.map((column) => column.index)).toEqual([
+      0, 1, 2, 3, 4,
+    ]);
+    const container = document.createElement("div");
+    const rendered = renderWorkbook(styledColumns, container);
+    const cells = container.querySelectorAll<HTMLElement>("tbody td");
+    expect(
+      Array.from(cells)
+        .slice(2)
+        .map((cell) => cell.style.backgroundColor),
+    ).toEqual(["#ff0000", "#ff0000", "#ff0000"]);
+    rendered.destroy();
+
+    const restOfSheet = await parseXlsx(
+      buildXlsx({
+        sheets: [
+          {
+            name: "Rest of sheet",
+            xml: `<worksheet><cols><col min="1" max="16384" style="1"/></cols>
+              <sheetData><row r="1"><c r="A1"><v>1</v></c></row></sheetData></worksheet>`,
+          },
+        ],
+        styles,
+      }),
+    );
+    expect(computeLayout(restOfSheet.sheets[0]!).columns.map((column) => column.index)).toEqual([
+      0,
+    ]);
   });
 
   it("throws the specified error when the workbook relationship is absent", async () => {
