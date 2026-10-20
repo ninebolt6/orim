@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { Worksheet } from "./model";
-import { computeLayout, HEADER_HEIGHT, HEADER_WIDTH, MAX_CELLS } from "./layout";
+import { computeLayout, HEADER_HEIGHT, HEADER_WIDTH, MAX_CELLS, visibleSpan } from "./layout";
 
 const worksheet = (overrides: Partial<Worksheet> = {}): Worksheet => ({
   name: "Sheet",
@@ -26,6 +26,17 @@ const style = (fill?: string) => ({
 });
 
 describe("XLSX layout", () => {
+  it("finds visible positions intersecting an inclusive index range", () => {
+    const items = [{ index: 2 }, { index: 4 }, { index: 7 }, { index: 10 }];
+    expect(visibleSpan([], 0, 10)).toEqual([0, 0]);
+    expect(visibleSpan(items, 0, 1)).toEqual([0, 0]);
+    expect(visibleSpan(items, 3, 7)).toEqual([1, 3]);
+    expect(visibleSpan(items, 11, 12)).toEqual([4, 4]);
+    expect(visibleSpan([{ index: 0 }, { index: 2 }, { index: 5 }, { index: 9 }], 1, 8)).toEqual([
+      1, 3,
+    ]);
+  });
+
   it("derives extent from content, styled cells, merges, and frozen panes", () => {
     const layout = computeLayout(
       worksheet({
