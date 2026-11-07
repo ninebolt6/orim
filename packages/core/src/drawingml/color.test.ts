@@ -30,4 +30,12 @@ describe("DrawingML colors", () => {
     ).toBe("#b9cde5");
     expect(color('<a:srgbClr val="FF0000"><a:alpha val="50000"/></a:srgbClr>')).toBe("#ff000080");
   });
+  it("resolves abbreviated preset color names", () => {
+    expect(color('<a:prstClr val="purple"/>')).toBe("#800080");
+    expect(color('<a:prstClr val="dkSlateGray"/>')).toBe("#2f4f4f");
+    expect(color('<a:prstClr val="ltGoldenrodYellow"/>')).toBe("#fafad2");
+    expect(color('<a:prstClr val="medVioletRed"/>')).toBe("#c71585");
+    expect(color('<a:prstClr val="dimGrey"/>')).toBe("#696969");
+    expect(color('<a:prstClr val="unknown"/>')).toBeUndefined();
+  });
 });
