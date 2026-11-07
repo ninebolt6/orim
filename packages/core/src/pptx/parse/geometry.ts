@@ -1,6 +1,6 @@
 import { attr, children, elements, first } from "../../common/xml";
 import { angle, emu } from "../../drawingml/units";
-import type { Geometry, GeometryPath, Transform } from "../model";
+import type { Geometry, GeometryPath, PathCommand, Transform } from "../model";
 
 export const parseTransform = (xfrm: Element | undefined): Transform | undefined => {
   const offset = first(xfrm, "off");
@@ -34,17 +34,17 @@ const customPath = (path: Element): GeometryPath => {
   const width = Number(attr(path, "w")) || 0;
   const height = Number(attr(path, "h")) || 0;
   let current: readonly [number, number] = [0, 0];
-  const commands = children(path).map((command) => {
+  const commands = children(path).flatMap((command): PathCommand[] => {
     const points = elements(command, "pt").map(point);
     switch (command.localName) {
       case "moveTo":
       case "lnTo":
         current = points[0] ?? current;
-        return `${command.localName === "moveTo" ? "M" : "L"}${current.join(" ")}`;
+        return [{ type: command.localName === "moveTo" ? "M" : "L", values: current }];
       case "cubicBezTo":
       case "quadBezTo":
         current = points.at(-1) ?? current;
-        return `${command.localName === "cubicBezTo" ? "C" : "Q"}${points.flat().join(" ")}`;
+        return [{ type: command.localName === "cubicBezTo" ? "C" : "Q", values: points.flat() }];
       case "arcTo": {
         const radiusX = Number(attr(command, "wR")) || 0;
         const radiusY = Number(attr(command, "hR")) || 0;
@@ -54,17 +54,18 @@ const customPath = (path: Element): GeometryPath => {
         const centerX = current[0] - radiusX * Math.cos(start);
         const centerY = current[1] - radiusY * Math.sin(start);
         current = [centerX + radiusX * Math.cos(end), centerY + radiusY * Math.sin(end)];
-        return `A${radiusX} ${radiusY} 0 ${Math.abs(sweep) > 180 ? 1 : 0} ${sweep > 0 ? 1 : 0} ${current.join(" ")}`;
+        const large = Math.abs(sweep) > 180 ? 1 : 0;
+        return [{ type: "A", values: [radiusX, radiusY, 0, large, sweep > 0 ? 1 : 0, ...current] }];
       }
       case "close":
-        return "Z";
+        return [{ type: "Z", values: [] }];
     }
-    return "";
+    return [];
   });
   return {
     width,
     height,
-    data: commands.join(""),
+    commands,
     fill: attr(path, "fill") !== "none",
     stroke: attr(path, "stroke") !== "0" && attr(path, "stroke") !== "false",
   };

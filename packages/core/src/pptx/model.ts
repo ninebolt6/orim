@@ -27,11 +27,16 @@ export interface Geometry {
   readonly paths?: readonly GeometryPath[];
 }
 
+export interface PathCommand {
+  readonly type: "M" | "L" | "C" | "Q" | "A" | "Z";
+  /** SVG path parameters in the path coordinate space. */
+  readonly values: readonly number[];
+}
+
 export interface GeometryPath {
   readonly width: number;
   readonly height: number;
-  /** SVG path data in the path coordinate space. */
-  readonly data: string;
+  readonly commands: readonly PathCommand[];
   readonly fill: boolean;
   readonly stroke: boolean;
 }
