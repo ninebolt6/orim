@@ -160,6 +160,10 @@ export const OfficeViewer = () => {
 };
 ```
 
+## What is rendered
+
+DOCX page dimensions and margins come from section properties; text, tables, images, comments, basic lists, headers/footers, hyperlinks and tracked changes are rendered from OOXML parts. XLSX rendering includes worksheets, sparse cells, styles, merges, frozen panes and safe external hyperlinks.
+
 ## Supported files / errors
 
 Only `.docx` and `.xlsx` are supported. Legacy `.doc`/`.xls` and password-protected Office containers throw a clear error asking you to save as `.docx`/`.xlsx` without a password. Catch parsing/rendering errors and show their messages to the user, as above; the file picker's `accept` filter is not validation. The React example keeps the previous document visible on error and ignores results from older requests.
