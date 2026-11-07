@@ -29,6 +29,9 @@ jobs:
 
   automerge:
     needs: check
+    concurrency:
+      group: dependabot-automerge
+      cancel-in-progress: false
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
@@ -36,8 +39,16 @@ jobs:
       pull-requests: write
     steps:
       - uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-      - run: gh pr merge --squash "$PR_URL" --match-head-commit "$PR_HEAD_SHA"
+      - run: |
+          MAIN_SHA=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
+          BEHIND_BY=$(gh api "repos/$REPO/compare/$MAIN_SHA...$PR_HEAD_SHA" --jq .behind_by)
+          if [ "$BEHIND_BY" != "0" ]; then
+            gh pr comment "$PR_URL" --body "@dependabot rebase"
+            exit 0
+          fi
+          gh pr merge --squash "$PR_URL" --match-head-commit "$PR_HEAD_SHA"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
