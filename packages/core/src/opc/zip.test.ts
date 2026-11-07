@@ -46,6 +46,18 @@ describe("ZIP reader", () => {
     expect(await openZip(bytes).read("e")).toEqual(new Uint8Array([1]));
   }, 30000);
 
+  it("keeps the remaining budget after rejecting an oversized read", async () => {
+    const content = new Uint8Array(64 * 1024 * 1024);
+    const one = new Uint8Array([1]);
+    const bytes = zipSync({ a: content, b: content, c: content, d: content, s: one, t: one });
+    const archive = openZip(bytes);
+    for (const path of ["s", "b", "c", "d"]) await archive.read(path);
+    await expect(archive.read("a")).rejects.toThrow(
+      "ZIP entry exceeds the decompressed size limit: a",
+    );
+    expect(await archive.read("t")).toEqual(one);
+  }, 30000);
+
   it("rejects unsupported compression methods", async () => {
     const bytes = new Uint8Array(zipSync({ "file.txt": strToU8("content") }, { level: 0 }));
     const central = findSignature(bytes, 0x02014b50);

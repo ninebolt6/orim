@@ -103,15 +103,16 @@ export const openZip = (input: ArrayBuffer | Uint8Array): ZipArchive => {
     cursor += 46 + nameLength + extraLength + commentLength;
   }
 
-  let remaining = 256 * 1024 * 1024;
+  let remaining = Math.max(256 * 1024 * 1024, bytes.byteLength * 8);
   return {
     has: (path) => entries.has(path),
     paths: () => [...entries.keys()],
     async read(path) {
       const entry = entries.get(path);
       if (!entry) throw new Error(`ZIP entry not found: ${path}`);
-      if ((entry.method === 8 && entry.size > MAX_ENTRY_SIZE) || (remaining -= entry.size) < 0)
+      if ((entry.method === 8 && entry.size > MAX_ENTRY_SIZE) || entry.size > remaining)
         throw new Error(`ZIP entry exceeds the decompressed size limit: ${path}`);
+      remaining -= entry.size;
       const local = entry.offset;
       if (u32(view, local) !== 0x04034b50) throw new Error(`Invalid ZIP local header: ${path}`);
       const nameLength = u16(view, local + 26);
