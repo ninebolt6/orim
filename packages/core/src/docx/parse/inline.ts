@@ -1,6 +1,7 @@
 import { attr, children, descendants, elements, first, R, textValue } from "../xml";
 import type { ChangeKind, ChangeMark, Inline, RevisionInfo, TextStyle } from "../model";
-import type { OpcPackage, Relationship } from "../../opc/package";
+import { blipPart } from "../../drawingml/blip";
+import { emu } from "../../drawingml/units";
 import type { ParseContext } from "./context";
 import { fieldHref, fieldName, isPageField, type FieldState } from "./fields";
 import { parseRunProperties } from "../styles";
@@ -18,18 +19,6 @@ export const changeFrom = (element: Element, kind: ChangeKind): ChangeMark => {
 
 export const relationshipId = (element: Element): string | undefined => {
   return attr(element, "id", R) ?? attr(element, "embed", R) ?? attr(element, "link", R);
-};
-
-const imagePart = (
-  element: Element,
-  rels: ReadonlyMap<string, Relationship>,
-  source: string,
-  opc: OpcPackage,
-): string | undefined => {
-  const blip = descendants(element, "blip")[0];
-  const id = blip && relationshipId(blip);
-  const relation = id && rels.get(id);
-  return relation && !relation.external ? opc.resolve(source, relation.target) : undefined;
 };
 
 const liveField = (field: FieldState): boolean => {
@@ -169,11 +158,11 @@ const collectNode = (
       for (const child of children(node))
         collectNode(child, context, nestedChange, emit, style, formattingChange);
     } else if (name === "drawing" || name === "anchor" || name === "inline") {
-      const path = imagePart(node, context.config.rels, context.config.source, context.config.opc);
+      const path = blipPart(node, context.config.rels, context.config.source, context.config.opc);
       if (path) {
         const extent = descendants(node, "extent")[0];
-        const width = extent ? Number(attr(extent, "cx", null) ?? 0) / 12700 : undefined;
-        const height = extent ? Number(attr(extent, "cy", null) ?? 0) / 12700 : undefined;
+        const width = extent ? (emu(attr(extent, "cx", null)) ?? 0) : undefined;
+        const height = extent ? (emu(attr(extent, "cy", null)) ?? 0) : undefined;
         emit({ type: "image", path, width, height, change });
       }
     } else if (name === "br" || name === "cr")

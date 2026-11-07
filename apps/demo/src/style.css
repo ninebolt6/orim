@@ -176,12 +176,8 @@ body {
     font-size: 0;
     padding: 9px 8px;
   }
-  .sample-button:first-of-type:after {
-    content: "Word";
-    font-size: 11px;
-  }
-  .sample-button:nth-of-type(2):after {
-    content: "Excel";
+  .sample-button:after {
+    content: attr(data-short-label);
     font-size: 11px;
   }
   .comment-toggle {

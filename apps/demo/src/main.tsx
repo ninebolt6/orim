@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@orim/core/docx.css";
 import "@orim/core/xlsx.css";
+import "@orim/core/pptx.css";
 import { App } from "./App";
 import "./style.css";
 import { loadSample } from "./load";

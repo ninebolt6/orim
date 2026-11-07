@@ -1,5 +1,5 @@
 export const validColor = (value: string | undefined): string | undefined => {
-  return value && /^#[\da-f]{6}$/i.test(value) ? value : undefined;
+  return value && /^#[\da-f]{6}(?:[\da-f]{2})?$/i.test(value) ? value : undefined;
 };
 
 export const safeHref = (value: string | undefined): string | undefined => {

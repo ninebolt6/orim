@@ -1,7 +1,7 @@
 import { attr, boolValue, descendants, first, value as xmlValue } from "./xml";
 import { border } from "./borders";
 import { halfPoints, points, twips } from "./units";
-import type { ThemeFonts } from "./theme";
+import type { ThemeFonts } from "../drawingml/theme";
 import type { ParagraphProperties, TextStyle } from "./model";
 
 type BorderSides = Partial<

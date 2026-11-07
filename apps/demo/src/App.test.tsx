@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { StrictMode } from "react";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { parseDocx, parseXlsx } from "@orim/core";
+import { parseDocx, parsePptx, parseXlsx } from "@orim/core";
 import { App } from "./App";
 import type { LoadResult } from "./load";
 
-vi.mock("@orim/core", () => ({ parseDocx: vi.fn(), parseXlsx: vi.fn() }));
+vi.mock("@orim/core", () => ({ parseDocx: vi.fn(), parsePptx: vi.fn(), parseXlsx: vi.fn() }));
 vi.mock("@orim/react", () => ({
   DocxViewer: () => <div>Word document</div>,
+  PptxViewer: () => <div>PowerPoint presentation</div>,
   XlsxViewer: () => <div>Excel workbook</div>,
 }));
 
@@ -50,7 +51,7 @@ describe("demo file loading", () => {
     expect(view.getByRole("alert").textContent).toBe("Offline");
     view.rerender(<App initialLoad={Promise.resolve({ view: null, error: "" })} />);
     await act(async () => {});
-    expect(view.getByText("Open a DOCX or XLSX file.")).not.toBeNull();
+    expect(view.getByText("Open a DOCX, XLSX or PPTX file.")).not.toBeNull();
   });
 
   it("rejects unsupported dropped files and does not let startup overwrite the error", async () => {
@@ -60,7 +61,7 @@ describe("demo file loading", () => {
       dataTransfer: { files: [new File([], "old.xls")] },
     });
     await act(async () => {});
-    expect(view.getByRole("alert").textContent).toContain("Open a .docx or .xlsx file.");
+    expect(view.getByRole("alert").textContent).toContain("Open a .docx, .xlsx or .pptx file.");
     expect(parseDocx).not.toHaveBeenCalled();
     expect(parseXlsx).not.toHaveBeenCalled();
     await act(async () => {
@@ -73,11 +74,15 @@ describe("demo file loading", () => {
   it("accepts uppercase supported extensions and displays parser errors", async () => {
     const view = render(<App initialLoad={Promise.resolve({ view: null, error: "" })} />);
     const input = view.container.querySelector("input[type=file]")!;
-    expect(input.getAttribute("accept")).toBe(".docx,.xlsx");
+    expect(input.getAttribute("accept")).toBe(".docx,.xlsx,.pptx");
     fireEvent.change(input, { target: { files: [new File([], "book.XLSX")] } });
     await act(async () => {});
     expect(parseXlsx).toHaveBeenCalledOnce();
     expect(view.getByText("Excel workbook")).not.toBeNull();
+    fireEvent.change(input, { target: { files: [new File([], "deck.PPTX")] } });
+    await act(async () => {});
+    expect(parsePptx).toHaveBeenCalledOnce();
+    expect(view.getByText("PowerPoint presentation")).not.toBeNull();
     vi.mocked(parseDocx).mockRejectedValue(new Error("Password protected"));
     fireEvent.change(input, { target: { files: [new File([], "word.DOCX")] } });
     await act(async () => {});

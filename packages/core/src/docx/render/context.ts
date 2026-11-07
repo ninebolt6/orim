@@ -1,3 +1,4 @@
+import type { ObjectUrls } from "../../common/media";
 import type { DocxDocument } from "../model";
 import type { ChangesMode } from "./document";
 
@@ -11,8 +12,7 @@ export interface RenderContext {
   readonly doc: DocxDocument;
   readonly comments: boolean;
   readonly changes: ChangesMode;
-  readonly objectUrls: Set<string>;
-  readonly objectUrlsByPart: Map<string, string>;
+  readonly objectUrls: ObjectUrls;
   readonly colors: Map<string, string>;
   readonly fields: PendingField[];
   readonly commentAnchors: Map<string, HTMLElement[]>;

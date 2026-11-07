@@ -37,17 +37,8 @@ export const renderInline = (inline: Inline, context: RenderContext): Node => {
       if (change.kind !== "moveTo" && change.kind !== "moveFrom")
         image.style.setProperty("--orim-change-color", changeColor(change, context.colors));
     }
-    const part = context.doc.imageParts[inline.path];
-    if (part && typeof URL.createObjectURL === "function") {
-      let url = context.objectUrlsByPart.get(inline.path);
-      if (!url) {
-        const blob = new Blob([part.bytes.slice().buffer as ArrayBuffer], { type: part.mime });
-        url = URL.createObjectURL(blob);
-        context.objectUrlsByPart.set(inline.path, url);
-        context.objectUrls.add(url);
-      }
-      image.src = url;
-    }
+    const url = context.objectUrls.url(inline.path, context.doc.imageParts[inline.path]);
+    if (url) image.src = url;
     if (inline.width) image.style.width = `${inline.width}pt`;
     if (inline.height) image.style.height = `${inline.height}pt`;
     image.alt = "";

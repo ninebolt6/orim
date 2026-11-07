@@ -1,0 +1,102 @@
+.orim-pptx {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.orim-pptx-slide {
+  --orim-pt: calc(100cqw / var(--orim-pptx-width));
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
+  container-type: inline-size;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+  color: #000;
+  font-family: Calibri, Carlito, Arial, sans-serif;
+}
+
+.orim-pptx-element {
+  position: absolute;
+  box-sizing: border-box;
+  color: inherit;
+  text-decoration: none;
+}
+
+.orim-pptx-geometry {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.orim-pptx-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+}
+
+.orim-pptx-text--middle {
+  justify-content: center;
+}
+
+.orim-pptx-text--bottom {
+  justify-content: flex-end;
+}
+
+.orim-pptx-text--vertical,
+.orim-pptx-text--stacked {
+  writing-mode: vertical-rl;
+}
+
+.orim-pptx-text--vertical270 {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.orim-pptx-paragraph {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.orim-pptx-text--nowrap .orim-pptx-paragraph {
+  white-space: pre;
+}
+
+.orim-pptx-paragraph a {
+  color: inherit;
+}
+
+.orim-pptx-bullet {
+  display: inline-block;
+  text-indent: 0;
+}
+
+.orim-pptx-picture {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.orim-pptx-picture img {
+  position: absolute;
+  max-width: none;
+}
+
+.orim-pptx-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  line-height: 1.2;
+}
+
+.orim-pptx-table td {
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+}

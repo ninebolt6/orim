@@ -12,6 +12,10 @@ export const attr = (
   return unprefixed && unprefixed.namespaceURI === null ? unprefixed.value : undefined;
 };
 
+/** Parses an `xsd:boolean` attribute value (`1`/`true`/`0`/`false`). */
+export const xmlBoolean = (value: string | undefined): boolean | undefined =>
+  value === undefined ? undefined : value === "1" || value === "true";
+
 export const children = (parent: ParentNode): Element[] => {
   return Array.from(parent.childNodes).filter((node): node is Element => node.nodeType === 1);
 };
