@@ -29,7 +29,7 @@ import "@orim/core/docx.css";
 const input = document.querySelector<HTMLInputElement>("#file")!;
 const container = document.querySelector<HTMLElement>("#viewer")!;
 const error = document.querySelector<HTMLElement>("#error")!;
-const controller = new AbortController();
+let controller = new AbortController();
 let rendered: RenderedDocument | undefined;
 
 input.addEventListener("change", async () => {
@@ -38,27 +38,29 @@ input.addEventListener("change", async () => {
   if (!file) return;
   input.disabled = true;
   error.textContent = "";
+  const signal = controller.signal;
   try {
     rendered = await renderDocx(file, container, {
       changes: "markup",
       comments: true,
-      signal: controller.signal,
+      signal,
     });
   } catch (reason) {
-    if (!controller.signal.aborted)
+    if (!signal.aborted)
       error.textContent = reason instanceof Error ? reason.message : String(reason);
   } finally {
     input.disabled = false;
   }
 });
 
-window.addEventListener("pagehide", () => {
+const teardown = () => {
   controller.abort();
   rendered?.destroy();
-});
+  controller = new AbortController();
+};
 ```
 
-The handle stays alive while viewing; use `rendered.update({ changes: "final" })` to change revision display. Call `destroy()` when your view is torn down (the example uses `pagehide`); aborting also cancels a pending render.
+The handle stays alive while viewing; use `rendered.update({ changes: "final" })` to change revision display. Call `teardown()` when your app removes the viewer (route change/unmount); it also cancels a pending render and resets the controller for reuse.
 
 ## XLSX (vanilla)
 
@@ -78,7 +80,7 @@ import "@orim/core/xlsx.css";
 const input = document.querySelector<HTMLInputElement>("#file")!;
 const container = document.querySelector<HTMLElement>("#viewer")!;
 const error = document.querySelector<HTMLElement>("#error")!;
-const controller = new AbortController();
+let controller = new AbortController();
 let rendered: RenderedWorkbook | undefined;
 
 input.addEventListener("change", async () => {
@@ -87,20 +89,22 @@ input.addEventListener("change", async () => {
   if (!file) return;
   input.disabled = true;
   error.textContent = "";
+  const signal = controller.signal;
   try {
-    rendered = await renderXlsx(file, container, { signal: controller.signal });
+    rendered = await renderXlsx(file, container, { signal });
   } catch (reason) {
-    if (!controller.signal.aborted)
+    if (!signal.aborted)
       error.textContent = reason instanceof Error ? reason.message : String(reason);
   } finally {
     input.disabled = false;
   }
 });
 
-window.addEventListener("pagehide", () => {
+const teardown = () => {
   controller.abort();
   rendered?.destroy();
-});
+  controller = new AbortController();
+};
 ```
 
 Worksheet tabs switch sheets. With a tab focused, ArrowLeft/ArrowRight wrap between visible sheets; Home/End select the first/last. This also works in React. To select a sheet programmatically, use `rendered.update({ sheet: index })` with a zero-based, visible worksheet index.
