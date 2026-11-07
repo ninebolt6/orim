@@ -19,6 +19,7 @@ export const createObjectUrls = (): ObjectUrls => {
   return {
     url(key, part) {
       if (!part || typeof URL.createObjectURL !== "function") return undefined;
+      if (!/^image\/(?:png|jpeg|gif|bmp|webp|avif|tiff|x-icon)$/i.test(part.mime)) return undefined;
       let url = urls.get(key);
       if (!url) {
         url = URL.createObjectURL(

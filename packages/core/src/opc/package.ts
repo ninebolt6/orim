@@ -41,11 +41,16 @@ const normalize = (path: string): string => {
 
 export const openOpc = (input: ArrayBuffer | Uint8Array): OpcPackage => {
   const zip = openZip(input);
+  const xml = async (path: string): Promise<Document> => {
+    const doc = new DOMParser().parseFromString(await zip.text(normalize(path)), "application/xml");
+    if (doc.doctype || doc.querySelector("parsererror"))
+      throw new Error(`Invalid XML part: ${path}`);
+    return doc;
+  };
   const relCache = new Map<string, Promise<Map<string, Relationship>>>();
   const contentTypes = new Map<string, string>();
   const types = zip.has("[Content_Types].xml")
-    ? zip.text("[Content_Types].xml").then((xml) => {
-        const doc = new DOMParser().parseFromString(xml, "application/xml");
+    ? xml("[Content_Types].xml").then((doc) => {
         for (const node of descendants(doc, "Default")) {
           const ext = node.getAttribute("Extension");
           const type = node.getAttribute("ContentType");
@@ -72,12 +77,7 @@ export const openOpc = (input: ArrayBuffer | Uint8Array): OpcPackage => {
     async bytes(path) {
       return zip.read(normalize(path));
     },
-    async xml(path) {
-      const text = await zip.text(normalize(path));
-      const doc = new DOMParser().parseFromString(text, "application/xml");
-      if (doc.querySelector("parsererror")) throw new Error(`Invalid XML part: ${path}`);
-      return doc;
-    },
+    xml,
     resolve(source, target) {
       if (target.startsWith("/")) return normalize(target);
       const base = source.split("/").slice(0, -1).join("/");

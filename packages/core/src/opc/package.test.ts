@@ -20,22 +20,24 @@ describe("OPC relationships", () => {
     );
   });
 
-  it("rejects malformed XML and bounds internal entity expansion", async () => {
+  it("rejects malformed XML", async () => {
     const malformed = openOpc(zipSync({ "malformed.xml": strToU8("<root>") }));
     await expect(malformed.xml("malformed.xml")).rejects.toThrow("Invalid XML part");
-
-    const declarations = ['<!ENTITY e0 "x">'];
-    for (let index = 1; index < 10; index++)
-      declarations.push(
-        `<!ENTITY e${index} "${Array.from({ length: 10 }, () => `&e${index - 1};`).join("")}">`,
-      );
-    const xml = `<!DOCTYPE root [${declarations.join("")}]><root>&e7;</root>`;
-    const expanded = openOpc(zipSync({ "expanded.xml": strToU8(xml) }));
-    try {
-      const document = await expanded.xml("expanded.xml");
-      expect(document.documentElement.textContent?.length ?? 0).toBeLessThan(1_000_000);
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error);
-    }
   });
+
+  it.each(["<!DOCTYPE root>", '<!DOCTYPE root [<!ENTITY e "text">]>'])(
+    "rejects XML parts with DTD %s",
+    async (doctype) => {
+      const opc = openOpc(zipSync({ "part.xml": strToU8(`${doctype}<root/>`) }));
+      await expect(opc.xml("part.xml")).rejects.toThrow("Invalid XML part: part.xml");
+    },
+  );
+
+  it.each(["<!DOCTYPE Types><Types/>", "<Types>"])(
+    "rejects invalid content types XML %s",
+    async (xml) => {
+      const opc = openOpc(zipSync({ "[Content_Types].xml": strToU8(xml) }));
+      await expect(opc.mime("image.png")).rejects.toThrow("Invalid XML part: [Content_Types].xml");
+    },
+  );
 });

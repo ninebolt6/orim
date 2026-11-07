@@ -23,6 +23,7 @@ const romanDigits: readonly (readonly [number, string])[] = [
 ];
 
 export const roman = (number: number): string => {
+  if (!Number.isInteger(number) || number < 1 || number > 3999) return String(number);
   let remaining = number;
   let output = "";
   for (const [value, symbol] of romanDigits) {

@@ -44,6 +44,16 @@ describe("DOCX numbering", () => {
 
   it.each([
     ["upperRoman", 9, "IX."],
+    ["upperRoman", 1, "I."],
+    ["upperRoman", 3999, "MMMCMXCIX."],
+    ["upperRoman", 0, "0."],
+    ["upperRoman", -1, "-1."],
+    ["upperRoman", 4000, "4000."],
+    ["upperRoman", 2000000000, "2000000000."],
+    ["upperRoman", 1.5, "1.5."],
+    ["upperRoman", Infinity, "Infinity."],
+    ["upperRoman", -Infinity, "-Infinity."],
+    ["upperRoman", NaN, "NaN."],
     ["upperLetter", 27, "AA."],
     ["lowerLetter", 26, "z."],
     ["decimalFullWidth", 12, "１２."],

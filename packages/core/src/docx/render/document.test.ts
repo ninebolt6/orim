@@ -87,6 +87,7 @@ describe("DOCX renderer", () => {
     const links = Array.from(container.querySelectorAll("a"));
     expect(links).toHaveLength(1);
     expect(links[0].href).toBe("https://example.com/");
+    expect(links[0].rel).toBe("noopener noreferrer");
     rendered.update({ changes: "original" });
     expect(container.querySelector(".orim-root")?.classList.contains("orim-original")).toBe(true);
     expect(container.textContent).toContain("deleted");
