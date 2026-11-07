@@ -1,32 +1,34 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DocxViewer, XlsxViewer } from "@orim/react";
-import { parseDocx, parseXlsx } from "@orim/core";
-import type { ChangesMode, DocxDocument, XlsxWorkbook } from "@orim/core";
-import sampleDocxUrl from "../../../fixtures/sample.docx?url";
-import sampleXlsxUrl from "../../../fixtures/sample.xlsx?url";
-
-type View =
-  | { readonly kind: "docx"; readonly document: DocxDocument }
-  | { readonly kind: "xlsx"; readonly workbook: XlsxWorkbook };
+import type { ChangesMode } from "@orim/core";
+import { loadSample, parseFile } from "./load";
+import type { LoadResult, View } from "./load";
 
 interface AppProps {
-  initialView: View | null;
-  initialError: string;
+  initialLoad: Promise<LoadResult>;
 }
 
-const parseFile = async (file: Blob, extension: string): Promise<View> =>
-  extension === "xlsx"
-    ? { kind: "xlsx", workbook: await parseXlsx(file) }
-    : { kind: "docx", document: await parseDocx(file) };
-
-export const App = ({ initialView, initialError }: AppProps) => {
-  const [view, setView] = useState<View | null>(initialView);
+export const App = ({ initialLoad }: AppProps) => {
+  const [view, setView] = useState<View | null>(null);
   const [changes, setChanges] = useState<ChangesMode>("markup");
   const [comments, setComments] = useState(true);
-  const [error, setError] = useState(initialError);
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [dropVisible, setDropVisible] = useState(false);
   const requestId = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    void initialLoad.then((result) => {
+      if (!active || requestId.current !== 0) return;
+      setView(result.view);
+      setError(result.error);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [initialLoad]);
 
   const open = (file: Blob, extension: string): void => {
     const request = ++requestId.current;
@@ -47,14 +49,11 @@ export const App = ({ initialView, initialError }: AppProps) => {
   };
 
   const openSample = async (kind: "docx" | "xlsx"): Promise<void> => {
-    const url = kind === "docx" ? sampleDocxUrl : sampleXlsxUrl;
     const request = ++requestId.current;
     setError("");
     setLoading(true);
     try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`Unable to load sample: ${response.status}`);
-      const parsed = await parseFile(await response.blob(), kind);
+      const parsed = await loadSample(kind);
       if (request !== requestId.current) return;
       setView(parsed);
       setLoading(false);
@@ -66,7 +65,7 @@ export const App = ({ initialView, initialError }: AppProps) => {
   };
 
   const openFile = (file: File): void => {
-    const extension = file.name.toLowerCase().split(".").at(-1) === "xlsx" ? "xlsx" : "docx";
+    const extension = file.name.includes(".") ? file.name.toLowerCase().split(".").at(-1)! : "";
     open(file, extension);
   };
 
@@ -109,7 +108,7 @@ export const App = ({ initialView, initialError }: AppProps) => {
           Open file
           <input
             type="file"
-            accept=".docx,.xlsx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            accept=".docx,.xlsx"
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
               event.currentTarget.value = "";

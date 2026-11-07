@@ -23,6 +23,40 @@ const workbook = (sheets: readonly Worksheet[], activeSheet = 0): XlsxWorkbook =
 });
 
 describe("XLSX workbook rendering", () => {
+  it("activates and focuses visible tabs with navigation keys", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const onSheetChange = vi.fn();
+    const rendered = renderWorkbook(
+      workbook([worksheet("Summary"), worksheet("Hidden", "hidden"), worksheet("Data")]),
+      container,
+      { onSheetChange },
+    );
+    const tabs = container.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+    tabs[0]!.focus();
+    for (const [key, position] of [
+      ["ArrowLeft", 1],
+      ["ArrowRight", 0],
+      ["End", 1],
+      ["Home", 0],
+      ["ArrowRight", 1],
+      ["ArrowLeft", 0],
+    ] as const) {
+      const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      document.activeElement!.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(tabs[position]);
+      expect(tabs[position]!.getAttribute("aria-selected")).toBe("true");
+      expect(tabs[position]!.tabIndex).toBe(0);
+      expect(rendered.sheet).toBe(position === 0 ? 0 : 2);
+      expect(onSheetChange).toHaveBeenLastCalledWith(rendered.sheet);
+    }
+    tabs[0]!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    expect(onSheetChange).toHaveBeenCalledTimes(6);
+    rendered.destroy();
+    container.remove();
+  });
+
   it("renders accessible sheet tabs and cancels a prior render on container reuse", () => {
     const container = document.createElement("div");
     const first = workbook([

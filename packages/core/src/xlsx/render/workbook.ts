@@ -78,7 +78,7 @@ export const renderWorkbook = (
       setSelected(index);
       if (notify) options.onSheetChange?.(index);
     };
-    for (const { item, index } of visibleSheets) {
+    for (const [position, { item, index }] of visibleSheets.entries()) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "orim-xlsx-tab";
@@ -87,6 +87,23 @@ export const renderWorkbook = (
       button.tabIndex = index === sheet ? 0 : -1;
       button.append(document.createTextNode(item.name));
       button.addEventListener("click", () => selectSheet(index, true));
+      button.addEventListener("keydown", (event) => {
+        const next =
+          event.key === "ArrowLeft"
+            ? (position - 1 + visibleSheets.length) % visibleSheets.length
+            : event.key === "ArrowRight"
+              ? (position + 1) % visibleSheets.length
+              : event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? visibleSheets.length - 1
+                  : undefined;
+        if (next === undefined || !lease.active) return;
+        event.preventDefault();
+        const target = visibleSheets[next]!.index;
+        selectSheet(target, true);
+        buttons.get(target)?.focus();
+      });
       buttons.set(index, button);
       tabs.append(button);
     }

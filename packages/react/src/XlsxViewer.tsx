@@ -38,10 +38,12 @@ export const XlsxViewer = ({
 
   return (
     <div {...rest} className={["orim-xlsx-react", className].filter(Boolean).join(" ")}>
-      <div className="orim-xlsx-sheet" ref={element} />
+      <div className="orim-xlsx-sheet" key={current < 0 ? "empty" : "sheet"} ref={element}>
+        {workbook && current < 0 && <div className="orim-xlsx-note">No visible worksheets.</div>}
+      </div>
       {workbook && (
         <div className="orim-xlsx-tabs" role="tablist" aria-label="Worksheets">
-          {visibleSheets?.map(({ item, index }) => (
+          {visibleSheets?.map(({ item, index }, position) => (
             <button
               aria-selected={current === index}
               className="orim-xlsx-tab"
@@ -51,6 +53,26 @@ export const XlsxViewer = ({
                 onSheetChange?.(index);
               }}
               role="tab"
+              onKeyDown={(event) => {
+                const next =
+                  event.key === "ArrowLeft"
+                    ? (position - 1 + visibleSheets.length) % visibleSheets.length
+                    : event.key === "ArrowRight"
+                      ? (position + 1) % visibleSheets.length
+                      : event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? visibleSheets.length - 1
+                          : undefined;
+                if (next === undefined) return;
+                event.preventDefault();
+                const target = visibleSheets[next]!.index;
+                setSelection({ workbook, index: target });
+                onSheetChange?.(target);
+                event.currentTarget.parentElement
+                  ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+                  [next]?.focus();
+              }}
               tabIndex={current === index ? 0 : -1}
               type="button"
             >

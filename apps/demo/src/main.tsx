@@ -1,29 +1,22 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { parseDocx } from "@orim/core";
-import type { DocxDocument } from "@orim/core";
 import "@orim/core/docx.css";
 import "@orim/core/xlsx.css";
 import { App } from "./App";
 import "./style.css";
-import sampleUrl from "../../../fixtures/sample.docx?url";
+import { loadSample } from "./load";
+import type { LoadResult } from "./load";
 
-let initialDocument: DocxDocument | null = null;
-let initialError = "";
-
-try {
-  const response = await fetch(sampleUrl);
-  if (!response.ok) throw new Error(`Unable to load sample: ${response.status}`);
-  initialDocument = await parseDocx(await response.blob());
-} catch (reason) {
-  initialError = reason instanceof Error ? reason.message : String(reason);
-}
+const initialLoad: Promise<LoadResult> = loadSample("docx").then(
+  (view) => ({ view, error: "" }),
+  (reason: unknown) => ({
+    view: null,
+    error: reason instanceof Error ? reason.message : String(reason),
+  }),
+);
 
 createRoot(document.getElementById("app")!).render(
   <StrictMode>
-    <App
-      initialView={initialDocument ? { kind: "docx", document: initialDocument } : null}
-      initialError={initialError}
-    />
+    <App initialLoad={initialLoad} />
   </StrictMode>,
 );

@@ -3,6 +3,21 @@ import { strToU8, zipSync } from "fflate";
 import { openZip } from "./zip";
 
 describe("ZIP reader", () => {
+  it("explains legacy or encrypted Office containers for byte views and buffers", () => {
+    const signature = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+    const padded = new Uint8Array([0, ...signature, 0]);
+    for (const input of [signature.buffer, padded.subarray(1, 9)]) {
+      expect(() => openZip(input)).toThrow(
+        "Unsupported file: this is a legacy binary Office file (.doc/.xls) or a password-protected document. Save it as .docx/.xlsx without a password.",
+      );
+    }
+    for (const input of [new Uint8Array(), signature.subarray(0, 7)]) {
+      expect(() => openZip(input)).toThrow(
+        "Invalid ZIP: end-of-central-directory record not found.",
+      );
+    }
+  });
+
   it("reads stored and deflated files", async () => {
     const stored = zipSync({ "stored.txt": strToU8("stored") }, { level: 0 });
     const deflated = zipSync({ "deflated.txt": strToU8("deflated content") }, { level: 6 });
