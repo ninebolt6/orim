@@ -51,7 +51,7 @@ const measureConsumer = async (name, exports, budget) => {
 };
 
 const packages = [
-  { name: "@orim/core", directory: "packages/core/dist", budget: 32 * 1024 },
+  { name: "@orim/core", directory: "packages/core/dist", budget: 44 * 1024 },
   { name: "@orim/react", directory: "packages/react/dist", budget: 2 * 1024 },
 ];
 let failed = false;
@@ -75,10 +75,16 @@ const xlsxFailed = await measureConsumer(
   ["parseXlsx", "renderWorkbook", "renderXlsx"],
   15 * 1024,
 );
-failed = failed || docxFailed || xlsxFailed;
+const pptxFailed = await measureConsumer(
+  "PPTX",
+  ["parsePptx", "renderPresentation", "renderPptx"],
+  16 * 1024,
+);
+failed = failed || docxFailed || xlsxFailed || pptxFailed;
 for (const [name, path, budget] of [
   ["docx.css", "packages/core/dist/docx.css", 4 * 1024],
   ["xlsx.css", "packages/core/dist/xlsx.css", 2 * 1024],
+  ["pptx.css", "packages/core/dist/pptx.css", 1024],
 ]) {
   const size = gzip(readFileSync(path));
   console.log(`${name}: ${size.toLocaleString()} bytes gzip (budget ${budget.toLocaleString()})`);

@@ -307,7 +307,15 @@ const runs = (paragraph: Element, base: RunStyle, context: ShapeContext): (TextR
             .join("");
     if (!text) return [];
     const href = linkTarget(properties, context);
-    return [href ? { text, style, href } : { text, style }];
+    return [
+      href
+        ? {
+            text,
+            style: { ...style, underline: true, color: context.scheme("hlink") ?? style.color },
+            href,
+          }
+        : { text, style },
+    ];
   });
 
 const defaultInsets: Insets = { left: 7.2, top: 3.6, right: 7.2, bottom: 3.6 };
