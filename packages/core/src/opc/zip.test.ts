@@ -31,6 +31,21 @@ describe("ZIP reader", () => {
     await expect(archive.read("missing.txt")).rejects.toThrow("ZIP entry not found: missing.txt");
   });
 
+  it("bounds cumulative decompression across reads", async () => {
+    const content = new Uint8Array(64 * 1024 * 1024);
+    const bytes = zipSync(
+      { a: content, b: content, c: content, d: content, e: new Uint8Array([1]) },
+      { level: 1 },
+    );
+    const archive = openZip(bytes);
+    for (const path of ["a", "b", "c", "d"])
+      expect((await archive.read(path)).length).toBe(content.length);
+    await expect(archive.read("e")).rejects.toThrow(
+      "ZIP entry exceeds the decompressed size limit: e",
+    );
+    expect(await openZip(bytes).read("e")).toEqual(new Uint8Array([1]));
+  }, 30000);
+
   it("rejects unsupported compression methods", async () => {
     const bytes = new Uint8Array(zipSync({ "file.txt": strToU8("content") }, { level: 0 }));
     const central = findSignature(bytes, 0x02014b50);
@@ -48,7 +63,7 @@ describe("ZIP reader", () => {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     view.setUint32(central + 24, 1, true);
     await expect(openZip(bytes).read("file.txt")).rejects.toThrow(
-      "ZIP entry exceeds its declared uncompressed size.",
+      "Unable to decompress this ZIP entry with deflate-raw.",
     );
   });
 
@@ -75,7 +90,7 @@ describe("ZIP reader", () => {
     );
 
     await expect(openZip(bytes).read("file.txt")).rejects.toThrow(
-      "ZIP entry exceeds the 64 MiB limit: file.txt",
+      "ZIP entry exceeds the decompressed size limit: file.txt",
     );
   });
 

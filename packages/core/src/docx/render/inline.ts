@@ -70,7 +70,7 @@ export const renderInline = (inline: Inline, context: RenderContext): Node => {
     link.className = "orim-link";
     link.href = href;
     link.target = href.startsWith("#") ? "" : "_blank";
-    if (link.target) link.rel = "noopener";
+    if (link.target) link.rel = "noopener noreferrer";
     textNode = link;
   } else textNode = document.createElement("span");
   textNode.classList.add("orim-text");
