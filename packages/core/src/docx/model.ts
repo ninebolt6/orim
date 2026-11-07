@@ -1,3 +1,5 @@
+import type { MediaPart } from "../common/media";
+
 export type ChangeKind = "ins" | "del" | "moveFrom" | "moveTo";
 
 export interface RevisionInfo {
@@ -163,16 +165,8 @@ export interface DocxSection {
   readonly blocks: readonly Block[];
 }
 
-export interface ReadonlyBytes {
-  readonly length: number;
-  readonly [index: number]: number;
-  slice(start?: number, end?: number): Uint8Array;
-}
-
-export interface ImagePart {
-  readonly bytes: ReadonlyBytes;
-  readonly mime: string;
-}
+export type { ReadonlyBytes } from "../common/media";
+export type ImagePart = MediaPart;
 
 export interface DocxDocument {
   readonly sections: readonly DocxSection[];

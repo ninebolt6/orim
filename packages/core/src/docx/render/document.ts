@@ -6,7 +6,10 @@ import { renderTable } from "./table";
 import { parseDocx } from "../parse";
 import { paginate } from "./paginate";
 import { resolveDocumentParagraphMarks } from "./revisions";
-import { abortError, acquireContainerLease, type RenderLease } from "../../common/lease";
+import { acquireContainerLease } from "../../common/lease";
+import { createObjectUrls } from "../../common/media";
+import { renderParsed } from "../../common/render-file";
+import type { PackageInput } from "../../opc/package";
 
 export type ChangesMode = "markup" | "final" | "original";
 
@@ -45,8 +48,7 @@ export const renderDocument = (
   container: HTMLElement,
   options: RenderDocumentOptions = {},
 ): RenderedDocument => {
-  const objectUrls = new Set<string>();
-  const objectUrlsByPart = new Map<string, string>();
+  const objectUrls = createObjectUrls();
   const fields: RenderContext["fields"] = [];
   const commentAnchors: RenderContext["commentAnchors"] = new Map();
   const commentBalloons: RenderContext["commentBalloons"] = new Map();
@@ -59,7 +61,6 @@ export const renderDocument = (
     comments: options.comments !== false,
     changes: options.changes ?? "markup",
     objectUrls,
-    objectUrlsByPart,
     colors: new Map(),
     fields,
     commentAnchors,
@@ -70,9 +71,7 @@ export const renderDocument = (
     cancelled = true;
     removeCommentListeners();
     if (root?.parentElement === container) container.replaceChildren();
-    for (const url of objectUrls) URL.revokeObjectURL(url);
-    objectUrls.clear();
-    objectUrlsByPart.clear();
+    objectUrls.revoke();
   });
 
   try {
@@ -131,40 +130,15 @@ export const renderDocument = (
 };
 
 export const renderDocx = async (
-  input: ArrayBuffer | Uint8Array | Blob,
+  input: PackageInput,
   container: HTMLElement,
   options: RenderOptions = {},
 ): Promise<RenderedDocument> => {
-  const controller = new AbortController();
-  let cancelled = false;
-  let lease: RenderLease;
-  const onAbort = () => lease.cancel();
-  lease = acquireContainerLease(container, () => {
-    cancelled = true;
-    controller.abort();
-    options.signal?.removeEventListener("abort", onAbort);
-  });
-  if (options.signal?.aborted) lease.cancel();
-  else options.signal?.addEventListener("abort", onAbort, { once: true });
-
-  const check = () => {
-    if (cancelled || controller.signal.aborted || !lease.active) throw abortError();
-  };
-
-  let doc: DocxDocument;
-  try {
-    check();
-    doc = await parseDocx(input);
-    check();
-  } catch (error) {
-    const aborted = cancelled || controller.signal.aborted || !lease.active;
-    lease.cancel();
-    if (aborted) throw abortError();
-    throw error;
-  }
-
-  return renderDocument(doc, container, {
-    changes: options.changes,
-    comments: options.comments,
-  });
+  return renderParsed(
+    () => parseDocx(input),
+    container,
+    options.signal,
+    (doc) =>
+      renderDocument(doc, container, { changes: options.changes, comments: options.comments }),
+  );
 };

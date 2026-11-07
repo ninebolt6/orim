@@ -8,7 +8,7 @@ describe("ZIP reader", () => {
     const padded = new Uint8Array([0, ...signature, 0]);
     for (const input of [signature.buffer, padded.subarray(1, 9)]) {
       expect(() => openZip(input)).toThrow(
-        "Unsupported file: this is a legacy binary Office file (.doc/.xls) or a password-protected document. Save it as .docx/.xlsx without a password.",
+        "Unsupported file: this is a legacy binary Office file (.doc/.xls/.ppt) or a password-protected document. Save it as .docx/.xlsx/.pptx without a password.",
       );
     }
     for (const input of [new Uint8Array(), signature.subarray(0, 7)]) {

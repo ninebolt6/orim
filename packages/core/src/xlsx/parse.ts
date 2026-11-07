@@ -1,5 +1,5 @@
 import { attr, elements, first } from "../common/xml";
-import { openOpc, type Relationship } from "../opc/package";
+import { loadOpc, type PackageInput } from "../opc/package";
 import type { Worksheet, XlsxWorkbook } from "./model";
 import { themeColors } from "./colors";
 import { defaultCellStyle, parseStyles } from "./parse/styles";
@@ -10,15 +10,6 @@ import {
   parseWorksheet,
   relationshipId,
 } from "./parse/worksheet";
-
-const relationship = (
-  relationships: ReadonlyMap<string, Relationship>,
-  suffix: string,
-): Relationship | undefined => {
-  return Array.from(relationships.values()).find(
-    (item) => !item.external && item.type.endsWith(`/${suffix}`),
-  );
-};
 
 export const activeSheetIndex = (
   sheets: readonly Worksheet[],
@@ -34,35 +25,21 @@ export const activeSheetIndex = (
       : 0;
 };
 
-export const parseXlsx = async (input: ArrayBuffer | Uint8Array | Blob): Promise<XlsxWorkbook> => {
-  let bytes: Uint8Array;
-  if (typeof Blob !== "undefined" && input instanceof Blob)
-    bytes = new Uint8Array(await input.arrayBuffer());
-  else if (input instanceof Uint8Array) bytes = input;
-  else bytes = new Uint8Array(input as ArrayBuffer);
-  const pkg = openOpc(bytes);
-  const rootRelationships = await pkg.relationships("");
-  const workbookRelationship = relationship(rootRelationships, "officeDocument");
-  if (!workbookRelationship) throw new Error("Not an XLSX package: workbook part not found.");
-  const workbookPath = pkg.resolve("", workbookRelationship.target);
+export const parseXlsx = async (input: PackageInput): Promise<XlsxWorkbook> => {
+  const pkg = await loadOpc(input);
+  const workbookPath = await pkg.part("", "officeDocument");
+  if (!workbookPath) throw new Error("Not an XLSX package: workbook part not found.");
   const workbookDocument = await pkg.xml(workbookPath);
   if (workbookDocument.documentElement.localName !== "workbook")
     throw new Error("Not an XLSX package: workbook part is not a workbook.");
   const workbookRelationships = await pkg.relationships(workbookPath);
-  const stylesPath = relationship(workbookRelationships, "styles");
-  const sharedPath = relationship(workbookRelationships, "sharedStrings");
-  const themePath = relationship(workbookRelationships, "theme");
-  const themeDocument = themePath
-    ? await pkg.xml(pkg.resolve(workbookPath, themePath.target))
-    : undefined;
-  const theme = themeColors(themeDocument);
-  const styleDocument = stylesPath
-    ? await pkg.xml(pkg.resolve(workbookPath, stylesPath.target))
-    : undefined;
-  const styles = parseStyles(styleDocument, theme);
-  const sharedDocument = sharedPath
-    ? await pkg.xml(pkg.resolve(workbookPath, sharedPath.target))
-    : undefined;
+  const relatedXml = async (type: string): Promise<Document | undefined> => {
+    const path = await pkg.part(workbookPath, type);
+    return path ? pkg.xml(path) : undefined;
+  };
+  const theme = themeColors(await relatedXml("theme"));
+  const styles = parseStyles(await relatedXml("styles"), theme);
+  const sharedDocument = await relatedXml("sharedStrings");
   const shared = parseSharedStrings(sharedDocument?.documentElement, styles);
   const workbookRoot = workbookDocument.documentElement;
   const workbookProperties = first(workbookRoot, "workbookPr");

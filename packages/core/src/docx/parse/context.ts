@@ -1,7 +1,7 @@
 import type { OpcPackage, Relationship } from "../../opc/package";
 import type { Numbering } from "../numbering";
 import type { StyleSheet } from "../styles";
-import type { ThemeFonts } from "../theme";
+import type { ThemeFonts } from "../../drawingml/theme";
 import { createFieldStack, type FieldStack } from "./fields";
 
 export interface ParseConfig {

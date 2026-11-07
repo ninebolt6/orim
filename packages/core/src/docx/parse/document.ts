@@ -1,10 +1,17 @@
 import { attr, children, descendants, first } from "../xml";
-import { openOpc, type OpcPackage, type Relationship } from "../../opc/package";
+import {
+  findRelationship,
+  loadOpc,
+  readMedia,
+  type OpcPackage,
+  type PackageInput,
+  type Relationship,
+} from "../../opc/package";
+import { themeFonts } from "../../drawingml/theme";
 import type { Block, DocxDocument, DocxSection, SectionProperties } from "../model";
 import { assignListMarkers, parseNumbering } from "../numbering";
 import { parseStyles } from "../styles";
 import { twips } from "../units";
-import { parseThemeFonts } from "../theme";
 import { applyContextualSpacing, blockNodes, splitAtPageBreaks } from "./blocks";
 import { parseComments } from "./comments";
 import { createParseState, type ParseConfig, type ParseContext } from "./context";
@@ -114,35 +121,24 @@ const sectionDecorations = async (
   };
 };
 
-export const parseDocxModel = async (input: ArrayBuffer | Uint8Array): Promise<DocxDocument> => {
-  const opc = openOpc(input);
-  const packageRels = await opc.relationships("");
-  const officeDocument = [...packageRels.values()].find(
-    (relation) => !relation.external && relation.type.endsWith("/officeDocument"),
-  );
-  const documentPath = officeDocument
-    ? opc.resolve("", officeDocument.target)
-    : "word/document.xml";
+export const parseDocxModel = async (input: PackageInput): Promise<DocxDocument> => {
+  const opc = await loadOpc(input);
+  const documentPath = (await opc.part("", "officeDocument")) ?? "word/document.xml";
   const doc = await opc.xml(documentPath);
   if (doc.documentElement.localName !== "document")
     throw new Error("Not a DOCX package: document part is not a document.");
   const rels = await opc.relationships(documentPath);
-  const relatedPart = (suffix: string): string | undefined => {
-    const relation = [...rels.values()].find(
-      (item) => !item.external && item.type.endsWith(`/${suffix}`),
-    );
-    return relation ? opc.resolve(documentPath, relation.target) : undefined;
+  const relatedPart = (type: string): string | undefined => {
+    const relation = findRelationship(rels, type);
+    return relation && opc.resolve(documentPath, relation.target);
   };
   const themePath = relatedPart("theme");
   const stylesPath = relatedPart("styles");
   const numberingPath = relatedPart("numbering");
   const settingsPath = relatedPart("settings") ?? "word/settings.xml";
-  const theme = parseThemeFonts(
-    themePath && opc.zip.has(themePath) ? await opc.xml(themePath) : undefined,
-  );
-  const stylesDoc = stylesPath && opc.zip.has(stylesPath) ? await opc.xml(stylesPath) : undefined;
-  const numberingDoc =
-    numberingPath && opc.zip.has(numberingPath) ? await opc.xml(numberingPath) : undefined;
+  const theme = themeFonts(await opc.optionalXml(themePath));
+  const stylesDoc = await opc.optionalXml(stylesPath);
+  const numberingDoc = await opc.optionalXml(numberingPath);
   const styles = parseStyles(stylesDoc, theme);
   const numbering = parseNumbering(numberingDoc);
   const context: ParseContext = {
@@ -200,15 +196,8 @@ export const parseDocxModel = async (input: ArrayBuffer | Uint8Array): Promise<D
     paragraphs: assignListMarkers(comment.paragraphs, numbering),
   }));
   const imagePaths = collectImagePaths(numberedSections, commentList);
-  const imageParts: DocxDocument["imageParts"] = Object.fromEntries(
-    await Promise.all(
-      imagePaths.map(async (path) => {
-        const [bytes, mime] = await Promise.all([opc.bytes(path), opc.mime(path)]);
-        return [path, { bytes, mime }] as const;
-      }),
-    ),
-  );
-  const settings = opc.zip.has(settingsPath) ? await opc.xml(settingsPath) : undefined;
+  const imageParts = await readMedia(opc, imagePaths);
+  const settings = await opc.optionalXml(settingsPath);
   const defaultTabStop = settings
     ? twips(attr(descendants(settings, "defaultTabStop")[0], "val"), 36)
     : undefined;

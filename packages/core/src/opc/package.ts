@@ -1,5 +1,8 @@
 import { openZip, type ZipArchive } from "./zip";
 import { descendants } from "../common/xml";
+import type { MediaPart } from "../common/media";
+
+export type PackageInput = ArrayBuffer | Uint8Array | Blob;
 
 export interface Relationship {
   id: string;
@@ -15,7 +18,18 @@ export interface OpcPackage {
   relationships(path: string): Promise<Map<string, Relationship>>;
   resolve(source: string, target: string): string;
   mime(path: string): Promise<string>;
+  part(source: string, type: string): Promise<string | undefined>;
+  optionalXml(path: string | undefined): Promise<Document | undefined>;
 }
+
+export const findRelationship = (
+  relationships: ReadonlyMap<string, Relationship>,
+  type: string,
+): Relationship | undefined => {
+  for (const relationship of relationships.values())
+    if (!relationship.external && relationship.type.endsWith(`/${type}`)) return relationship;
+  return undefined;
+};
 
 const normalize = (path: string): string => {
   const parts: string[] = [];
@@ -98,6 +112,13 @@ export const openOpc = (input: ArrayBuffer | Uint8Array): OpcPackage => {
       }
       return pending;
     },
+    async part(source, type) {
+      const relationship = findRelationship(await this.relationships(source), type);
+      return relationship && this.resolve(source, relationship.target);
+    },
+    async optionalXml(path) {
+      return path && zip.has(normalize(path)) ? this.xml(path) : undefined;
+    },
     async mime(path) {
       await types;
       return (
@@ -107,4 +128,26 @@ export const openOpc = (input: ArrayBuffer | Uint8Array): OpcPackage => {
       );
     },
   };
+};
+
+export const loadOpc = async (input: PackageInput): Promise<OpcPackage> => {
+  return openOpc(
+    typeof Blob !== "undefined" && input instanceof Blob
+      ? await input.arrayBuffer()
+      : (input as ArrayBuffer | Uint8Array),
+  );
+};
+
+export const readMedia = async (
+  opc: OpcPackage,
+  paths: Iterable<string>,
+): Promise<Readonly<Record<string, MediaPart>>> => {
+  return Object.fromEntries(
+    await Promise.all(
+      [...new Set(paths)].map(async (path) => {
+        const [bytes, mime] = await Promise.all([opc.bytes(path), opc.mime(path)]);
+        return [path, { bytes, mime }] as const;
+      }),
+    ),
+  );
 };

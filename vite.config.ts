@@ -21,6 +21,9 @@ export default defineConfig({
           "packages/core/src/docx/parse/**",
           "packages/core/src/xlsx/*.ts",
           "packages/core/src/xlsx/parse/**",
+          "packages/core/src/pptx/*.ts",
+          "packages/core/src/pptx/parse/**",
+          "packages/core/src/drawingml/**",
           "packages/core/src/opc/**",
           "packages/core/src/common/xml.ts",
         ],
@@ -31,19 +34,37 @@ export default defineConfig({
       {
         files: ["packages/core/src/docx/**"],
         rules: {
-          "no-restricted-imports": ["error", { patterns: ["**/xlsx/**"] }],
+          "no-restricted-imports": ["error", { patterns: ["**/xlsx/**", "**/pptx/**"] }],
         },
       },
       {
         files: ["packages/core/src/xlsx/**"],
         rules: {
-          "no-restricted-imports": ["error", { patterns: ["**/docx/**"] }],
+          "no-restricted-imports": ["error", { patterns: ["**/docx/**", "**/pptx/**"] }],
+        },
+      },
+      {
+        files: ["packages/core/src/pptx/**"],
+        rules: {
+          "no-restricted-imports": ["error", { patterns: ["**/docx/**", "**/xlsx/**"] }],
+        },
+      },
+      {
+        files: ["packages/core/src/drawingml/**"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            { patterns: ["**/docx/**", "**/xlsx/**", "**/pptx/**"] },
+          ],
         },
       },
       {
         files: ["packages/core/src/common/**", "packages/core/src/opc/**"],
         rules: {
-          "no-restricted-imports": ["error", { patterns: ["**/docx/**", "**/xlsx/**"] }],
+          "no-restricted-imports": [
+            "error",
+            { patterns: ["**/docx/**", "**/xlsx/**", "**/pptx/**", "**/drawingml/**"] },
+          ],
         },
       },
     ],

@@ -21,8 +21,10 @@ describe("render input sanitization", () => {
     expect(safeHref(target)).toBeUndefined();
   });
 
-  it("accepts only hexadecimal colors", () => {
+  it("accepts only hexadecimal colors with optional alpha", () => {
     expect(validColor("#aabbcc")).toBe("#aabbcc");
+    expect(validColor("#aabbcc80")).toBe("#aabbcc80");
+    expect(validColor("#aabbc")).toBeUndefined();
     expect(validColor("red;background:url(x)")).toBeUndefined();
   });
 });

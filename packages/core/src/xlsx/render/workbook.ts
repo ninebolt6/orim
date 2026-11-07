@@ -1,4 +1,6 @@
-import { abortError, acquireContainerLease, type RenderLease } from "../../common/lease";
+import { acquireContainerLease } from "../../common/lease";
+import { renderParsed } from "../../common/render-file";
+import type { PackageInput } from "../../opc/package";
 import type { XlsxWorkbook } from "../model";
 import { parseXlsx } from "../parse";
 import { renderWorksheet, type RenderedWorksheet } from "./worksheet";
@@ -134,42 +136,18 @@ export const renderWorkbook = (
 };
 
 export const renderXlsx = async (
-  input: ArrayBuffer | Uint8Array | Blob,
+  input: PackageInput,
   container: HTMLElement,
   options: RenderXlsxOptions = {},
 ): Promise<RenderedWorkbook> => {
-  const controller = new AbortController();
-  let cancelled = false;
-  let lease: RenderLease;
-  const onAbort = (): void => lease.cancel();
-  lease = acquireContainerLease(container, () => {
-    cancelled = true;
-    controller.abort();
-    options.signal?.removeEventListener("abort", onAbort);
-  });
-  if (options.signal?.aborted) lease.cancel();
-  else options.signal?.addEventListener("abort", onAbort, { once: true });
-  const check = (): void => {
-    if (cancelled || controller.signal.aborted || !lease.active) throw abortError();
-  };
-  let workbook: XlsxWorkbook;
-  try {
-    check();
-    workbook = await parseXlsx(input);
-    check();
-  } catch (error) {
-    const aborted = cancelled || controller.signal.aborted || !lease.active;
-    lease.cancel();
-    if (aborted) throw abortError();
-    throw error;
-  }
-  try {
-    return renderWorkbook(workbook, container, {
-      sheet: options.sheet,
-      onSheetChange: options.onSheetChange,
-    });
-  } catch (error) {
-    lease.cancel();
-    throw error;
-  }
+  return renderParsed(
+    () => parseXlsx(input),
+    container,
+    options.signal,
+    (workbook) =>
+      renderWorkbook(workbook, container, {
+        sheet: options.sheet,
+        onSheetChange: options.onSheetChange,
+      }),
+  );
 };

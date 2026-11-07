@@ -1,3 +1,4 @@
+import { alphabetic, roman } from "../common/numbering";
 import { attr, descendants, elements, first } from "./xml";
 import type { Block } from "./model";
 
@@ -43,47 +44,14 @@ const readLevel = (node: Element): NumberLevel => {
   };
 };
 
-const alpha = (number: number, upper: boolean): string => {
-  let result = "";
-  for (let n = Math.max(1, number); n > 0; n = Math.floor((n - 1) / 26)) {
-    result = String.fromCharCode((upper ? 65 : 97) + ((n - 1) % 26)) + result;
-  }
-  return result;
-};
-
-const roman = (number: number): string => {
-  const digits: readonly (readonly [number, string])[] = [
-    [1000, "M"],
-    [900, "CM"],
-    [500, "D"],
-    [400, "CD"],
-    [100, "C"],
-    [90, "XC"],
-    [50, "L"],
-    [40, "XL"],
-    [10, "X"],
-    [9, "IX"],
-    [5, "V"],
-    [4, "IV"],
-    [1, "I"],
-  ];
-  let remaining = number;
-  let output = "";
-  for (const [value, symbol] of digits) {
-    output += symbol.repeat(Math.floor(remaining / value));
-    remaining %= value;
-  }
-  return output;
-};
-
 const formatNumber = (number: number, format: string): string => {
   switch (format) {
     case "bullet":
       return "•";
     case "lowerLetter":
-      return alpha(number, false);
+      return alphabetic(number, false);
     case "upperLetter":
-      return alpha(number, true);
+      return alphabetic(number, true);
     case "lowerRoman":
       return roman(number).toLowerCase();
     case "upperRoman":
