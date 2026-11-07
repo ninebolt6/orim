@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { DocxViewer, XlsxViewer } from "@orim/react";
+import { DocxViewer, PptxViewer, XlsxViewer } from "@orim/react";
 import type { ChangesMode } from "@orim/core";
 import { loadSample, parseFile } from "./load";
-import type { LoadResult, View } from "./load";
+import type { LoadResult, SampleKind, View } from "./load";
 
 interface AppProps {
   initialLoad: Promise<LoadResult>;
@@ -48,7 +48,7 @@ export const App = ({ initialLoad }: AppProps) => {
     );
   };
 
-  const openSample = async (kind: "docx" | "xlsx"): Promise<void> => {
+  const openSample = async (kind: SampleKind): Promise<void> => {
     const request = ++requestId.current;
     setError("");
     setLoading(true);
@@ -108,7 +108,7 @@ export const App = ({ initialLoad }: AppProps) => {
           Open file
           <input
             type="file"
-            accept=".docx,.xlsx"
+            accept=".docx,.xlsx,.pptx"
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
               event.currentTarget.value = "";
@@ -121,6 +121,9 @@ export const App = ({ initialLoad }: AppProps) => {
         </button>
         <button className="sample-button" onClick={() => void openSample("xlsx")} type="button">
           Excel sample
+        </button>
+        <button className="sample-button" onClick={() => void openSample("pptx")} type="button">
+          PowerPoint sample
         </button>
         {view?.kind === "docx" && (
           <>
@@ -158,7 +161,9 @@ export const App = ({ initialLoad }: AppProps) => {
           Loading file…
         </div>
       )}
-      {!view && !error && !loading && <div className="empty-state">Open a DOCX or XLSX file.</div>}
+      {!view && !error && !loading && (
+        <div className="empty-state">Open a DOCX, XLSX or PPTX file.</div>
+      )}
       {view?.kind === "docx" && (
         <DocxViewer
           className="viewer"
@@ -170,8 +175,11 @@ export const App = ({ initialLoad }: AppProps) => {
       {view?.kind === "xlsx" && (
         <XlsxViewer className="viewer viewer-xlsx" workbook={view.workbook} />
       )}
+      {view?.kind === "pptx" && (
+        <PptxViewer className="viewer viewer-pptx" presentation={view.presentation} />
+      )}
       <div className={`drop-hint${dropVisible ? " visible" : ""}`}>
-        Drop a Word or Excel file to open
+        Drop a Word, Excel or PowerPoint file to open
       </div>
     </div>
   );

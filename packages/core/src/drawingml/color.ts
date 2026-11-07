@@ -54,15 +54,23 @@ const baseColor = (element: Element, scheme: SchemeResolver): string | undefined
   return undefined;
 };
 
+const toLinear = (channel: number): number =>
+  channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+const fromLinear = (channel: number): number =>
+  channel <= 0.0031308 ? channel * 12.92 : 1.055 * channel ** (1 / 2.4) - 0.055;
+/** Tint and shade operate on linear RGB, as PowerPoint renders them. */
+const linear = (rgb: Rgb, map: (channel: number) => number): Rgb =>
+  rgb.map((channel) => fromLinear(map(toLinear(channel)))) as unknown as Rgb;
+
 const transform = (rgb: Rgb, alpha: number, modifier: Element): [Rgb, number] => {
   const value = percent(modifier, "val");
   switch (modifier.localName) {
     case "alpha":
       return [rgb, value];
     case "tint":
-      return [rgb.map((channel) => channel * value + 1 - value) as unknown as Rgb, alpha];
+      return [linear(rgb, (channel) => channel * value + 1 - value), alpha];
     case "shade":
-      return [rgb.map((channel) => channel * value) as unknown as Rgb, alpha];
+      return [linear(rgb, (channel) => channel * value), alpha];
     case "lumMod":
     case "lumOff":
     case "satMod": {

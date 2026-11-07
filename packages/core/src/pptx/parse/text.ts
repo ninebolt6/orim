@@ -1,3 +1,4 @@
+import { safeHref } from "../../common/sanitize";
 import { alphabetic, roman } from "../../common/numbering";
 import { attr, children, elements, first, R } from "../../common/xml";
 import { parseColor } from "../../drawingml/color";
@@ -285,7 +286,7 @@ export const linkTarget = (
   const id = attr(first(properties, "hlinkClick"), "id", R);
   const relation = id ? context.part.rels.get(id) : undefined;
   if (!relation) return undefined;
-  if (relation.external) return relation.target;
+  if (relation.external) return safeHref(relation.target);
   const slide = context.slidePaths.get(
     context.part.opc.resolve(context.part.path, relation.target),
   );

@@ -1,4 +1,4 @@
-import { attr, elements, first, R } from "../../common/xml";
+import { attr, descendants, elements, first, R } from "../../common/xml";
 import { themeColorScheme, themeFonts, themeFormats } from "../../drawingml/theme";
 import { emu } from "../../drawingml/units";
 import {
@@ -30,11 +30,12 @@ const masterType = (type: string): string =>
 
 const placeholders = (part: Part | undefined): readonly [Element, Placeholder][] =>
   part
-    ? [...part.root.getElementsByTagNameNS("*", "*")].flatMap((element) => {
-        const placeholder =
-          ["sp", "pic", "graphicFrame"].includes(element.localName) && placeholderOf(element);
-        return placeholder ? [[element, placeholder] as const] : [];
-      })
+    ? ["sp", "pic", "graphicFrame"]
+        .flatMap((name) => descendants(part.root, name))
+        .flatMap((element) => {
+          const placeholder = placeholderOf(element);
+          return placeholder ? [[element, placeholder] as const] : [];
+        })
     : [];
 
 const matchPlaceholder = (
