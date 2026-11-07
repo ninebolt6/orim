@@ -43,7 +43,7 @@ jobs:
           MAIN_SHA=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha)
           BEHIND_BY=$(gh api "repos/$REPO/compare/$MAIN_SHA...$PR_HEAD_SHA" --jq .behind_by)
           if [ "$BEHIND_BY" != "0" ]; then
-            gh pr comment "$PR_URL" --body "@dependabot rebase"
+            echo "::notice::main has moved since this PR was tested; skipping auto-merge until it is rebased"
             exit 0
           fi
           gh pr merge --squash "$PR_URL" --match-head-commit "$PR_HEAD_SHA"
