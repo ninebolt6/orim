@@ -52,6 +52,46 @@ const workbook: XlsxWorkbook = {
 };
 
 describe("XlsxViewer", () => {
+  it("activates and focuses visible tabs with navigation keys", () => {
+    const onSheetChange = vi.fn();
+    const view = render(<XlsxViewer workbook={workbook} onSheetChange={onSheetChange} />);
+    const tabs = view.getAllByRole("tab");
+    tabs[0]!.focus();
+    for (const [key, position] of [
+      ["ArrowLeft", 1],
+      ["ArrowRight", 0],
+      ["End", 1],
+      ["Home", 0],
+      ["ArrowRight", 1],
+      ["ArrowLeft", 0],
+    ] as const) {
+      fireEvent.keyDown(document.activeElement!, { key });
+      expect(document.activeElement).toBe(tabs[position]);
+      expect(tabs[position]!.getAttribute("aria-selected")).toBe("true");
+      expect(tabs[position]!.tabIndex).toBe(0);
+      expect(onSheetChange).toHaveBeenLastCalledWith(position === 0 ? 0 : 2);
+    }
+    fireEvent.keyDown(tabs[0]!, { key: "ArrowDown" });
+    expect(onSheetChange).toHaveBeenCalledTimes(6);
+  });
+
+  it("shows an empty notice for zero sheets and all-hidden sheets, including replacements", () => {
+    const view = render(<XlsxViewer workbook={workbook} />);
+    for (const sheets of [
+      [],
+      workbook.sheets.map((sheet) => ({ ...sheet, state: "hidden" as const })),
+    ]) {
+      view.rerender(<XlsxViewer workbook={{ ...workbook, sheets }} />);
+      expect(view.container.querySelector(".orim-xlsx-sheet > .orim-xlsx-note")?.textContent).toBe(
+        "No visible worksheets.",
+      );
+      expect(view.queryAllByRole("tab")).toHaveLength(0);
+      view.rerender(<XlsxViewer workbook={workbook} />);
+      expect(view.container.querySelector(".orim-xlsx-note")).toBeNull();
+      expect(view.container.querySelector(".orim-xlsx-grid")).not.toBeNull();
+    }
+  });
+
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
