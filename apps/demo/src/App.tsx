@@ -116,13 +116,28 @@ export const App = ({ initialLoad }: AppProps) => {
             }}
           />
         </label>
-        <button className="sample-button" onClick={() => void openSample("docx")} type="button">
+        <button
+          className="sample-button"
+          data-short-label="Word"
+          onClick={() => void openSample("docx")}
+          type="button"
+        >
           Word sample
         </button>
-        <button className="sample-button" onClick={() => void openSample("xlsx")} type="button">
+        <button
+          className="sample-button"
+          data-short-label="Excel"
+          onClick={() => void openSample("xlsx")}
+          type="button"
+        >
           Excel sample
         </button>
-        <button className="sample-button" onClick={() => void openSample("pptx")} type="button">
+        <button
+          className="sample-button"
+          data-short-label="PowerPoint"
+          onClick={() => void openSample("pptx")}
+          type="button"
+        >
           PowerPoint sample
         </button>
         {view?.kind === "docx" && (
