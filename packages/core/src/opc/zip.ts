@@ -58,6 +58,12 @@ export interface ZipArchive {
 
 export const openZip = (input: ArrayBuffer | Uint8Array): ZipArchive => {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  if (
+    [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1].every((byte, index) => bytes[index] === byte)
+  )
+    throw new Error(
+      "Unsupported file: this is a legacy binary Office file (.doc/.xls) or a password-protected document. Save it as .docx/.xlsx without a password.",
+    );
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const minOffset = Math.max(0, bytes.byteLength - 22 - 0xffff);
   let end = -1;
