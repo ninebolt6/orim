@@ -1,4 +1,4 @@
-import { attr, descendants, elements, first, R } from "../../common/xml";
+import { attr, descendants, elements, first, R, xmlBoolean } from "../../common/xml";
 import { themeColorScheme, themeFonts, themeFormats } from "../../drawingml/theme";
 import { emu } from "../../drawingml/units";
 import {
@@ -192,7 +192,7 @@ export const parsePptxModel = async (input: PackageInput): Promise<PptxPresentat
       const showMaster = showTemplates && attr(layout?.root, "showMasterSp") !== "0";
       return {
         number: index + 1,
-        hidden: attr(slide.root, "show") === "0",
+        hidden: xmlBoolean(attr(slide.root, "show")) === false,
         background: background(
           [master, layout, slide].filter((part): part is Part => !!part),
           context,

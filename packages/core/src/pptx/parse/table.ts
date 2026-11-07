@@ -1,4 +1,12 @@
-import { attr, children, descendants, elements, first, textValue } from "../../common/xml";
+import {
+  attr,
+  children,
+  descendants,
+  elements,
+  first,
+  textValue,
+  xmlBoolean,
+} from "../../common/xml";
 import { parseColor } from "../../drawingml/color";
 import {
   fillElement,
@@ -100,7 +108,7 @@ export const parseTable = (
   const table = descendants(frame, "tbl")[0];
   if (!table) return undefined;
   const properties = first(table, "tblPr");
-  const enabled = (name: string) => attr(properties, name) === "1";
+  const enabled = (name: string) => xmlBoolean(attr(properties, name)) === true;
   const style = context.tableStyles.get(textValue(first(properties, "tableStyleId")).trim());
   const region = (name: string) => parseRegion(first(style, name), context);
   const columns = elements(first(table, "tblGrid"), "gridCol").map(
@@ -189,7 +197,7 @@ export const parseTable = (
         }),
         columnSpan,
         rowSpan,
-        merged: attr(cell, "hMerge") === "1" || attr(cell, "vMerge") === "1",
+        merged: !!xmlBoolean(attr(cell, "hMerge")) || !!xmlBoolean(attr(cell, "vMerge")),
       }) as TableCell;
     });
     return { height: emu(attr(row, "h")) ?? 0, cells };

@@ -1,6 +1,6 @@
 import { safeHref } from "../../common/sanitize";
 import { alphabetic, roman } from "../../common/numbering";
-import { attr, children, elements, first, R } from "../../common/xml";
+import { attr, children, elements, first, R, xmlBoolean } from "../../common/xml";
 import { parseColor } from "../../drawingml/color";
 import { emu, fraction } from "../../drawingml/units";
 import type {
@@ -53,9 +53,6 @@ export interface BodyProps {
 
 const levels = Array.from({ length: 9 }, (_, index) => index);
 
-const flag = (value: string | undefined): boolean | undefined =>
-  value === undefined ? undefined : value === "1" || value === "true";
-
 const hundredths = (value: string | undefined): number | undefined => {
   const parsed = Number(value);
   return value !== undefined && Number.isFinite(parsed) ? parsed / 100 : undefined;
@@ -96,8 +93,8 @@ export const parseRunProps = (
   const caps = attr(properties, "cap");
   return defined({
     size: hundredths(attr(properties, "sz")),
-    bold: flag(attr(properties, "b")),
-    italic: flag(attr(properties, "i")),
+    bold: xmlBoolean(attr(properties, "b")),
+    italic: xmlBoolean(attr(properties, "i")),
     underline: underline === undefined ? undefined : underline !== "none",
     strike: strike === undefined ? undefined : strike !== "noStrike",
     color: textColor(properties, context),

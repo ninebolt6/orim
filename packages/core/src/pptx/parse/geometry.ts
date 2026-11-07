@@ -1,4 +1,4 @@
-import { attr, children, elements, first } from "../../common/xml";
+import { attr, children, elements, first, xmlBoolean } from "../../common/xml";
 import { angle, emu } from "../../drawingml/units";
 import type { Geometry, GeometryPath, PathCommand, Transform } from "../model";
 
@@ -12,8 +12,8 @@ export const parseTransform = (xfrm: Element | undefined): Transform | undefined
     width: emu(attr(extent, "cx")) ?? 0,
     height: emu(attr(extent, "cy")) ?? 0,
     rotation: angle(attr(xfrm, "rot")) ?? 0,
-    flipH: attr(xfrm, "flipH") === "1",
-    flipV: attr(xfrm, "flipV") === "1",
+    flipH: xmlBoolean(attr(xfrm, "flipH")) ?? false,
+    flipV: xmlBoolean(attr(xfrm, "flipV")) ?? false,
   };
 };
 

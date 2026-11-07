@@ -1,4 +1,4 @@
-import { attr, children, first } from "../../common/xml";
+import { attr, children, first, xmlBoolean } from "../../common/xml";
 import { blipPart } from "../../drawingml/blip";
 import {
   fillElement,
@@ -179,7 +179,7 @@ export const parseTree = (
   group?: Fill,
 ): SlideElement[] =>
   children(parent).flatMap((child): SlideElement[] => {
-    if (attr(first(nonVisual(child), "cNvPr"), "hidden") === "1") return [];
+    if (xmlBoolean(attr(first(nonVisual(child), "cNvPr"), "hidden"))) return [];
     switch (child.localName) {
       case "sp":
       case "cxnSp":
