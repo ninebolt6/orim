@@ -16,7 +16,8 @@
       "import": "./src/index.ts"
     },
     "./docx.css": "./src/docx/render/styles.css",
-    "./xlsx.css": "./src/xlsx/render/styles.css"
+    "./xlsx.css": "./src/xlsx/render/styles.css",
+    "./pptx.css": "./src/pptx/render/styles.css"
   },
   "publishConfig": {
     "exports": {
@@ -25,7 +26,8 @@
         "import": "./dist/index.js"
       },
       "./docx.css": "./dist/docx.css",
-      "./xlsx.css": "./dist/xlsx.css"
+      "./xlsx.css": "./dist/xlsx.css",
+      "./pptx.css": "./dist/pptx.css"
     }
   },
   "scripts": {
