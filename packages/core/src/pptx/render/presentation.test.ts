@@ -127,6 +127,15 @@ describe("PPTX rendering", () => {
             part: "ppt/media/a.png",
             crop: { left: 0.25, top: 0, right: 0.25, bottom: 0 },
           },
+          {
+            ...textShape(),
+            text: undefined,
+            fill: {
+              type: "image",
+              part: "ppt/media/a.png",
+              crop: { left: 0.25, top: 0.5, right: 0.25, bottom: 0 },
+            },
+          },
         ],
       },
     ]);
@@ -138,6 +147,13 @@ describe("PPTX rendering", () => {
     const image = container.querySelector("img")!;
     expect(image.getAttribute("src")).toBe("blob:image");
     expect([image.style.width, image.style.left]).toEqual(["200%", "-50%"]);
+    const fillImage = container.querySelector("pattern image")!;
+    expect(["x", "y", "width", "height"].map((name) => fillImage.getAttribute(name))).toEqual([
+      "-50",
+      "-50",
+      "200",
+      "100",
+    ]);
     expect(create).toHaveBeenCalledTimes(1);
     const second = renderPresentation(withMedia, container);
     expect(revoke).toHaveBeenCalledTimes(1);

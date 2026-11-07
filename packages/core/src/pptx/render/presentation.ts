@@ -89,6 +89,9 @@ const svgPaint = (
       const url = context.urls.url(fill.part, context.presentation.media[fill.part]);
       if (!url) return "none";
       const id = context.id();
+      const crop = fill.crop ?? { left: 0, top: 0, right: 0, bottom: 0 };
+      const width = bounds.width / (1 - crop.left - crop.right || 1);
+      const height = bounds.height / (1 - crop.top - crop.bottom || 1);
       const pattern = svg("pattern", {
         id,
         patternUnits: "userSpaceOnUse",
@@ -98,8 +101,10 @@ const svgPaint = (
       pattern.append(
         svg("image", {
           href: url,
-          width: bounds.width,
-          height: bounds.height,
+          x: -crop.left * width,
+          y: -crop.top * height,
+          width,
+          height,
           preserveAspectRatio: "none",
         }),
       );
