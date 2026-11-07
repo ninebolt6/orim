@@ -182,8 +182,10 @@ describe("PPTX package parsing", () => {
 
   it("rejects packages without a presentation part", async () => {
     await expect(parsePptx(buildXlsx({ sheets: [] }))).rejects.toThrow(/Not a PPTX package/);
-    await expect(parsePptx(new Blob([buildPptx({ slides: [{}] })]))).resolves.toMatchObject({
-      slides: [{ number: 1, hidden: false }],
-    });
+    await expect(parsePptx(new Blob([buildPptx({ slides: [{}] }).slice()]))).resolves.toMatchObject(
+      {
+        slides: [{ number: 1, hidden: false }],
+      },
+    );
   });
 });
