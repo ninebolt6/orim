@@ -2,3 +2,5 @@ packages:
   - packages/*
   - apps/*
 savePrefix: ""
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true

@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: weekly
     cooldown:
-      default-days: 3
+      default-days: 7
     versioning-strategy: increase
     groups:
       react:
@@ -22,4 +22,4 @@ updates:
     schedule:
       interval: weekly
     cooldown:
-      default-days: 3
+      default-days: 7
