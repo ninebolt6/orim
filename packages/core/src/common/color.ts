@@ -1,18 +1,23 @@
 export type Rgb = readonly [number, number, number];
 export type Hsl = readonly [number, number, number];
 
+/** Normalizes `RRGGBB` or `AARRGGBB` to `#rrggbb`. */
+export const normalizeHex = (value: string | undefined): string | undefined =>
+  value && /^(?:[\da-f]{6}|[\da-f]{8})$/i.test(value)
+    ? `#${value.slice(-6).toLowerCase()}`
+    : undefined;
+
 export const hexToRgb = (hex: string): Rgb => [
   Number.parseInt(hex.slice(1, 3), 16) / 255,
   Number.parseInt(hex.slice(3, 5), 16) / 255,
   Number.parseInt(hex.slice(5, 7), 16) / 255,
 ];
 
-const clamp = (value: number): number => Math.min(1, Math.max(0, value));
-
+/** Channels must be within 0–1. */
 export const rgbToHex = (rgb: Rgb): string =>
   `#${rgb
     .map((channel) =>
-      Math.round(clamp(channel) * 255)
+      Math.round(channel * 255)
         .toString(16)
         .padStart(2, "0"),
     )

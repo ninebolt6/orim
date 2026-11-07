@@ -98,7 +98,7 @@ export const parseColor = (
   let rgb = hexToRgb(base);
   let alpha = 1;
   for (const modifier of children(element)) [rgb, alpha] = transform(rgb, alpha, modifier);
-  const hex = rgbToHex(rgb);
+  const hex = rgbToHex(rgb.map((channel) => Math.min(1, Math.max(0, channel))) as unknown as Rgb);
   return alpha < 1
     ? `${hex}${Math.round(Math.max(0, alpha) * 255)
         .toString(16)

@@ -1,3 +1,4 @@
+import { normalizeHex } from "../common/color";
 import { attr, children, descendants, elements, first } from "../common/xml";
 
 export interface ThemeFonts {
@@ -9,11 +10,6 @@ export interface ThemeFonts {
 
 export type ColorScheme = Readonly<Record<string, string>>;
 
-const hex = (value: string | undefined): string | undefined =>
-  value && /^(?:[\da-f]{6}|[\da-f]{8})$/i.test(value)
-    ? `#${value.slice(-6).toLowerCase()}`
-    : undefined;
-
 /** Reads `a:clrScheme` slots (dk1, lt1, accent1, hlink, ...) as `#rrggbb`. */
 export const themeColorScheme = (doc: Document | undefined): ColorScheme => {
   const scheme = doc && descendants(doc, "clrScheme")[0];
@@ -21,7 +17,7 @@ export const themeColorScheme = (doc: Document | undefined): ColorScheme => {
   return Object.fromEntries(
     children(scheme).flatMap((slot) => {
       const color = children(slot)[0];
-      const value = hex(
+      const value = normalizeHex(
         color?.localName === "sysClr"
           ? attr(color, "lastClr")
           : color?.localName === "srgbClr"

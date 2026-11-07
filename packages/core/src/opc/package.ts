@@ -18,8 +18,6 @@ export interface OpcPackage {
   relationships(path: string): Promise<Map<string, Relationship>>;
   resolve(source: string, target: string): string;
   mime(path: string): Promise<string>;
-  part(source: string, type: string): Promise<string | undefined>;
-  optionalXml(path: string | undefined): Promise<Document | undefined>;
 }
 
 export const findRelationship = (
@@ -112,13 +110,6 @@ export const openOpc = (input: ArrayBuffer | Uint8Array): OpcPackage => {
       }
       return pending;
     },
-    async part(source, type) {
-      const relationship = findRelationship(await this.relationships(source), type);
-      return relationship && this.resolve(source, relationship.target);
-    },
-    async optionalXml(path) {
-      return path && zip.has(normalize(path)) ? this.xml(path) : undefined;
-    },
     async mime(path) {
       await types;
       return (
@@ -150,4 +141,21 @@ export const readMedia = async (
       }),
     ),
   );
+};
+
+/** Resolves the first internal part related to `source` by relationship `type`. */
+export const relatedPart = async (
+  opc: OpcPackage,
+  source: string,
+  type: string,
+): Promise<string | undefined> => {
+  const relationship = findRelationship(await opc.relationships(source), type);
+  return relationship && opc.resolve(source, relationship.target);
+};
+
+export const optionalXml = async (
+  opc: OpcPackage,
+  path: string | undefined,
+): Promise<Document | undefined> => {
+  return path && opc.zip.has(path) ? opc.xml(path) : undefined;
 };

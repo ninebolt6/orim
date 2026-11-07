@@ -1,5 +1,5 @@
 import { attr, elements, first } from "../common/xml";
-import { loadOpc, type PackageInput } from "../opc/package";
+import { loadOpc, relatedPart, type PackageInput } from "../opc/package";
 import type { Worksheet, XlsxWorkbook } from "./model";
 import { themeColors } from "./colors";
 import { defaultCellStyle, parseStyles } from "./parse/styles";
@@ -27,14 +27,14 @@ export const activeSheetIndex = (
 
 export const parseXlsx = async (input: PackageInput): Promise<XlsxWorkbook> => {
   const pkg = await loadOpc(input);
-  const workbookPath = await pkg.part("", "officeDocument");
+  const workbookPath = await relatedPart(pkg, "", "officeDocument");
   if (!workbookPath) throw new Error("Not an XLSX package: workbook part not found.");
   const workbookDocument = await pkg.xml(workbookPath);
   if (workbookDocument.documentElement.localName !== "workbook")
     throw new Error("Not an XLSX package: workbook part is not a workbook.");
   const workbookRelationships = await pkg.relationships(workbookPath);
   const relatedXml = async (type: string): Promise<Document | undefined> => {
-    const path = await pkg.part(workbookPath, type);
+    const path = await relatedPart(pkg, workbookPath, type);
     return path ? pkg.xml(path) : undefined;
   };
   const theme = themeColors(await relatedXml("theme"));

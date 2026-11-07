@@ -1,4 +1,4 @@
-import { hexToRgb, hslToRgb, rgbToHex, rgbToHsl } from "../common/color";
+import { hexToRgb, hslToRgb, normalizeHex, rgbToHex, rgbToHsl } from "../common/color";
 import { attr, children, first } from "../common/xml";
 import { themeColorScheme } from "../drawingml/theme";
 
@@ -68,11 +68,6 @@ export const defaultIndexedPalette = [
   "#333399",
   "#333333",
 ];
-
-const normalizeHex = (value: string | undefined): string | undefined => {
-  if (!value || !/^(?:[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value)) return undefined;
-  return `#${value.slice(-6).toLowerCase()}`;
-};
 
 const tinted = (color: string, tint: number): string => {
   const [hue, saturation, lightness] = rgbToHsl(hexToRgb(color));
