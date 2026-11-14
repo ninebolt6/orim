@@ -42,27 +42,35 @@ const normalize = (path: string): string => {
 export const openOpc = (input: ArrayBuffer | Uint8Array): OpcPackage => {
   const zip = openZip(input);
   const xml = async (path: string): Promise<Document> => {
-    const doc = new DOMParser().parseFromString(await zip.text(normalize(path)), "application/xml");
+    const text = await zip.text(normalize(path));
+    const doc = new DOMParser().parseFromString(
+      text.replace(/^\uFEFF?<\?xml\s[\s\S]*?\?>/, ""),
+      "application/xml",
+    );
     if (doc.doctype || doc.querySelector("parsererror"))
       throw new Error(`Invalid XML part: ${path}`);
     return doc;
   };
   const relCache = new Map<string, Promise<Map<string, Relationship>>>();
   const contentTypes = new Map<string, string>();
-  const types = zip.has("[Content_Types].xml")
-    ? xml("[Content_Types].xml").then((doc) => {
-        for (const node of descendants(doc, "Default")) {
-          const ext = node.getAttribute("Extension");
-          const type = node.getAttribute("ContentType");
-          if (ext && type) contentTypes.set(`.${ext.toLowerCase()}`, type);
-        }
-        for (const node of descendants(doc, "Override")) {
-          const part = node.getAttribute("PartName");
-          const type = node.getAttribute("ContentType");
-          if (part && type) contentTypes.set(normalize(part), type);
-        }
-      })
-    : Promise.resolve();
+  let types: Promise<void> | undefined;
+  const contentTypesLoaded = (): Promise<void> => {
+    types ??= zip.has("[Content_Types].xml")
+      ? xml("[Content_Types].xml").then((doc) => {
+          for (const node of descendants(doc, "Default")) {
+            const ext = node.getAttribute("Extension");
+            const type = node.getAttribute("ContentType");
+            if (ext && type) contentTypes.set(`.${ext.toLowerCase()}`, type);
+          }
+          for (const node of descendants(doc, "Override")) {
+            const part = node.getAttribute("PartName");
+            const type = node.getAttribute("ContentType");
+            if (part && type) contentTypes.set(normalize(part), type);
+          }
+        })
+      : Promise.resolve();
+    return types;
+  };
 
   const relPath = (source: string): string => {
     const normalized = normalize(source);
@@ -111,7 +119,7 @@ export const openOpc = (input: ArrayBuffer | Uint8Array): OpcPackage => {
       return pending;
     },
     async mime(path) {
-      await types;
+      await contentTypesLoaded();
       return (
         contentTypes.get(normalize(path)) ??
         contentTypes.get(path.slice(path.lastIndexOf(".")).toLowerCase()) ??
@@ -134,12 +142,18 @@ export const readMedia = async (
   paths: Iterable<string>,
 ): Promise<Readonly<Record<string, MediaPart>>> => {
   return Object.fromEntries(
-    await Promise.all(
-      [...new Set(paths)].map(async (path) => {
-        const [bytes, mime] = await Promise.all([opc.bytes(path), opc.mime(path)]);
-        return [path, { bytes, mime }] as const;
-      }),
-    ),
+    (
+      await Promise.all(
+        [...new Set(paths)].map(async (path) => {
+          try {
+            const [bytes, mime] = await Promise.all([opc.bytes(path), opc.mime(path)]);
+            return [path, { bytes, mime }] as const;
+          } catch {
+            return undefined;
+          }
+        }),
+      )
+    ).filter((entry) => entry !== undefined),
   );
 };
 

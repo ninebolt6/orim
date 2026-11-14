@@ -133,9 +133,9 @@ export const parsePptxModel = async (input: PackageInput): Promise<PptxPresentat
       const slide = await loadPart(path);
       if (slide.root.localName !== "sld") throw new Error(`Invalid PPTX slide part: ${path}`);
       const layoutPath = await relatedPart(opc, path, "slideLayout");
-      const layout = layoutPath ? await loadPart(layoutPath) : undefined;
+      const layout = layoutPath && opc.zip.has(layoutPath) ? await loadPart(layoutPath) : undefined;
       const masterPath = layoutPath && (await relatedPart(opc, layoutPath, "slideMaster"));
-      const master = masterPath ? await loadPart(masterPath) : undefined;
+      const master = masterPath && opc.zip.has(masterPath) ? await loadPart(masterPath) : undefined;
       const theme = masterPath ? await loadTheme(masterPath) : undefined;
       const colors = themeColorScheme(theme);
       const map = master ? colorMap(master, [layout, slide]) : {};

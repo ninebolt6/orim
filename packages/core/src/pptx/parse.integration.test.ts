@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import { unzipSync, zipSync } from "fflate";
 import { buildPptx, shape } from "../../test/pptx";
 import { buildXlsx } from "../../test/xlsx";
 import type { GroupElement, PictureElement, ShapeElement, TableElement } from "./model";
@@ -187,5 +188,20 @@ describe("PPTX package parsing", () => {
         slides: [{ number: 1, hidden: false }],
       },
     );
+  });
+
+  it("renders slide content when the layout part is missing", async () => {
+    const entries = unzipSync(
+      buildPptx({
+        slides: [{ shapes: shape({ id: 2, xfrm: [0, 0, EMU, EMU], body: text("Solo") }) }],
+      }),
+    );
+    delete entries["ppt/slideLayouts/slideLayout1.xml"];
+    const deck = await parsePptx(zipSync(entries, { level: 0 }));
+    expect(deck.slides[0]!.elements).toHaveLength(1);
+    expect(deck.slides[0]!.elements[0]).toMatchObject({
+      kind: "shape",
+      text: { paragraphs: [{ runs: [{ text: "Solo" }] }] },
+    });
   });
 });

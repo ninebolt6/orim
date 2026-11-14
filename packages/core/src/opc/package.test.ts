@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { strToU8, zipSync } from "fflate";
 import { buildDocx } from "../../test/docx";
-import { openOpc } from "./package";
+import { openOpc, readMedia } from "./package";
 
 describe("OPC relationships", () => {
   it("resolves relative and package-absolute parts and preserves external relationships", async () => {
@@ -40,4 +40,27 @@ describe("OPC relationships", () => {
       await expect(opc.mime("image.png")).rejects.toThrow("Invalid XML part: [Content_Types].xml");
     },
   );
+
+  it.each([
+    ["single-quoted", "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"],
+    ["double-quoted", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'],
+    ["BOM-prefixed", '\uFEFF<?xml version="1.0"?>'],
+  ])("parses parts with a %s XML declaration", async (_label, declaration) => {
+    const opc = openOpc(zipSync({ "part.xml": strToU8(`${declaration}<root ok="1"/>`) }));
+    expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("1");
+  });
+
+  it("loads content types lazily so other part failures do not leak rejections", async () => {
+    const opc = openOpc(
+      zipSync({ "[Content_Types].xml": strToU8("<Types>"), "part.xml": strToU8("<root/>") }),
+    );
+    expect((await opc.xml("part.xml")).documentElement.localName).toBe("root");
+  });
+
+  it("skips media entries that are missing or unreadable", async () => {
+    const opc = openOpc(zipSync({ "media/ok.png": new Uint8Array([1, 2, 3]) }));
+    const media = await readMedia(opc, ["media/ok.png", "media/missing.png", "media/ok.png"]);
+    expect(Object.keys(media)).toEqual(["media/ok.png"]);
+    expect(media["media/ok.png"]!.mime).toBe("application/octet-stream");
+  });
 });

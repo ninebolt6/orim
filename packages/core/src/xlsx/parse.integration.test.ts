@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
+import { unzipSync, zipSync } from "fflate";
 import { buildDocx } from "../../test/docx";
 import { buildXlsx } from "../../test/xlsx";
 import { parseDocx } from "../index";
@@ -133,5 +134,26 @@ describe("XLSX package parsing", () => {
       type: "string",
       value: "Repeated text",
     });
+  });
+
+  it("keeps the workbook readable when style and shared-strings parts are missing", async () => {
+    const entries = unzipSync(
+      buildXlsx({
+        sheets: [
+          {
+            name: "Data",
+            xml: `<worksheet><sheetData><row r="1"><c r="A1" t="n"><v>42</v></c><c r="B1" t="s"><v>0</v></c></row></sheetData></worksheet>`,
+          },
+        ],
+        sharedStrings: { xml: "<sst><si><t>shared</t></si></sst>" },
+        styles: { xml: "<styleSheet/>" },
+      }),
+    );
+    delete entries["custom/parts/styles.xml"];
+    delete entries["custom/parts/sharedStrings.xml"];
+    const workbook = await parseXlsx(zipSync(entries, { level: 0 }));
+    const [number, text] = workbook.sheets[0]!.rows[0]!.cells;
+    expect(number!.value).toEqual({ type: "number", value: 42 });
+    expect(text!.value).toEqual({ type: "empty" });
   });
 });
