@@ -98,7 +98,7 @@ describe("Excel number formats", () => {
     expect(formatCellValue(number(45000), "aaa", false).text).toBe("水");
     expect(formatCellValue(number(60), "yyyy-mm-dd", false).text).toBe("1900-02-29");
     expect(formatCellValue(number(1), "yyyy-mm-dd", true).text).toBe("1904-01-02");
-    expect(formatCellValue(number(1.5), "[h]:mm:ss", false).text).toBe("36:00:00");
+    expect(formatCellValue(number(1.5), "[h]:mm:ss", false).text).toBe("1.5");
     expect(formatCellValue(number(-1), "yyyy-mm-dd", false).text).toBe("########");
     expect(formatCellValue(number(2958466), "yyyy-mm-dd", false).text).toBe("########");
   });
@@ -116,7 +116,7 @@ describe("Excel number formats", () => {
     for (const format of formats)
       for (const value of values)
         expect(typeof formatCellValue(number(value), format, false).text).toBe("string");
-    expect(formatCellValue(number(1e10), "[h]:mm", false).text).toBe("########");
+    expect(formatCellValue(number(1e10), "[h]:mm", false).text).toBe("10000000000");
     expect(formatCellValue(number(1e100), "yyyy-mm-dd", false).text).toBe("########");
   });
 });

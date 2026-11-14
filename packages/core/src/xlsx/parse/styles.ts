@@ -61,10 +61,17 @@ const readFont = (
   const vertical = font.find((child) => child.localName === "vertAlign");
   const verticalValue = attr(vertical, "val");
   const colorElement = font.find((child) => child.localName === "color");
-  const style: FontStyle = {
+  const color = parseColor(colorElement, theme, palette);
+  const flags = {
     bold: enabled(font.find((child) => child.localName === "b")),
     italic: enabled(font.find((child) => child.localName === "i")),
     strike: enabled(font.find((child) => child.localName === "strike")),
+  };
+  // Rich runs carry a partial font: absent means "inherit", so falsy flags must be dropped.
+  return {
+    ...(rich
+      ? (Object.fromEntries(Object.entries(flags).filter(([, flag]) => flag)) as typeof flags)
+      : flags),
     ...(name ? { name } : {}),
     ...(size !== undefined && size > 0 ? { size } : {}),
     ...(underlineValue === "single" || underlineValue === "double"
@@ -73,40 +80,25 @@ const readFont = (
     ...(verticalValue === "superscript" || verticalValue === "subscript"
       ? { vertAlign: verticalValue }
       : {}),
-    ...(parseColor(colorElement, theme, palette)
-      ? { color: parseColor(colorElement, theme, palette) }
-      : {}),
+    ...(color ? { color } : {}),
   };
-  if (rich) {
-    return {
-      ...(style.bold ? { bold: true } : {}),
-      ...(style.italic ? { italic: true } : {}),
-      ...(style.strike ? { strike: true } : {}),
-      ...(style.name ? { name: style.name } : {}),
-      ...(style.size !== undefined ? { size: style.size } : {}),
-      ...(style.underline ? { underline: style.underline } : {}),
-      ...(style.vertAlign ? { vertAlign: style.vertAlign } : {}),
-      ...(style.color ? { color: style.color } : {}),
-    } as FontStyle;
-  }
-  return style;
 };
 
-const borderLines: Readonly<Record<string, BorderLine>> = {
-  thin: "thin",
-  medium: "medium",
-  thick: "thick",
-  dashed: "dashed",
-  dotted: "dotted",
-  double: "double",
-  hair: "hair",
-  mediumDashed: "mediumDashed",
-  dashDot: "dashDot",
-  mediumDashDot: "mediumDashDot",
-  dashDotDot: "dashDotDot",
-  mediumDashDotDot: "mediumDashDotDot",
-  slantDashDot: "slantDashDot",
-};
+const borderLines = new Set([
+  "thin",
+  "medium",
+  "thick",
+  "dashed",
+  "dotted",
+  "double",
+  "hair",
+  "mediumDashed",
+  "dashDot",
+  "mediumDashDot",
+  "dashDotDot",
+  "mediumDashDotDot",
+  "slantDashDot",
+]);
 
 const readBorder = (
   element: Element | undefined,
@@ -114,7 +106,8 @@ const readBorder = (
   palette: readonly string[],
 ): BorderEdge | undefined => {
   if (!element) return undefined;
-  const line = borderLines[attr(element, "style") ?? ""];
+  const style = attr(element, "style");
+  const line = style && borderLines.has(style) ? (style as BorderLine) : undefined;
   if (!line) return undefined;
   const color = parseColor(first(element, "color"), theme, palette);
   return color ? { line, color } : { line };

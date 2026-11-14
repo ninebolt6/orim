@@ -51,7 +51,7 @@ export interface BodyProps {
   readonly lineReduction?: number;
 }
 
-const levels = Array.from({ length: 9 }, (_, index) => index);
+const levels = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 const hundredths = (value: string | undefined): number | undefined => {
   const parsed = Number(value);

@@ -51,6 +51,14 @@ describe("XLSX styles parser", () => {
     expect(styles.fontForRun(undefined)).toBeUndefined();
   });
 
+  it("keeps rich-text run fonts partial so unspecified flags inherit", () => {
+    const styles = parseStyles(xmlDocument(`<styleSheet/>`));
+    const run = xmlDocument(`<rPr><color rgb="FF123456"/></rPr>`).documentElement;
+    const empty = xmlDocument(`<rPr><b val="0"/></rPr>`).documentElement;
+    expect(styles.fontForRun(run)).toEqual({ color: "#123456" });
+    expect(styles.fontForRun(empty)).toBeUndefined();
+  });
+
   it("validates alignment values and number formats", () => {
     const styles = parseStyles(
       xmlDocument(`<styleSheet><numFmts><numFmt numFmtId="166" formatCode="0.00"/></numFmts>
