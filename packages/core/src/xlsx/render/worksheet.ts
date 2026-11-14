@@ -1,5 +1,5 @@
 import { safeHref, validColor } from "../../common/sanitize";
-import type { Cell, CellStyle, CellValue, XlsxWorkbook } from "../model";
+import { hasValue, type Cell, type CellStyle, type CellValue, type XlsxWorkbook } from "../model";
 import { columnName } from "../ref";
 import { computeLayout, HEADER_WIDTH, layoutKey, visibleSpan } from "../layout";
 import { formatCellValue } from "../format";
@@ -14,21 +14,17 @@ export interface RenderedWorksheet {
   destroy(): void;
 }
 
-const borderStyles: Readonly<Record<string, { width: number; style: string }>> = {
-  thin: { width: 1, style: "solid" },
-  hair: { width: 1, style: "solid" },
-  medium: { width: 2, style: "solid" },
-  thick: { width: 3, style: "solid" },
-  dashed: { width: 1, style: "dashed" },
-  dashDot: { width: 1, style: "dashed" },
-  dashDotDot: { width: 1, style: "dashed" },
-  slantDashDot: { width: 1, style: "dashed" },
-  mediumDashed: { width: 2, style: "dashed" },
-  mediumDashDot: { width: 2, style: "dashed" },
-  mediumDashDotDot: { width: 2, style: "dashed" },
-  dotted: { width: 1, style: "dotted" },
-  double: { width: 3, style: "double" },
-};
+const borderStyle = (line: string): { width: number; style: string } => ({
+  width: line === "thick" || line === "double" ? 3 : line.startsWith("medium") ? 2 : 1,
+  style:
+    line === "double"
+      ? "double"
+      : line === "dotted"
+        ? "dotted"
+        : line.includes("ash")
+          ? "dashed"
+          : "solid",
+});
 
 const fontFamily = (name: string | undefined): string | undefined => {
   if (!name) return undefined;
@@ -62,14 +58,9 @@ const setBorder = (
   border: CellStyle["border"][keyof CellStyle["border"]],
 ): void => {
   if (!border) return;
-  const style = borderStyles[border.line];
-  if (!style) return;
+  const style = borderStyle(border.line);
   const color = validColor(border.color) ?? "#000000";
   cell.style.setProperty(`border-${side}`, `${style.width}px ${style.style} ${color}`);
-};
-
-const visibleValue = (value: CellValue): boolean => {
-  return value.type !== "empty" && (value.type !== "string" || value.value.length > 0);
 };
 
 const renderText = (
@@ -372,7 +363,7 @@ export const renderWorksheet = (
           nextColumn !== undefined &&
           !layout.covered.has(layoutKey(rowLayout.index, nextColumn.index)) &&
           !layout.mergeAt.has(layoutKey(rowLayout.index, nextColumn.index)) &&
-          !visibleValue(
+          !hasValue(
             worksheetCells.get(layoutKey(rowLayout.index, nextColumn.index))?.value ?? {
               type: "empty",
             },

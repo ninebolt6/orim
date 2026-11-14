@@ -8,7 +8,6 @@ type FormatToken = {
     | "symbol"
     | "placeholder"
     | "text"
-    | "elapsed"
     | "year"
     | "month"
     | "day"
@@ -130,8 +129,6 @@ const tokenize = (format: string): readonly FormatSection[] => {
         } else if (directive.startsWith("$")) {
           const currency = /^\$([^-]*)-/.exec(directive)?.[1] ?? "";
           if (currency) push("literal", currency);
-        } else if (/^(h{1,2}|m{1,2}|s{1,2})$/i.test(directive)) {
-          push("elapsed", lower);
         } else {
           section.valid = false;
         }
@@ -172,16 +169,9 @@ const tokenize = (format: string): readonly FormatSection[] => {
       const letter = character.toLowerCase();
       let end = index + 1;
       while (format[end]?.toLowerCase() === letter) end++;
-      const kind =
-        letter === "y"
-          ? "year"
-          : letter === "m"
-            ? "month"
-            : letter === "d"
-              ? "day"
-              : letter === "h"
-                ? "hour"
-                : "second";
+      const kind = { y: "year", m: "month", d: "day", h: "hour", s: "second" }[
+        letter
+      ] as FormatToken["kind"];
       push(kind, format.slice(index, end));
       index = end;
       continue;
@@ -202,24 +192,17 @@ const tokenize = (format: string): readonly FormatSection[] => {
   return sections;
 };
 
-const matchesCondition = (condition: Condition, value: number): boolean => {
-  switch (condition.operator) {
-    case ">":
-      return value > condition.value;
-    case ">=":
-      return value >= condition.value;
-    case "<":
-      return value < condition.value;
-    case "<=":
-      return value <= condition.value;
-    case "=":
-      return value === condition.value;
-    case "<>":
-      return value !== condition.value;
-    default:
-      return false;
-  }
+const comparisons: Readonly<Record<string, (left: number, right: number) => boolean>> = {
+  ">": (left, right) => left > right,
+  ">=": (left, right) => left >= right,
+  "<": (left, right) => left < right,
+  "<=": (left, right) => left <= right,
+  "=": (left, right) => left === right,
+  "<>": (left, right) => left !== right,
 };
+
+const matchesCondition = (condition: Condition, value: number): boolean =>
+  comparisons[condition.operator]?.(value, condition.value) ?? false;
 
 const chooseSection = (
   sections: readonly FormatSection[],
@@ -256,10 +239,8 @@ const chooseSection = (
   };
 };
 
-const trimDecimal = (value: string): string => {
-  if (!value.includes(".")) return value;
-  return value.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-};
+const trimDecimal = (value: string): string =>
+  value.includes(".") ? value.replace(/\.?0+$/, "") : value;
 
 const expandExponential = (value: string): string => {
   const match = /^(-?)(\d+)(?:\.(\d*))?[eE]([+-]?\d+)$/.exec(value);
@@ -321,31 +302,33 @@ const roundedDecimal = (value: number, places: number): string => {
   return `${sign}${integer}${decimal}`;
 };
 
-const tokenText = (token: FormatToken): string => {
-  return token.value;
-};
+const joinTokens = (tokens: readonly FormatToken[]): string =>
+  tokens.map((token) => token.value).join("");
 
-const joinTokens = (tokens: readonly FormatToken[]): string => tokens.map(tokenText).join("");
+const isDateToken = (token: FormatToken): boolean => /^(?:y|m|d|h|sec|pe|j)/.test(token.kind);
 
-const isDateToken = (token: FormatToken): boolean => {
-  return (
-    token.kind === "elapsed" ||
-    token.kind === "year" ||
-    token.kind === "month" ||
-    token.kind === "day" ||
-    token.kind === "hour" ||
-    token.kind === "second" ||
-    token.kind === "period" ||
-    token.kind === "japaneseDay"
-  );
-};
-
-const dateFormat = (tokens: readonly FormatToken[]): boolean => {
-  return tokens.some(isDateToken);
-};
+const dateFormat = (tokens: readonly FormatToken[]): boolean => tokens.some(isDateToken);
 
 const pad = (value: number | string, length: number): string => {
   return String(value).padStart(length, "0");
+};
+
+const nameLists = new Map<string, readonly string[]>();
+const names = (
+  kind: "month" | "weekday",
+  width: "short" | "long" | "narrow",
+  locale = "en",
+): readonly string[] => {
+  const id = `${locale}:${kind}:${width}`;
+  let list = nameLists.get(id);
+  if (!list) {
+    const format = new Intl.DateTimeFormat(locale, { [kind]: width, timeZone: "UTC" });
+    list = Array.from({ length: kind === "month" ? 12 : 7 }, (_, index) =>
+      format.format(kind === "month" ? Date.UTC(2000, index) : Date.UTC(2017, 0, index + 1)),
+    );
+    nameLists.set(id, list);
+  }
+  return list;
 };
 
 const dateDetails = (
@@ -387,8 +370,7 @@ const dateDetails = (
     };
   }
   const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, dayCount < 60 ? 31 : 30);
-  const adjustedDays = !date1904 && dayCount > 60 ? dayCount : dayCount;
-  const date = new Date(epoch + adjustedDays * 86400000);
+  const date = new Date(epoch + dayCount * 86400000);
   return {
     year: date.getUTCFullYear(),
     month: date.getUTCMonth() + 1,
@@ -421,60 +403,13 @@ const dateValue = (tokens: readonly FormatToken[], serial: number, date1904: boo
   }
   const details = dateDetails(serial, date1904, subSecondDigits);
   const hasPeriod = tokens.some((token) => token.kind === "period");
-  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const shortWeekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const japaneseWeekdays = ["日", "月", "火", "水", "木", "金", "土"];
-  const japaneseFullWeekdays = [
-    "日曜日",
-    "月曜日",
-    "火曜日",
-    "水曜日",
-    "木曜日",
-    "金曜日",
-    "土曜日",
-  ];
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-  const shortMonths = months.map((month) => month.slice(0, 3));
   const nearestDateType = (index: number, direction: -1 | 1): string | undefined => {
     for (let cursor = index + direction; tokens[cursor]; cursor += direction) {
       const token = tokens[cursor]!;
-      if (token.kind === "elapsed") continue;
-      if (
-        token.kind === "year" ||
-        token.kind === "month" ||
-        token.kind === "day" ||
-        token.kind === "hour" ||
-        token.kind === "second"
-      )
-        return token.kind;
-      if (token.kind === "unknown" || token.kind === "period" || token.kind === "japaneseDay")
-        return undefined;
+      if (/^(?:y|m|d|h|sec)/.test(token.kind)) return token.kind;
+      if (/^(?:un|pe|j)/.test(token.kind)) return undefined;
     }
     return undefined;
-  };
-  const elapsed = (unit: string): string => {
-    const totalSeconds =
-      details.dayCount * 86400 + details.hour * 3600 + details.minute * 60 + details.second;
-    const amount =
-      unit[0] === "h"
-        ? Math.floor(totalSeconds / 3600)
-        : unit[0] === "m"
-          ? Math.floor(totalSeconds / 60)
-          : totalSeconds;
-    return unit.length > 1 ? pad(amount, 2) : String(amount);
   };
   return tokens
     .map((token, index) => {
@@ -486,7 +421,6 @@ const dateValue = (tokens: readonly FormatToken[], serial: number, date1904: boo
       )
         return "";
       if (token.kind === "literal") return token.value;
-      if (token.kind === "elapsed") return elapsed(token.value);
       if (token.kind === "year")
         return token.value.length <= 2 ? pad(details.year % 100, 2) : pad(details.year, 4);
       if (token.kind === "month") {
@@ -497,20 +431,20 @@ const dateValue = (tokens: readonly FormatToken[], serial: number, date1904: boo
           return token.value.length === 1 ? String(details.minute) : pad(details.minute, 2);
         if (token.value.length === 1) return String(details.month);
         if (token.value.length === 2) return pad(details.month, 2);
-        if (token.value.length === 3) return shortMonths[details.month - 1]!;
-        if (token.value.length === 4) return months[details.month - 1]!;
-        return months[details.month - 1]![0]!;
+        return names(
+          "month",
+          token.value.length === 3 ? "short" : token.value.length === 4 ? "long" : "narrow",
+        )[details.month - 1]!;
       }
       if (token.kind === "day") {
         if (token.value.length === 1) return String(details.day);
         if (token.value.length === 2) return pad(details.day, 2);
-        if (token.value.length === 3) return shortWeekdays[details.weekday]!;
-        return weekdays[details.weekday]!;
+        return names("weekday", token.value.length === 3 ? "short" : "long")[details.weekday]!;
       }
       if (token.kind === "japaneseDay")
-        return token.value.length === 3
-          ? japaneseWeekdays[details.weekday]!
-          : japaneseFullWeekdays[details.weekday]!;
+        return names("weekday", token.value.length === 3 ? "short" : "long", "ja")[
+          details.weekday
+        ]!;
       if (token.kind === "hour") {
         const hour = hasPeriod ? details.hour % 12 || 12 : details.hour;
         return token.value.length === 1 ? String(hour) : pad(hour, 2);
@@ -525,7 +459,7 @@ const dateValue = (tokens: readonly FormatToken[], serial: number, date1904: boo
           : details.hour < 12
             ? "AM"
             : "PM";
-      return tokenText(token);
+      return token.value;
     })
     .join("");
 };
@@ -787,7 +721,7 @@ export const formatCellValue = (
       if (textFormat === undefined) return { text: value.value };
       return {
         text: textFormat.tokens
-          .map((token) => (token.kind === "text" ? value.value : tokenText(token)))
+          .map((token) => (token.kind === "text" ? value.value : token.value))
           .join(""),
         ...(textFormat.color ? { color: textFormat.color } : {}),
       };

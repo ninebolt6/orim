@@ -57,6 +57,9 @@ export type CellValue =
   | { readonly type: "boolean"; readonly value: boolean }
   | { readonly type: "error"; readonly value: string };
 
+export const hasValue = (value: CellValue): boolean =>
+  value.type !== "empty" && (value.type !== "string" || value.value.length > 0);
+
 export interface Hyperlink {
   readonly range: CellRange;
   readonly href: string;

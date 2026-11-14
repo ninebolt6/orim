@@ -1,4 +1,4 @@
-import type { Cell, CellRange, CellStyle, Worksheet } from "./model";
+import { hasValue, type Cell, type CellRange, type CellStyle, type Worksheet } from "./model";
 
 export const MAX_ROWS = 5000;
 export const MAX_COLUMNS = 200;
@@ -63,16 +63,10 @@ export const visibleSpan = (
 
 const key = (row: number, column: number): string => `${row}:${column}`;
 
-const extendsExtent = (cell: Cell): boolean => {
-  if (cell.value.type !== "empty") {
-    if (cell.value.type !== "string" || cell.value.value.length > 0) return true;
-  }
-  return Boolean(cell.style.fill || Object.keys(cell.style.border).length);
-};
+const hasStyledExtent = (style: CellStyle | undefined): boolean =>
+  Boolean(style?.fill || (style && Object.keys(style.border).length));
 
-const hasStyledExtent = (style: CellStyle | undefined): boolean => {
-  return Boolean(style?.fill || (style && Object.keys(style.border).length));
-};
+const extendsExtent = (cell: Cell): boolean => hasValue(cell.value) || hasStyledExtent(cell.style);
 
 const cellMap = (worksheet: Worksheet): Map<string, Cell> => {
   const result = new Map<string, Cell>();
