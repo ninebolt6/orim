@@ -62,10 +62,16 @@ const readFont = (
   const verticalValue = attr(vertical, "val");
   const colorElement = font.find((child) => child.localName === "color");
   const color = parseColor(colorElement, theme, palette);
-  return {
+  const flags = {
     bold: enabled(font.find((child) => child.localName === "b")),
     italic: enabled(font.find((child) => child.localName === "i")),
     strike: enabled(font.find((child) => child.localName === "strike")),
+  };
+  // Rich runs carry a partial font: absent means "inherit", so falsy flags must be dropped.
+  return {
+    ...(rich
+      ? (Object.fromEntries(Object.entries(flags).filter(([, flag]) => flag)) as typeof flags)
+      : flags),
     ...(name ? { name } : {}),
     ...(size !== undefined && size > 0 ? { size } : {}),
     ...(underlineValue === "single" || underlineValue === "double"
