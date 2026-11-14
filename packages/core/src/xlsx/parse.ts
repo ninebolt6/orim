@@ -35,7 +35,7 @@ export const parseXlsx = async (input: PackageInput): Promise<XlsxWorkbook> => {
   const workbookRelationships = await pkg.relationships(workbookPath);
   const relatedXml = async (type: string): Promise<Document | undefined> => {
     const path = await relatedPart(pkg, workbookPath, type);
-    return path ? pkg.xml(path) : undefined;
+    return path && pkg.zip.has(path) ? pkg.xml(path) : undefined;
   };
   const theme = themeColors(await relatedXml("theme"));
   const styles = parseStyles(await relatedXml("styles"), theme);

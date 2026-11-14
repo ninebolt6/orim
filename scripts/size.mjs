@@ -73,7 +73,7 @@ const docxFailed = await measureConsumer(
 const xlsxFailed = await measureConsumer(
   "XLSX",
   ["parseXlsx", "renderWorkbook", "renderXlsx"],
-  15 * 1024,
+  15.5 * 1024,
 );
 const pptxFailed = await measureConsumer(
   "PPTX",

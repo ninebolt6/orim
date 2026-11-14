@@ -80,4 +80,24 @@ describe("DOCX package parsing", () => {
     expect(doc.comments[0]).toMatchObject({ author: "Reviewer" });
     expect(doc.comments[1]).toMatchObject({ parentId: "0" });
   });
+
+  it("keeps the document readable when a referenced media part is missing", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document:
+          '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><w:body><w:p><w:r><w:t>before</w:t></w:r><w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><a:graphic><a:graphicData><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:blipFill><a:blip r:embed="rImg"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r><w:r><w:t>after</w:t></w:r></w:p><w:sectPr/></w:body></w:document>',
+        relationships:
+          '<Relationship Id="rImg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>',
+      }),
+    );
+    expect(doc.imageParts).toEqual({});
+    expect(doc.sections[0].blocks[0]).toMatchObject({
+      type: "paragraph",
+      runs: [
+        { type: "text", text: "before" },
+        { type: "image", path: "word/media/missing.png" },
+        { type: "text", text: "after" },
+      ],
+    });
+  });
 });
