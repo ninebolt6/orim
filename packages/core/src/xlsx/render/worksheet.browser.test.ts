@@ -68,6 +68,69 @@ const dispatchPointer = (
 };
 
 describe("XLSX rendering in Chromium", () => {
+  it("clips spilled text before the next non-empty cell", () => {
+    const style = {
+      numberFormat: "General",
+      font: { bold: false, italic: false, strike: false },
+      border: {},
+      alignment: { wrap: false, indent: 0 },
+    };
+    const workbook: XlsxWorkbook = {
+      activeSheet: 0,
+      date1904: false,
+      sheets: [
+        {
+          name: "Spill",
+          state: "visible",
+          rows: [
+            {
+              index: 0,
+              hidden: false,
+              cells: [
+                {
+                  column: 0,
+                  value: {
+                    type: "string",
+                    value: "This text spills through the empty cell beside it and must stop",
+                  },
+                  style,
+                },
+                { column: 1, value: { type: "empty" }, style },
+                { column: 2, value: { type: "string", value: "STOP" }, style },
+              ],
+            },
+          ],
+          columns: [],
+          merges: [],
+          hyperlinks: [],
+          defaultColumnWidth: 50,
+          defaultRowHeight: 20,
+          frozen: { rows: 0, columns: 0 },
+          showGridLines: true,
+          showHeaders: true,
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    container.style.width = "260px";
+    container.style.height = "100px";
+    document.body.append(container);
+    const rendered = renderWorksheet(workbook, 0, container);
+    const cells = container.querySelectorAll<HTMLTableCellElement>("tbody tr:first-child td");
+    const spillContent = cells[0]!.querySelector<HTMLElement>(".orim-xlsx-content")!;
+    const emptyCell = cells[1]!;
+    const stopCell = cells[2]!;
+
+    expect(spillContent.getBoundingClientRect().right).toBeGreaterThan(
+      emptyCell.getBoundingClientRect().left + 1,
+    );
+    expect(spillContent.getBoundingClientRect().right).toBeLessThanOrEqual(
+      stopCell.getBoundingClientRect().left + 1,
+    );
+    rendered.destroy();
+    container.remove();
+  });
+
   it("shows header edges when worksheet gridlines are disabled", () => {
     const workbook: XlsxWorkbook = {
       activeSheet: 0,
