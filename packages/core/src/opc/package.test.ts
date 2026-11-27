@@ -104,8 +104,8 @@ const utf16Bytes = (text: string, endian: "le" | "be", bom: boolean): Uint8Array
     bytes[offset++] = endian === "le" ? 0xff : 0xfe;
     bytes[offset++] = endian === "le" ? 0xfe : 0xff;
   }
-  for (const char of text) {
-    const code = char.charCodeAt(0);
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index);
     if (endian === "le") {
       bytes[offset++] = code & 0xff;
       bytes[offset++] = code >> 8;
