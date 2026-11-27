@@ -83,6 +83,30 @@ describe("PPTX package parsing", () => {
     expect(deck.slides[0]!.background).toEqual({ type: "solid", color: "#eeece1" });
   });
 
+  it("falls back to an inherited bullet font when an East Asian theme reference cannot resolve", async () => {
+    const deck = await parsePptx(
+      buildPptx({
+        defaultTextStyle:
+          '<p:defaultTextStyle><a:lvl1pPr><a:buFont typeface="Wingdings"/><a:buChar char="ü"/></a:lvl1pPr></p:defaultTextStyle>',
+        slides: [
+          {
+            shapes: shape({
+              id: 2,
+              xfrm: [0, 0, 400 * EMU, 100 * EMU],
+              body: '<a:p><a:pPr><a:buFont typeface="+mn-ea"/></a:pPr><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r></a:p>',
+            }),
+          },
+        ],
+      }),
+    );
+
+    expect(deck.slides[0]!.elements[0]).toMatchObject({
+      text: {
+        paragraphs: [{ bullet: { text: "✓" } }],
+      },
+    });
+  });
+
   it("resolves an empty East Asian theme typeface through matching script fonts", async () => {
     const scriptTheme = defaultTheme.replace(
       '<a:minorFont><a:latin typeface="Minor Sans"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>',

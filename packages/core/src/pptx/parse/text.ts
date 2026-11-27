@@ -29,8 +29,8 @@ export interface ParagraphProps {
   readonly bulletChar?: string;
   readonly bulletScheme?: string;
   readonly bulletStart?: number;
-  /** Bullet typeface; an empty string follows the text. */
-  readonly bulletFont?: string;
+  /** Bullet typefaces in inheritance order; an empty string follows the text. */
+  readonly bulletFonts?: readonly string[];
   /** Bullet color; an empty string follows the text. */
   readonly bulletColor?: string;
   readonly bulletSize?: BulletSize;
@@ -138,6 +138,7 @@ export const parseParagraphProps = (
   const sizePercent = fraction(attr(first(properties, "buSzPct"), "val"));
   const sizePoints = hundredths(attr(first(properties, "buSzPts"), "val"));
   const start = Number(attr(autoNumber, "startAt"));
+  const bulletFont = typeface(first(properties, "buFont"), context, true);
   return defined({
     align: alignments[attr(properties, "algn") ?? ""],
     marginLeft: emu(attr(properties, "marL")),
@@ -155,7 +156,7 @@ export const parseParagraphProps = (
     bulletChar: has("buBlip") ? "•" : attr(first(properties, "buChar"), "char"),
     bulletScheme: attr(autoNumber, "type"),
     bulletStart: autoNumber ? (Number.isInteger(start) && start > 0 ? start : 1) : undefined,
-    bulletFont: has("buFontTx") ? "" : typeface(first(properties, "buFont"), context, true),
+    bulletFonts: has("buFontTx") ? [""] : bulletFont !== undefined ? [bulletFont] : undefined,
     bulletColor: has("buClrTx") ? "" : parseColor(first(properties, "buClr"), context.scheme),
     bulletSize: has("buSzTx")
       ? { scale: 1 }
@@ -173,6 +174,9 @@ const mergeParagraph = (
   override: ParagraphProps | undefined,
 ): ParagraphProps => ({
   ...layer<ParagraphProps>(base, override),
+  bulletFonts: override?.bulletFonts
+    ? [...override.bulletFonts, ...(base?.bulletFonts ?? [])]
+    : base?.bulletFonts,
   run: layer<RunStyle>(base?.run, override?.run),
 });
 
@@ -272,11 +276,16 @@ const bulletFor = (
   if (props.bullet !== "char" && props.bullet !== "auto") return undefined;
   const raw = props.bullet === "auto" ? numberText(props.bulletScheme, number) : props.bulletChar;
   if (!raw) return undefined;
-  const bulletFont = props.bulletFont || undefined;
-  const font =
-    bulletFont === "+mj-ea" || bulletFont === "+mn-ea"
-      ? themeEastAsiaFont(context.fonts, bulletFont === "+mj-ea", firstStyle.language, raw)
-      : bulletFont;
+  const resolveBulletFont = (candidates: readonly string[]): string | undefined => {
+    const [candidate, ...rest] = candidates;
+    if (candidate === undefined || candidate === "") return undefined;
+    if (candidate !== "+mj-ea" && candidate !== "+mn-ea") return candidate;
+    return (
+      themeEastAsiaFont(context.fonts, candidate === "+mj-ea", firstStyle.language, raw) ??
+      resolveBulletFont(rest)
+    );
+  };
+  const font = resolveBulletFont(props.bulletFonts ?? []);
   const symbol = props.bullet === "char" && isSymbolFont(font) ? symbolBullets[raw] : undefined;
   return defined({
     text: symbol ?? raw,
