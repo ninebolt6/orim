@@ -107,6 +107,30 @@ describe("PPTX package parsing", () => {
     });
   });
 
+  it("does not fall through a bullet font that follows the text", async () => {
+    const deck = await parsePptx(
+      buildPptx({
+        defaultTextStyle:
+          '<p:defaultTextStyle><a:defPPr><a:buFont typeface="Wingdings"/><a:buChar char="ü"/></a:defPPr><a:lvl1pPr><a:buFontTx/></a:lvl1pPr></p:defaultTextStyle>',
+        slides: [
+          {
+            shapes: shape({
+              id: 2,
+              xfrm: [0, 0, 400 * EMU, 100 * EMU],
+              body: '<a:p><a:pPr><a:buFont typeface="+mn-ea"/></a:pPr><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r></a:p>',
+            }),
+          },
+        ],
+      }),
+    );
+
+    expect(deck.slides[0]!.elements[0]).toMatchObject({
+      text: {
+        paragraphs: [{ bullet: { text: "ü" } }],
+      },
+    });
+  });
+
   it("resolves an empty East Asian theme typeface through matching script fonts", async () => {
     const scriptTheme = defaultTheme.replace(
       '<a:minorFont><a:latin typeface="Minor Sans"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>',
