@@ -93,6 +93,12 @@ describe("OPC relationships", () => {
     await expect(opc.xml("part.xml")).rejects.toThrow("Unsupported XML encoding: ISO-10646-UCS-2");
   });
 
+  it("rejects whitespace in encoding names", async () => {
+    const bytes = utf16Bytes('<?xml version="1.0" encoding=" UCS-2 "?><root/>', "le", true);
+    const opc = openOpc(zipSync({ "part.xml": bytes }));
+    await expect(opc.xml("part.xml")).rejects.toThrow("Unsupported XML encoding:  UCS-2 ");
+  });
+
   it.each(["utf8", "unicode-1-1-utf-8", "x-unicode20utf8", "csUTF8"])(
     "keeps UTF-8 parts readable when %s is declared",
     async (encoding) => {

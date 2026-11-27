@@ -20,6 +20,8 @@ const decodeText = (bytes: Uint8Array): string => {
   const text = new TextDecoder(sniffed).decode(bytes);
   const declared = /^<\?xml\s[^?]*?\bencoding\s*=\s*["']([^"']+)["']/i.exec(text)?.[1];
   if (!declared) return text;
+  if (!/^[A-Za-z][A-Za-z0-9._-]*$/.test(declared))
+    throw new Error(`Unsupported XML encoding: ${declared}`);
   const label = declared.toLowerCase().replace(/^csutf/, "utf-");
   if (label === "iso-10646-ucs-2" || label === "ucs-2" || label === "csunicode")
     throw new Error(`Unsupported XML encoding: ${declared}`);
