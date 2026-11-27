@@ -1,6 +1,46 @@
 const decoder = new TextDecoder();
 const MAX_ENTRY_SIZE = 64 * 1024 * 1024;
 
+const bomEncoding = (bytes: Uint8Array): string | undefined => {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return "utf-16le";
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return "utf-16be";
+  return undefined;
+};
+
+const xmlSniffedEncoding = (bytes: Uint8Array): string => {
+  const bom = bomEncoding(bytes);
+  if (bom) return bom;
+  if (bytes[0] === 0x3c && bytes[1] === 0 && bytes[2] === 0x3f && bytes[3] === 0) return "utf-16le";
+  if (bytes[0] === 0 && bytes[1] === 0x3c && bytes[2] === 0 && bytes[3] === 0x3f) return "utf-16be";
+  return "utf-8";
+};
+
+const decodeText = (bytes: Uint8Array): string => {
+  const sniffed = xmlSniffedEncoding(bytes);
+  const text = new TextDecoder(sniffed).decode(bytes);
+  const declared = /^<\?xml\s[^?]*?\bencoding\s*=\s*["']([^"']+)["']/i.exec(text)?.[1];
+  if (!declared) return text;
+  if (!/^[A-Za-z][A-Za-z0-9._-]*$/.test(declared))
+    throw new Error(`Unsupported XML encoding: ${declared}`);
+  const label = declared.toLowerCase().replace(/^csutf/, "utf-");
+  if (label === "iso-10646-ucs-2" || label === "ucs-2" || label === "csunicode")
+    throw new Error(`Unsupported XML encoding: ${declared}`);
+  let encoding: string;
+  try {
+    encoding = new TextDecoder(label).encoding;
+  } catch {
+    throw new Error(`Unsupported XML encoding: ${declared}`);
+  }
+  if (
+    (encoding === "utf-8" && sniffed === "utf-8") ||
+    (encoding.startsWith("utf-16") &&
+      sniffed.startsWith("utf-16") &&
+      (label === "utf-16" || encoding === sniffed))
+  )
+    return text;
+  throw new Error(`Unsupported XML encoding: ${declared}`);
+};
+
 const u16 = (view: DataView, offset: number): number => {
   return view.getUint16(offset, true);
 };
@@ -127,7 +167,7 @@ export const openZip = (input: ArrayBuffer | Uint8Array): ZipArchive => {
       return content;
     },
     async text(path) {
-      return decoder.decode(await this.read(path));
+      return decodeText(await this.read(path));
     },
   };
 };
