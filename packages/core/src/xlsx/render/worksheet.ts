@@ -154,12 +154,12 @@ export const renderWorksheet = (
     }
     table.append(colgroup);
     const stickyCellsByColumn = layout.columns.map((): HTMLElement[] => []);
-    type BoundedSpill = { content: HTMLElement; from: number; to: number };
+    type BoundedSpill = { content: HTMLElement; from: number; to: number; inset: number };
     const boundedSpillsByColumn = layout.columns.map((): BoundedSpill[] => []);
-    const spillWidth = (from: number, to: number): number => {
-      let width = 0;
+    const spillWidth = (from: number, to: number, inset: number): number => {
+      let width = -inset;
       for (let index = from; index <= to; index++) width += widths[index]!;
-      return width;
+      return Math.max(0, width);
     };
     const resizeColumn = (columnIndex: number, width: number): void => {
       const resizedWidth = Math.max(MIN_COLUMN_WIDTH, width);
@@ -168,7 +168,7 @@ export const renderWorksheet = (
       resizeHandles[columnIndex]?.setAttribute("aria-valuenow", String(Math.round(resizedWidth)));
       table.style.width = `${headerWidth + widths.reduce((total, current) => total + current, 0)}px`;
       for (const spill of boundedSpillsByColumn[columnIndex]!) {
-        spill.content.style.width = `${spillWidth(spill.from, spill.to)}px`;
+        spill.content.style.maxWidth = `${spillWidth(spill.from, spill.to, spill.inset)}px`;
       }
       if (layout.columns[columnIndex]!.stickyLeft === undefined) return;
       let left = headerWidth;
@@ -388,9 +388,11 @@ export const renderWorksheet = (
           if (spillTo > columnIndex) {
             td.classList.add("orim-xlsx-spill");
             if (bounded) {
-              content.style.width = `${spillWidth(columnIndex, spillTo)}px`;
+              const inset = style.alignment.indent * 9;
+              content.style.maxWidth = `${spillWidth(columnIndex, spillTo, inset)}px`;
+              content.style.minWidth = "0";
               content.style.overflowX = "hidden";
-              const spill = { content, from: columnIndex, to: spillTo };
+              const spill = { content, from: columnIndex, to: spillTo, inset };
               for (let index = columnIndex; index <= spillTo; index++) {
                 boundedSpillsByColumn[index]!.push(spill);
               }

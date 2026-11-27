@@ -93,7 +93,7 @@ describe("XLSX rendering in Chromium", () => {
                     type: "string",
                     value: "This text spills through the empty cell beside it and must stop",
                   },
-                  style,
+                  style: { ...style, alignment: { ...style.alignment, indent: 1 } },
                 },
                 { column: 1, value: { type: "empty" }, style },
                 { column: 2, value: { type: "string", value: "STOP" }, style },
@@ -127,6 +127,89 @@ describe("XLSX rendering in Chromium", () => {
     expect(spillContent.getBoundingClientRect().right).toBeLessThanOrEqual(
       stopCell.getBoundingClientRect().left + 1,
     );
+    expect(
+      Math.abs(spillContent.getBoundingClientRect().right - stopCell.getBoundingClientRect().left),
+    ).toBeLessThanOrEqual(1);
+
+    const resizeHandle = container
+      .querySelectorAll<HTMLElement>(".orim-xlsx-column-header")[1]!
+      .querySelector<HTMLElement>(".orim-xlsx-resize")!;
+    mockPointerCapture(resizeHandle);
+    dispatchPointer(resizeHandle, "pointerdown", 9, 100);
+    dispatchPointer(resizeHandle, "pointermove", 9, 130);
+    dispatchPointer(resizeHandle, "pointerup", 9, 130);
+    expect(
+      Math.abs(spillContent.getBoundingClientRect().right - stopCell.getBoundingClientRect().left),
+    ).toBeLessThanOrEqual(1);
+    dispatchPointer(resizeHandle, "pointerdown", 10, 130);
+    dispatchPointer(resizeHandle, "pointermove", 10, 120);
+    dispatchPointer(resizeHandle, "pointerup", 10, 120);
+    expect(
+      Math.abs(spillContent.getBoundingClientRect().right - stopCell.getBoundingClientRect().left),
+    ).toBeLessThanOrEqual(1);
+    rendered.destroy();
+    container.remove();
+  });
+
+  it("lets clicks reach links scrolled beneath a frozen bounded spill", async () => {
+    const style = {
+      numberFormat: "General",
+      font: { bold: false, italic: false, strike: false },
+      border: {},
+      alignment: { wrap: false, indent: 0 },
+    };
+    const workbook: XlsxWorkbook = {
+      activeSheet: 0,
+      date1904: false,
+      sheets: [
+        {
+          name: "Frozen spill",
+          state: "visible",
+          rows: [
+            {
+              index: 0,
+              hidden: false,
+              cells: [
+                { column: 0, value: { type: "string", value: "Pin" }, style },
+                { column: 1, value: { type: "empty" }, style },
+                { column: 2, value: { type: "string", value: "STOP" }, style },
+                { column: 3, value: { type: "string", value: "D1" }, style },
+                { column: 4, value: { type: "string", value: "Link" }, style },
+                { column: 5, value: { type: "string", value: "F1" }, style },
+                { column: 6, value: { type: "string", value: "G1" }, style },
+                { column: 7, value: { type: "string", value: "H1" }, style },
+              ],
+            },
+          ],
+          columns: [],
+          merges: [],
+          hyperlinks: [
+            { range: { top: 0, left: 4, bottom: 0, right: 4 }, href: "https://example.com" },
+          ],
+          defaultColumnWidth: 50,
+          defaultRowHeight: 20,
+          frozen: { rows: 0, columns: 1 },
+          showGridLines: true,
+          showHeaders: true,
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    container.style.width = "220px";
+    container.style.height = "100px";
+    document.body.append(container);
+    const rendered = renderWorksheet(workbook, 0, container);
+    const scroll = container.querySelector<HTMLElement>(".orim-xlsx-scroll")!;
+    scroll.scrollLeft = 150;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    const link = container.querySelector<HTMLAnchorElement>("a")!;
+    const rect = link.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+
+    expect(link.textContent).toBe("Link");
+    expect(hit?.closest("a")).toBe(link);
     rendered.destroy();
     container.remove();
   });
