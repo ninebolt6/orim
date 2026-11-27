@@ -66,7 +66,8 @@ export const applyTextStyle = (element: HTMLElement, style: TextStyle | undefine
   if (!style) return;
   if (style.bold !== undefined) element.style.fontWeight = style.bold ? "700" : "400";
   if (style.italic !== undefined) element.style.fontStyle = style.italic ? "italic" : "normal";
-  if (style.underline) {
+  if (style.underline === "none") element.style.textDecorationLine = "none";
+  else if (style.underline) {
     element.style.textDecorationLine = "underline";
     element.style.textDecorationStyle =
       style.underline === "double" ||
@@ -78,8 +79,10 @@ export const applyTextStyle = (element: HTMLElement, style: TextStyle | undefine
           : style.underline
         : "solid";
   }
-  if (style.strike)
-    element.style.textDecorationLine = `${element.style.textDecorationLine} line-through`.trim();
+  if (style.strike) {
+    const current = element.style.textDecorationLine;
+    element.style.textDecorationLine = `${current === "none" ? "" : current} line-through`.trim();
+  }
   if (style.doubleStrike) element.style.textDecoration = "line-through double";
   const color = validColor(style.color);
   if (color) element.style.color = color;

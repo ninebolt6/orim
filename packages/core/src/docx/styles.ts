@@ -75,8 +75,7 @@ const runProperties = (parent: Element | undefined, theme: Theme): RawRunPropert
   return {
     bold: boolValue(first(parent, "b")),
     italic: boolValue(first(parent, "i")),
-    underline:
-      underline === "none" ? undefined : (underline ?? (first(parent, "u") ? "single" : undefined)),
+    underline: underline ?? (first(parent, "u") ? "single" : undefined),
     strike: boolValue(first(parent, "strike")),
     doubleStrike: boolValue(first(parent, "dstrike")),
     color: color === "auto" ? undefined : safeColor(color),
