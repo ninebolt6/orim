@@ -99,14 +99,15 @@ describe("OPC relationships", () => {
     await expect(opc.xml("part.xml")).rejects.toThrow("Unsupported XML encoding: windows-1252");
   });
 
-  it.each(["csUTF-16", "csUTF-16LE", "csUTF-16BE"])(
-    "rejects the nonstandard UTF-16 alias %s",
-    async (encoding) => {
-      const bytes = utf16Bytes(`<?xml version="1.0" encoding="${encoding}"?><root/>`, "le", true);
-      const opc = openOpc(zipSync({ "part.xml": bytes }));
-      await expect(opc.xml("part.xml")).rejects.toThrow(`Unsupported XML encoding: ${encoding}`);
-    },
-  );
+  it.each([
+    ["csUTF-16", "le"],
+    ["csUTF-16LE", "le"],
+    ["csUTF-16BE", "be"],
+  ] as const)("rejects the nonstandard UTF-16 alias %s", async (encoding, endian) => {
+    const bytes = utf16Bytes(`<?xml version="1.0" encoding="${encoding}"?><root/>`, endian, true);
+    const opc = openOpc(zipSync({ "part.xml": bytes }));
+    await expect(opc.xml("part.xml")).rejects.toThrow(`Unsupported XML encoding: ${encoding}`);
+  });
 
   it("loads content types lazily so other part failures do not leak rejections", async () => {
     const opc = openOpc(
