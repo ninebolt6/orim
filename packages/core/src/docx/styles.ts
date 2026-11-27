@@ -1,7 +1,7 @@
 import { attr, boolValue, descendants, first, value as xmlValue } from "./xml";
 import { border } from "./borders";
 import { halfPoints, points, twips } from "./units";
-import type { ThemeFonts } from "../drawingml/theme";
+import { themeEastAsiaFont, type ThemeFonts } from "../drawingml/theme";
 import type { ParagraphProperties, TextStyle } from "./model";
 
 type BorderSides = Partial<
@@ -11,6 +11,7 @@ type CellMargins = Partial<Record<"top" | "right" | "bottom" | "left", number>>;
 export type RawRunProperties = Partial<TextStyle> & {
   fontLatin?: string;
   fontEastAsia?: string;
+  fontEastAsiaLanguage?: string;
 };
 
 export interface TableStyleProperties {
@@ -28,7 +29,12 @@ interface Style {
 
 export interface StyleSheet {
   paragraph(styleId?: string, direct?: Partial<ParagraphProperties>): ParagraphProperties;
-  run(paragraphStyle?: string, runStyle?: string, direct?: RawRunProperties): TextStyle;
+  run(
+    paragraphStyle?: string,
+    runStyle?: string,
+    direct?: RawRunProperties,
+    text?: string,
+  ): TextStyle;
   numbering(styleId?: string): { numId?: string; level?: number };
   table(styleId?: string): TableStyleProperties;
 }
@@ -85,13 +91,8 @@ const runProperties = (parent: Element | undefined, theme: Theme): RawRunPropert
       attr(fonts, "ascii") ??
       attr(fonts, "hAnsi") ??
       (latinTheme ? (latinTheme.startsWith("major") ? theme.major : theme.minor) : undefined),
-    fontEastAsia:
-      attr(fonts, "eastAsia") ??
-      (eastAsiaTheme
-        ? eastAsiaTheme.startsWith("major")
-          ? theme.majorEastAsia
-          : theme.minorEastAsia
-        : undefined),
+    fontEastAsia: attr(fonts, "eastAsia") ?? eastAsiaTheme,
+    fontEastAsiaLanguage: attr(first(parent, "lang"), "eastAsia"),
     fontSize: size,
     verticalAlign: vertAlign === "superscript" || vertAlign === "subscript" ? vertAlign : undefined,
     caps: boolValue(first(parent, "caps")),
@@ -101,9 +102,15 @@ const runProperties = (parent: Element | undefined, theme: Theme): RawRunPropert
   };
 };
 
-const composeRunProperties = (props: RawRunProperties, theme: Theme): TextStyle => {
-  const { fontLatin, fontEastAsia, ...style } = props;
-  const explicit = [fontLatin, fontEastAsia].filter(
+const composeRunProperties = (props: RawRunProperties, theme: Theme, text = ""): TextStyle => {
+  const { fontLatin, fontEastAsia, fontEastAsiaLanguage, ...style } = props;
+  const resolvedEastAsia =
+    fontEastAsia === "majorEastAsia"
+      ? themeEastAsiaFont(theme, true, fontEastAsiaLanguage, text)
+      : fontEastAsia === "minorEastAsia"
+        ? themeEastAsiaFont(theme, false, fontEastAsiaLanguage, text)
+        : fontEastAsia;
+  const explicit = [fontLatin, resolvedEastAsia].filter(
     (item, index, all): item is string => !!item && all.indexOf(item) === index,
   );
   const fontFamily = explicit.length > 0 ? explicit.join(",") : (style.fontFamily ?? theme.minor);
@@ -292,7 +299,7 @@ export const parseStyles = (doc: Document | undefined, theme: Theme = {}): Style
         ["borders", "borderSpacing"],
       );
     },
-    run(paragraphStyle, runStyle, direct = {}) {
+    run(paragraphStyle, runStyle, direct = {}, text = "") {
       const inherited = inheritedRun(paragraphStyle, runStyle);
       const hasDirectScriptFont =
         direct.fontLatin !== undefined || direct.fontEastAsia !== undefined;
@@ -300,7 +307,11 @@ export const parseStyles = (doc: Document | undefined, theme: Theme = {}): Style
         direct.fontFamily !== undefined && !hasDirectScriptFont
           ? { ...inherited, fontLatin: undefined, fontEastAsia: undefined }
           : inherited;
-      return composeRunProperties(mergeLayers<RawRunProperties>([cascade, direct], []), theme);
+      return composeRunProperties(
+        mergeLayers<RawRunProperties>([cascade, direct], []),
+        theme,
+        text,
+      );
     },
     numbering(styleId) {
       const resolved: { numId?: string; level?: number } = {};

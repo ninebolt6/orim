@@ -52,6 +52,7 @@ export interface RunStyle {
   readonly highlight?: string;
   readonly font?: string;
   readonly eastAsianFont?: string;
+  readonly language?: string;
   /** Superscript/subscript offset as a fraction of the font size. */
   readonly baseline?: number;
   readonly caps?: "all" | "small";

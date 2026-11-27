@@ -2,6 +2,7 @@ import { safeHref } from "../../common/sanitize";
 import { alphabetic, roman } from "../../common/numbering";
 import { attr, children, elements, first, R, xmlBoolean } from "../../common/xml";
 import { parseColor } from "../../drawingml/color";
+import { themeEastAsiaFont } from "../../drawingml/theme";
 import { emu, fraction } from "../../drawingml/units";
 import type {
   Bullet,
@@ -58,7 +59,11 @@ const hundredths = (value: string | undefined): number | undefined => {
   return value !== undefined && Number.isFinite(parsed) ? parsed / 100 : undefined;
 };
 
-const typeface = (element: Element | undefined, context: SlideContext): string | undefined => {
+const typeface = (
+  element: Element | undefined,
+  context: SlideContext,
+  preserveEastAsianTheme = false,
+): string | undefined => {
   const value = attr(element, "typeface");
   switch (value) {
     case undefined:
@@ -69,9 +74,9 @@ const typeface = (element: Element | undefined, context: SlideContext): string |
     case "+mn-lt":
       return context.fonts.minor;
     case "+mj-ea":
-      return context.fonts.majorEastAsia;
+      return preserveEastAsianTheme ? value : context.fonts.majorEastAsia;
     case "+mn-ea":
-      return context.fonts.minorEastAsia;
+      return preserveEastAsianTheme ? value : context.fonts.minorEastAsia;
   }
   return value.startsWith("+") ? undefined : value;
 };
@@ -100,7 +105,8 @@ export const parseRunProps = (
     color: textColor(properties, context),
     highlight: parseColor(first(properties, "highlight"), context.scheme),
     font: typeface(first(properties, "latin"), context),
-    eastAsianFont: typeface(first(properties, "ea"), context),
+    eastAsianFont: typeface(first(properties, "ea"), context, true),
+    language: attr(properties, "lang"),
     baseline: fraction(attr(properties, "baseline")),
     caps: caps === "all" || caps === "small" ? caps : undefined,
     spacing: hundredths(attr(properties, "spc")),
@@ -290,11 +296,21 @@ export const linkTarget = (
   return slide === undefined ? undefined : `#slide-${slide}`;
 };
 
+const resolveEastAsianFont = (style: RunStyle, text: string, context: SlideContext): RunStyle => {
+  const value = style.eastAsianFont;
+  if (value !== "+mj-ea" && value !== "+mn-ea") return style;
+  const resolved = themeEastAsiaFont(context.fonts, value === "+mj-ea", style.language, text);
+  if (resolved) return { ...style, eastAsianFont: resolved };
+  const { eastAsianFont: _unused, ...rest } = style;
+  return rest;
+};
+
 const runs = (paragraph: Element, base: RunStyle, context: ShapeContext): (TextRun | LineBreak)[] =>
   children(paragraph).flatMap((child): (TextRun | LineBreak)[] => {
     const properties = first(child, "rPr");
-    const style = { ...base, ...parseRunProps(properties, context) };
-    if (child.localName === "br") return [{ type: "break", style }];
+    const baseStyle = { ...base, ...parseRunProps(properties, context) };
+    if (child.localName === "br")
+      return [{ type: "break", style: resolveEastAsianFont(baseStyle, "", context) }];
     if (child.localName !== "r" && child.localName !== "fld") return [];
     const text =
       child.localName === "fld" && attr(child, "type") === "slidenum"
@@ -303,6 +319,7 @@ const runs = (paragraph: Element, base: RunStyle, context: ShapeContext): (TextR
             .map((item) => item.textContent ?? "")
             .join("");
     if (!text) return [];
+    const style = resolveEastAsianFont(baseStyle, text, context);
     const href = linkTarget(properties, context);
     return [
       href
@@ -354,7 +371,11 @@ export const parseTextBody = (
       spaceAfter: props.spaceAfter,
       bullet: firstRun ? bulletFor(props, number ?? 1, firstRun.style) : undefined,
       runs: content,
-      endStyle: { ...base, ...parseRunProps(first(paragraph, "endParaRPr"), context) },
+      endStyle: resolveEastAsianFont(
+        { ...base, ...parseRunProps(first(paragraph, "endParaRPr"), context) },
+        "",
+        context,
+      ),
     }) as TextParagraph;
   });
   const vertical = bodyProps.vertical === "horizontal" ? undefined : bodyProps.vertical;

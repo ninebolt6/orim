@@ -83,10 +83,10 @@ describe("PPTX package parsing", () => {
     expect(deck.slides[0]!.background).toEqual({ type: "solid", color: "#eeece1" });
   });
 
-  it("resolves an empty East Asian theme typeface through its Jpan script font", async () => {
+  it("resolves an empty East Asian theme typeface through matching script fonts", async () => {
     const scriptTheme = defaultTheme.replace(
       '<a:minorFont><a:latin typeface="Minor Sans"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>',
-      '<a:minorFont><a:latin typeface="Minor Sans"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="MS 明朝"/><a:font script="Hans" typeface="宋体"/></a:minorFont>',
+      '<a:minorFont><a:latin typeface="Minor Sans"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="MS 明朝"/><a:font script="Hang" typeface="Malgun Gothic"/><a:font script="Hans" typeface="宋体"/></a:minorFont>',
     );
     const deck = await parsePptx(
       buildPptx({
@@ -96,7 +96,7 @@ describe("PPTX package parsing", () => {
             shapes: shape({
               id: 2,
               xfrm: [0, 0, 400 * EMU, 100 * EMU],
-              body: '<a:p><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r></a:p>',
+              body: '<a:p><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r><a:r><a:rPr lang="zh-CN"><a:ea typeface="+mn-ea"/></a:rPr><a:t>汉字文本</a:t></a:r><a:r><a:rPr><a:ea typeface="+mn-ea"/></a:rPr><a:t>한국어</a:t></a:r></a:p>',
             }),
           },
         ],
@@ -105,7 +105,15 @@ describe("PPTX package parsing", () => {
 
     expect(deck.slides[0]!.elements[0]).toMatchObject({
       text: {
-        paragraphs: [{ runs: [{ text: "日本語", style: { eastAsianFont: "MS 明朝" } }] }],
+        paragraphs: [
+          {
+            runs: [
+              { text: "日本語", style: { eastAsianFont: "MS 明朝" } },
+              { text: "汉字文本", style: { eastAsianFont: "宋体" } },
+              { text: "한국어", style: { eastAsianFont: "Malgun Gothic" } },
+            ],
+          },
+        ],
       },
     });
   });
