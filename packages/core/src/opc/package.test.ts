@@ -82,6 +82,15 @@ describe("OPC relationships", () => {
     expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("é");
   });
 
+  it("rejects unsupported encoding declarations instead of decoding as UTF-8", async () => {
+    const opc = openOpc(
+      zipSync({
+        "part.xml": strToU8('<?xml version="1.0" encoding="x-unsupported"?><root/>'),
+      }),
+    );
+    await expect(opc.xml("part.xml")).rejects.toThrow("Unsupported XML encoding: x-unsupported");
+  });
+
   it("loads content types lazily so other part failures do not leak rejections", async () => {
     const opc = openOpc(
       zipSync({ "[Content_Types].xml": strToU8("<Types>"), "part.xml": strToU8("<root/>") }),

@@ -21,11 +21,12 @@ const decodeText = (bytes: Uint8Array): string => {
   const declared = /^<\?xml\s[^?]*?\bencoding\s*=\s*["']([^"']+)["']/i.exec(text)?.[1];
   if (!declared || (sniffed.startsWith("utf-16") && /^utf-?16(?:le|be)?$/i.test(declared)))
     return text;
+  const label = declared.toLowerCase() === "csutf8" ? "utf-8" : declared;
   try {
-    const declaredDecoder = new TextDecoder(declared);
+    const declaredDecoder = new TextDecoder(label);
     return declaredDecoder.encoding === sniffed ? text : declaredDecoder.decode(bytes);
   } catch {
-    return text;
+    throw new Error(`Unsupported XML encoding: ${declared}`);
   }
 };
 
