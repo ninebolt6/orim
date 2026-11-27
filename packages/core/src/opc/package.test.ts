@@ -78,6 +78,21 @@ describe("OPC relationships", () => {
     expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("1");
   });
 
+  it.each([
+    ["le", "UTF-16BE"],
+    ["be", "UTF-16LE"],
+  ] as const)("rejects a %s part declaring %s", async (endian, encoding) => {
+    const bytes = utf16Bytes(`<?xml version="1.0" encoding="${encoding}"?><root/>`, endian, true);
+    const opc = openOpc(zipSync({ "part.xml": bytes }));
+    await expect(opc.xml("part.xml")).rejects.toThrow(`Unsupported XML encoding: ${encoding}`);
+  });
+
+  it("rejects UCS-2 declarations outside the UTF-16 encoding form", async () => {
+    const bytes = utf16Bytes('<?xml version="1.0" encoding="ISO-10646-UCS-2"?><root/>', "le", true);
+    const opc = openOpc(zipSync({ "part.xml": bytes }));
+    await expect(opc.xml("part.xml")).rejects.toThrow("Unsupported XML encoding: ISO-10646-UCS-2");
+  });
+
   it.each(["utf8", "unicode-1-1-utf-8", "csUTF8"])(
     "keeps UTF-8 parts readable when %s is declared",
     async (encoding) => {
