@@ -62,12 +62,17 @@ export const fontStack = (name: string | undefined): string | undefined => {
   return `${families}, ${fallback}`;
 };
 
-export const applyTextStyle = (element: HTMLElement, style: TextStyle | undefined): void => {
+export const applyTextStyle = (
+  element: HTMLElement,
+  style: TextStyle | undefined,
+  revisionMarked = false,
+): void => {
   if (!style) return;
   if (style.bold !== undefined) element.style.fontWeight = style.bold ? "700" : "400";
   if (style.italic !== undefined) element.style.fontStyle = style.italic ? "italic" : "normal";
-  if (style.underline === "none") element.style.textDecorationLine = "none";
-  else if (style.underline) {
+  if (style.underline === "none") {
+    if (!revisionMarked) element.style.textDecorationLine = "none";
+  } else if (style.underline) {
     element.style.textDecorationLine = "underline";
     element.style.textDecorationStyle =
       style.underline === "double" ||
