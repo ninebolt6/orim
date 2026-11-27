@@ -93,7 +93,7 @@ describe("OPC relationships", () => {
     await expect(opc.xml("part.xml")).rejects.toThrow("Unsupported XML encoding: ISO-10646-UCS-2");
   });
 
-  it.each(["utf8", "unicode-1-1-utf-8", "csUTF8"])(
+  it.each(["utf8", "unicode-1-1-utf-8", "x-unicode20utf8", "csUTF8"])(
     "keeps UTF-8 parts readable when %s is declared",
     async (encoding) => {
       const opc = openOpc(

@@ -21,16 +21,19 @@ const decodeText = (bytes: Uint8Array): string => {
   const declared = /^<\?xml\s[^?]*?\bencoding\s*=\s*["']([^"']+)["']/i.exec(text)?.[1];
   if (!declared) return text;
   const label = declared.toLowerCase().replace(/^csutf/, "utf-");
-  const utf8 =
-    label === "utf-8" ||
-    label === "utf8" ||
-    label === "unicode-1-1-utf-8" ||
-    label === "unicode11utf8" ||
-    label === "unicode20utf8";
+  if (label === "iso-10646-ucs-2" || label === "ucs-2" || label === "csunicode")
+    throw new Error(`Unsupported XML encoding: ${declared}`);
+  let encoding: string;
+  try {
+    encoding = new TextDecoder(label).encoding;
+  } catch {
+    throw new Error(`Unsupported XML encoding: ${declared}`);
+  }
   if (
-    (utf8 && sniffed === "utf-8") ||
-    (label === "utf-16" && sniffed.startsWith("utf-16")) ||
-    ((label === "utf-16le" || label === "utf-16be") && label === sniffed)
+    (encoding === "utf-8" && sniffed === "utf-8") ||
+    (encoding.startsWith("utf-16") &&
+      sniffed.startsWith("utf-16") &&
+      (label === "utf-16" || encoding === sniffed))
   )
     return text;
   throw new Error(`Unsupported XML encoding: ${declared}`);
