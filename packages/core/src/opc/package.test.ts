@@ -62,6 +62,15 @@ describe("OPC relationships", () => {
     expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("1");
   });
 
+  it("keeps UTF-8 parts readable when csUTF8 is declared", async () => {
+    const opc = openOpc(
+      zipSync({
+        "part.xml": strToU8('<?xml version="1.0" encoding="csUTF8"?><root ok="é"/>'),
+      }),
+    );
+    expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("é");
+  });
+
   it("honors an ASCII-compatible encoding declaration", async () => {
     const prefix = strToU8('<?xml version="1.0" encoding="windows-1252"?><root ok="');
     const suffix = strToU8('"/>');

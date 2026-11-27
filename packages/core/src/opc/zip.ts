@@ -19,8 +19,14 @@ const decodeText = (bytes: Uint8Array): string => {
   const sniffed = xmlSniffedEncoding(bytes);
   const text = new TextDecoder(sniffed).decode(bytes);
   const declared = /^<\?xml\s[^?]*?\bencoding\s*=\s*["']([^"']+)["']/i.exec(text)?.[1];
-  if (!declared || /^utf-?16$/i.test(declared)) return text;
-  return new TextDecoder(declared).decode(bytes);
+  if (!declared || (sniffed.startsWith("utf-16") && /^utf-?16(?:le|be)?$/i.test(declared)))
+    return text;
+  try {
+    const declaredDecoder = new TextDecoder(declared);
+    return declaredDecoder.encoding === sniffed ? text : declaredDecoder.decode(bytes);
+  } catch {
+    return text;
+  }
 };
 
 const u16 = (view: DataView, offset: number): number => {
