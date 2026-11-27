@@ -134,16 +134,20 @@ describe("XLSX rendering in Chromium", () => {
     const resizeHandle = container
       .querySelectorAll<HTMLElement>(".orim-xlsx-column-header")[1]!
       .querySelector<HTMLElement>(".orim-xlsx-resize")!;
+    const emptyColumn = container.querySelectorAll<HTMLTableColElement>("colgroup col")[2]!;
+    const initialEmptyWidth = Number.parseFloat(emptyColumn.style.width);
     mockPointerCapture(resizeHandle);
     dispatchPointer(resizeHandle, "pointerdown", 9, 100);
     dispatchPointer(resizeHandle, "pointermove", 9, 130);
     dispatchPointer(resizeHandle, "pointerup", 9, 130);
+    expect(Number.parseFloat(emptyColumn.style.width)).toBe(initialEmptyWidth + 30);
     expect(
       Math.abs(spillContent.getBoundingClientRect().right - stopCell.getBoundingClientRect().left),
     ).toBeLessThanOrEqual(1);
     dispatchPointer(resizeHandle, "pointerdown", 10, 130);
     dispatchPointer(resizeHandle, "pointermove", 10, 120);
     dispatchPointer(resizeHandle, "pointerup", 10, 120);
+    expect(Number.parseFloat(emptyColumn.style.width)).toBe(initialEmptyWidth + 20);
     expect(
       Math.abs(spillContent.getBoundingClientRect().right - stopCell.getBoundingClientRect().left),
     ).toBeLessThanOrEqual(1);
