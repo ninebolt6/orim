@@ -430,4 +430,42 @@ describe("sample DOCX in Chromium", () => {
     rendered.destroy();
     container.remove();
   });
+
+  it("keeps insertion decoration visible when a run removes underline", () => {
+    const source = deletedTextDocument();
+    const doc: DocxDocument = {
+      ...source,
+      sections: [
+        {
+          ...source.sections[0]!,
+          blocks: [
+            {
+              type: "paragraph",
+              properties: {},
+              runs: [
+                {
+                  type: "text",
+                  text: "inserted without underline",
+                  style: { underline: "none" },
+                  change: { kind: "ins", author: "Aiko", date: "" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const container = createContainer();
+    const rendered = renderDocument(doc, container);
+    const marked = container.querySelector<HTMLElement>(".orim-change--ins")!;
+    expect(getComputedStyle(marked).textDecorationLine).toContain("underline");
+
+    rendered.update({ changes: "final" });
+    const plain = Array.from(container.querySelectorAll<HTMLElement>(".orim-text")).find(
+      (element) => element.textContent === "inserted without underline",
+    )!;
+    expect(getComputedStyle(plain).textDecorationLine).toBe("none");
+    rendered.destroy();
+    container.remove();
+  });
 });
