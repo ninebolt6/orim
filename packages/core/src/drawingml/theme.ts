@@ -8,6 +8,8 @@ export interface ThemeFonts {
   readonly minor?: string;
   readonly majorEastAsia?: string;
   readonly minorEastAsia?: string;
+  readonly majorCs?: string;
+  readonly minorCs?: string;
   readonly majorEastAsiaScripts?: Readonly<Partial<Record<EastAsianScript, string>>>;
   readonly minorEastAsiaScripts?: Readonly<Partial<Record<EastAsianScript, string>>>;
 }
@@ -40,16 +42,16 @@ export const themeFonts = (doc: Document | undefined): ThemeFonts => {
   const typeface = (font: Element | undefined, name: string) =>
     (font && attr(first(font, name), "typeface")) || undefined;
   const scriptTypefaces = (font: Element | undefined) => {
-    const scripts: Partial<Record<EastAsianScript, string>> = {};
-    for (const item of elements(font, "font")) {
-      const script = attr(item, "script");
-      const value = attr(item, "typeface");
-      if (
-        value &&
-        (script === "Jpan" || script === "Hang" || script === "Hans" || script === "Hant")
-      )
-        scripts[script] = value;
-    }
+    const scripts = Object.fromEntries(
+      elements(font, "font").flatMap((item): [EastAsianScript, string][] => {
+        const script = attr(item, "script");
+        const value = attr(item, "typeface");
+        return value &&
+          (script === "Jpan" || script === "Hang" || script === "Hans" || script === "Hant")
+          ? [[script, value]]
+          : [];
+      }),
+    ) as Partial<Record<EastAsianScript, string>>;
     return Object.keys(scripts).length ? scripts : undefined;
   };
   return {
@@ -57,6 +59,8 @@ export const themeFonts = (doc: Document | undefined): ThemeFonts => {
     minor: typeface(minor, "latin"),
     majorEastAsia: typeface(major, "ea"),
     minorEastAsia: typeface(minor, "ea"),
+    majorCs: typeface(major, "cs"),
+    minorCs: typeface(minor, "cs"),
     majorEastAsiaScripts: scriptTypefaces(major),
     minorEastAsiaScripts: scriptTypefaces(minor),
   };

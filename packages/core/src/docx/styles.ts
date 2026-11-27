@@ -102,14 +102,49 @@ const runProperties = (parent: Element | undefined, theme: Theme): RawRunPropert
   };
 };
 
+const themeFontReferences = new Set([
+  "majorAscii",
+  "majorHAnsi",
+  "majorEastAsia",
+  "majorBidi",
+  "minorAscii",
+  "minorHAnsi",
+  "minorEastAsia",
+  "minorBidi",
+]);
+
+const themeFontReference = (
+  reference: string,
+  theme: Theme,
+  language: string | undefined,
+  text: string,
+): string | undefined => {
+  switch (reference) {
+    case "majorAscii":
+    case "majorHAnsi":
+      return theme.major;
+    case "minorAscii":
+    case "minorHAnsi":
+      return theme.minor;
+    case "majorEastAsia":
+      return themeEastAsiaFont(theme, true, language, text);
+    case "minorEastAsia":
+      return themeEastAsiaFont(theme, false, language, text);
+    case "majorBidi":
+      return theme.majorCs;
+    case "minorBidi":
+      return theme.minorCs;
+  }
+  return undefined;
+};
+
 const composeRunProperties = (props: RawRunProperties, theme: Theme, text = ""): TextStyle => {
   const { fontLatin, fontEastAsia, fontEastAsiaLanguage, ...style } = props;
-  const resolvedEastAsia =
-    fontEastAsia === "majorEastAsia"
-      ? themeEastAsiaFont(theme, true, fontEastAsiaLanguage, text)
-      : fontEastAsia === "minorEastAsia"
-        ? themeEastAsiaFont(theme, false, fontEastAsiaLanguage, text)
-        : fontEastAsia;
+  const resolvedEastAsia = fontEastAsia
+    ? themeFontReferences.has(fontEastAsia)
+      ? themeFontReference(fontEastAsia, theme, fontEastAsiaLanguage, text)
+      : fontEastAsia
+    : undefined;
   const explicit = [fontLatin, resolvedEastAsia].filter(
     (item, index, all): item is string => !!item && all.indexOf(item) === index,
   );

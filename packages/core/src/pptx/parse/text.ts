@@ -155,7 +155,7 @@ export const parseParagraphProps = (
     bulletChar: has("buBlip") ? "•" : attr(first(properties, "buChar"), "char"),
     bulletScheme: attr(autoNumber, "type"),
     bulletStart: autoNumber ? (Number.isInteger(start) && start > 0 ? start : 1) : undefined,
-    bulletFont: has("buFontTx") ? "" : typeface(first(properties, "buFont"), context),
+    bulletFont: has("buFontTx") ? "" : typeface(first(properties, "buFont"), context, true),
     bulletColor: has("buClrTx") ? "" : parseColor(first(properties, "buClr"), context.scheme),
     bulletSize: has("buSzTx")
       ? { scale: 1 }
@@ -267,11 +267,16 @@ const bulletFor = (
   props: ParagraphProps,
   number: number,
   firstStyle: RunStyle,
+  context: SlideContext,
 ): Bullet | undefined => {
   if (props.bullet !== "char" && props.bullet !== "auto") return undefined;
-  const font = props.bulletFont || undefined;
   const raw = props.bullet === "auto" ? numberText(props.bulletScheme, number) : props.bulletChar;
   if (!raw) return undefined;
+  const bulletFont = props.bulletFont || undefined;
+  const font =
+    bulletFont === "+mj-ea" || bulletFont === "+mn-ea"
+      ? themeEastAsiaFont(context.fonts, bulletFont === "+mj-ea", firstStyle.language, raw)
+      : bulletFont;
   const symbol = props.bullet === "char" && isSymbolFont(font) ? symbolBullets[raw] : undefined;
   return defined({
     text: symbol ?? raw,
@@ -369,7 +374,7 @@ export const parseTextBody = (
       lineSpacing: props.lineSpacing,
       spaceBefore: props.spaceBefore,
       spaceAfter: props.spaceAfter,
-      bullet: firstRun ? bulletFor(props, number ?? 1, firstRun.style) : undefined,
+      bullet: firstRun ? bulletFor(props, number ?? 1, firstRun.style, context) : undefined,
       runs: content,
       endStyle: resolveEastAsianFont(
         { ...base, ...parseRunProps(first(paragraph, "endParaRPr"), context) },

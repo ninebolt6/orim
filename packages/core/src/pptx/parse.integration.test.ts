@@ -96,7 +96,7 @@ describe("PPTX package parsing", () => {
             shapes: shape({
               id: 2,
               xfrm: [0, 0, 400 * EMU, 100 * EMU],
-              body: '<a:p><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r><a:r><a:rPr lang="zh-CN"><a:ea typeface="+mn-ea"/></a:rPr><a:t>汉字文本</a:t></a:r><a:r><a:rPr><a:ea typeface="+mn-ea"/></a:rPr><a:t>한국어</a:t></a:r></a:p>',
+              body: '<a:p><a:pPr><a:buFont typeface="+mn-ea"/><a:buChar char="・"/></a:pPr><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r><a:r><a:rPr lang="zh-CN"><a:ea typeface="+mn-ea"/></a:rPr><a:t>汉字文本</a:t></a:r><a:r><a:rPr><a:ea typeface="+mn-ea"/></a:rPr><a:t>한국어</a:t></a:r></a:p>',
             }),
           },
         ],
@@ -107,6 +107,7 @@ describe("PPTX package parsing", () => {
       text: {
         paragraphs: [
           {
+            bullet: { font: "MS 明朝" },
             runs: [
               { text: "日本語", style: { eastAsianFont: "MS 明朝" } },
               { text: "汉字文本", style: { eastAsianFont: "宋体" } },
