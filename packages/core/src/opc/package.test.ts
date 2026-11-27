@@ -51,15 +51,17 @@ describe("OPC relationships", () => {
   });
 
   it.each([
-    ["UTF-16LE with a BOM", utf16Bytes('<root ok="1"/>', "le", true)],
-    ["UTF-16BE with a BOM", utf16Bytes('<root ok="1"/>', "be", true)],
+    ["UTF-16LE with a BOM", utf16Bytes('<root ok="1">😀</root>', "le", true)],
+    ["UTF-16BE with a BOM", utf16Bytes('<root ok="1">😀</root>', "be", true)],
     [
       "UTF-16LE with an encoding declaration",
-      utf16Bytes('<?xml version="1.0" encoding="UTF-16"?><root ok="1"/>', "le", false),
+      utf16Bytes('<?xml version="1.0" encoding="UTF-16"?><root ok="1">😀</root>', "le", false),
     ],
   ])("parses a %s XML part", async (_label, bytes) => {
     const opc = openOpc(zipSync({ "part.xml": bytes }));
-    expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("1");
+    const root = (await opc.xml("part.xml")).documentElement;
+    expect(root.getAttribute("ok")).toBe("1");
+    expect(root.textContent).toBe("😀");
   });
 
   it("keeps UTF-8 parts readable when csUTF8 is declared", async () => {
