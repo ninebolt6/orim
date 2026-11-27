@@ -50,6 +50,29 @@ describe("OPC relationships", () => {
     expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("1");
   });
 
+  it.each([
+    ["UTF-16LE with a BOM", utf16Bytes('<root ok="1"/>', "le", true)],
+    ["UTF-16BE with a BOM", utf16Bytes('<root ok="1"/>', "be", true)],
+    [
+      "UTF-16LE with an encoding declaration",
+      utf16Bytes('<?xml version="1.0" encoding="UTF-16"?><root ok="1"/>', "le", false),
+    ],
+  ])("parses a %s XML part", async (_label, bytes) => {
+    const opc = openOpc(zipSync({ "part.xml": bytes }));
+    expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("1");
+  });
+
+  it("honors an ASCII-compatible encoding declaration", async () => {
+    const prefix = strToU8('<?xml version="1.0" encoding="windows-1252"?><root ok="');
+    const suffix = strToU8('"/>');
+    const bytes = new Uint8Array(prefix.length + 1 + suffix.length);
+    bytes.set(prefix);
+    bytes[prefix.length] = 0xe9;
+    bytes.set(suffix, prefix.length + 1);
+    const opc = openOpc(zipSync({ "part.xml": bytes }));
+    expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("é");
+  });
+
   it("loads content types lazily so other part failures do not leak rejections", async () => {
     const opc = openOpc(
       zipSync({ "[Content_Types].xml": strToU8("<Types>"), "part.xml": strToU8("<root/>") }),
@@ -64,3 +87,23 @@ describe("OPC relationships", () => {
     expect(media["media/ok.png"]!.mime).toBe("application/octet-stream");
   });
 });
+
+const utf16Bytes = (text: string, endian: "le" | "be", bom: boolean): Uint8Array => {
+  const bytes = new Uint8Array(text.length * 2 + (bom ? 2 : 0));
+  let offset = 0;
+  if (bom) {
+    bytes[offset++] = endian === "le" ? 0xff : 0xfe;
+    bytes[offset++] = endian === "le" ? 0xfe : 0xff;
+  }
+  for (const char of text) {
+    const code = char.charCodeAt(0);
+    if (endian === "le") {
+      bytes[offset++] = code & 0xff;
+      bytes[offset++] = code >> 8;
+    } else {
+      bytes[offset++] = code >> 8;
+      bytes[offset++] = code & 0xff;
+    }
+  }
+  return bytes;
+};
