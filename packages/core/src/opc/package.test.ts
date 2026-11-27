@@ -64,6 +64,20 @@ describe("OPC relationships", () => {
     expect(root.textContent).toBe("😀");
   });
 
+  it.each([
+    ["csUTF16", "le"],
+    ["csUTF16LE", "le"],
+    ["csUTF16BE", "be"],
+  ] as const)("parses UTF-16 parts declaring the %s alias", async (encoding, endian) => {
+    const bytes = utf16Bytes(
+      `<?xml version="1.0" encoding="${encoding}"?><root ok="1"/>`,
+      endian,
+      true,
+    );
+    const opc = openOpc(zipSync({ "part.xml": bytes }));
+    expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("1");
+  });
+
   it("keeps UTF-8 parts readable when csUTF8 is declared", async () => {
     const opc = openOpc(
       zipSync({

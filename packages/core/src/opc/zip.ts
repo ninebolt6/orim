@@ -19,7 +19,7 @@ const decodeText = (bytes: Uint8Array): string => {
   const sniffed = xmlSniffedEncoding(bytes);
   const text = new TextDecoder(sniffed).decode(bytes);
   const declared = /^<\?xml\s[^?]*?\bencoding\s*=\s*["']([^"']+)["']/i.exec(text)?.[1];
-  if (!declared || (sniffed.startsWith("utf-16") && /^utf-?16(?:le|be)?$/i.test(declared)))
+  if (!declared || (sniffed.startsWith("utf-16") && /^(?:cs)?utf-?16(?:le|be)?$/i.test(declared)))
     return text;
   const label = declared.toLowerCase() === "csutf8" ? "utf-8" : declared;
   try {
