@@ -35,11 +35,16 @@ export const themeFonts = (doc: Document | undefined): ThemeFonts => {
   const minor = descendants(doc, "minorFont")[0];
   const typeface = (font: Element | undefined, name: string) =>
     (font && attr(first(font, name), "typeface")) || undefined;
+  const scriptTypeface = (font: Element | undefined, script: string) =>
+    attr(
+      elements(font, "font").find((item) => attr(item, "script") === script),
+      "typeface",
+    ) || undefined;
   return {
     major: typeface(major, "latin"),
     minor: typeface(minor, "latin"),
-    majorEastAsia: typeface(major, "ea"),
-    minorEastAsia: typeface(minor, "ea"),
+    majorEastAsia: typeface(major, "ea") ?? scriptTypeface(major, "Jpan"),
+    minorEastAsia: typeface(minor, "ea") ?? scriptTypeface(minor, "Jpan"),
   };
 };
 

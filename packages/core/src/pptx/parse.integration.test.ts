@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { unzipSync, zipSync } from "fflate";
-import { buildPptx, shape } from "../../test/pptx";
+import { buildPptx, defaultTheme, shape } from "../../test/pptx";
 import { buildXlsx } from "../../test/xlsx";
 import type { GroupElement, PictureElement, ShapeElement, TableElement } from "./model";
 import { parsePptx } from "./parse";
@@ -81,6 +81,33 @@ describe("PPTX package parsing", () => {
     expect(body!.text!.paragraphs.map((paragraph) => paragraph.bullet?.text)).toEqual(["•", "–"]);
     expect(body!.text!.paragraphs[1]).toMatchObject({ level: 1, marginLeft: 58.5, indent: -22.5 });
     expect(deck.slides[0]!.background).toEqual({ type: "solid", color: "#eeece1" });
+  });
+
+  it("resolves an empty East Asian theme typeface through its Jpan script font", async () => {
+    const scriptTheme = defaultTheme.replace(
+      '<a:minorFont><a:latin typeface="Minor Sans"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>',
+      '<a:minorFont><a:latin typeface="Minor Sans"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="MS 明朝"/><a:font script="Hans" typeface="宋体"/></a:minorFont>',
+    );
+    const deck = await parsePptx(
+      buildPptx({
+        theme: scriptTheme,
+        slides: [
+          {
+            shapes: shape({
+              id: 2,
+              xfrm: [0, 0, 400 * EMU, 100 * EMU],
+              body: '<a:p><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r></a:p>',
+            }),
+          },
+        ],
+      }),
+    );
+
+    expect(deck.slides[0]!.elements[0]).toMatchObject({
+      text: {
+        paragraphs: [{ runs: [{ text: "日本語", style: { eastAsianFont: "MS 明朝" } }] }],
+      },
+    });
   });
 
   it("honours hidden slides, showMasterSp and color map overrides", async () => {

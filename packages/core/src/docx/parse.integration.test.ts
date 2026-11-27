@@ -81,6 +81,24 @@ describe("DOCX package parsing", () => {
     expect(doc.comments[1]).toMatchObject({ parentId: "0" });
   });
 
+  it("resolves an empty East Asian theme typeface through its Jpan script font", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document:
+          '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>日本語</w:t></w:r></w:p><w:sectPr/></w:body></w:document>',
+        styles:
+          '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:eastAsiaTheme="minorEastAsia"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>',
+        theme:
+          '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:themeElements><a:fontScheme><a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="MS 明朝"/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="MS 明朝"/><a:font script="Hans" typeface="宋体"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>',
+      }),
+    );
+
+    expect(doc.sections[0].blocks[0]).toMatchObject({
+      type: "paragraph",
+      runs: [{ type: "text", text: "日本語", style: { fontFamily: "Calibri,MS 明朝" } }],
+    });
+  });
+
   it("keeps the document readable when a referenced media part is missing", async () => {
     const doc = await parseDocx(
       buildDocx({
