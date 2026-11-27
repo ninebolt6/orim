@@ -87,25 +87,23 @@ describe("OPC relationships", () => {
     expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("é");
   });
 
-  it("honors an ASCII-compatible encoding declaration", async () => {
-    const prefix = strToU8('<?xml version="1.0" encoding="windows-1252"?><root ok="');
-    const suffix = strToU8('"/>');
-    const bytes = new Uint8Array(prefix.length + 1 + suffix.length);
-    bytes.set(prefix);
-    bytes[prefix.length] = 0xe9;
-    bytes.set(suffix, prefix.length + 1);
-    const opc = openOpc(zipSync({ "part.xml": bytes }));
-    expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("é");
-  });
-
-  it("rejects unsupported encoding declarations instead of decoding as UTF-8", async () => {
+  it("rejects non-Unicode encoding declarations", async () => {
     const opc = openOpc(
       zipSync({
-        "part.xml": strToU8('<?xml version="1.0" encoding="x-unsupported"?><root/>'),
+        "part.xml": strToU8('<?xml version="1.0" encoding="windows-1252"?><root/>'),
       }),
     );
-    await expect(opc.xml("part.xml")).rejects.toThrow("Unsupported XML encoding: x-unsupported");
+    await expect(opc.xml("part.xml")).rejects.toThrow("Unsupported XML encoding: windows-1252");
   });
+
+  it.each(["csUTF-16", "csUTF-16LE", "csUTF-16BE"])(
+    "rejects the nonstandard UTF-16 alias %s",
+    async (encoding) => {
+      const bytes = utf16Bytes(`<?xml version="1.0" encoding="${encoding}"?><root/>`, "le", true);
+      const opc = openOpc(zipSync({ "part.xml": bytes }));
+      await expect(opc.xml("part.xml")).rejects.toThrow(`Unsupported XML encoding: ${encoding}`);
+    },
+  );
 
   it("loads content types lazily so other part failures do not leak rejections", async () => {
     const opc = openOpc(

@@ -19,15 +19,15 @@ const decodeText = (bytes: Uint8Array): string => {
   const sniffed = xmlSniffedEncoding(bytes);
   const text = new TextDecoder(sniffed).decode(bytes);
   const declared = /^<\?xml\s[^?]*?\bencoding\s*=\s*["']([^"']+)["']/i.exec(text)?.[1];
-  if (!declared || (sniffed.startsWith("utf-16") && /^(?:cs)?utf-?16(?:le|be)?$/i.test(declared)))
+  if (!declared) return text;
+  const normalized = declared.toLowerCase().replace(/^csutf/, "utf-");
+  if (
+    (normalized === "utf-8" && sniffed === "utf-8") ||
+    (normalized === "utf-16" && sniffed.startsWith("utf-16")) ||
+    normalized === sniffed
+  )
     return text;
-  const label = declared.toLowerCase() === "csutf8" ? "utf-8" : declared;
-  try {
-    const declaredDecoder = new TextDecoder(label);
-    return declaredDecoder.encoding === sniffed ? text : declaredDecoder.decode(bytes);
-  } catch {
-    throw new Error(`Unsupported XML encoding: ${declared}`);
-  }
+  throw new Error(`Unsupported XML encoding: ${declared}`);
 };
 
 const u16 = (view: DataView, offset: number): number => {
