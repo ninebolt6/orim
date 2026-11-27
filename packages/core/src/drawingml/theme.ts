@@ -1,11 +1,17 @@
 import { normalizeHex } from "../common/color";
 import { attr, children, descendants, elements, first } from "../common/xml";
 
+export type EastAsianScript = "Jpan" | "Hang" | "Hans" | "Hant";
+
 export interface ThemeFonts {
   readonly major?: string;
   readonly minor?: string;
   readonly majorEastAsia?: string;
   readonly minorEastAsia?: string;
+  readonly majorCs?: string;
+  readonly minorCs?: string;
+  readonly majorEastAsiaScripts?: Readonly<Partial<Record<EastAsianScript, string>>>;
+  readonly minorEastAsiaScripts?: Readonly<Partial<Record<EastAsianScript, string>>>;
 }
 
 export type ColorScheme = Readonly<Record<string, string>>;
@@ -35,12 +41,65 @@ export const themeFonts = (doc: Document | undefined): ThemeFonts => {
   const minor = descendants(doc, "minorFont")[0];
   const typeface = (font: Element | undefined, name: string) =>
     (font && attr(first(font, name), "typeface")) || undefined;
+  const scriptTypefaces = (font: Element | undefined) => {
+    const scripts = Object.fromEntries(
+      elements(font, "font").flatMap((item): [EastAsianScript, string][] => {
+        const script = attr(item, "script");
+        const value = attr(item, "typeface");
+        return value &&
+          (script === "Jpan" || script === "Hang" || script === "Hans" || script === "Hant")
+          ? [[script, value]]
+          : [];
+      }),
+    ) as Partial<Record<EastAsianScript, string>>;
+    return Object.keys(scripts).length ? scripts : undefined;
+  };
   return {
     major: typeface(major, "latin"),
     minor: typeface(minor, "latin"),
     majorEastAsia: typeface(major, "ea"),
     minorEastAsia: typeface(minor, "ea"),
+    majorCs: typeface(major, "cs"),
+    minorCs: typeface(minor, "cs"),
+    majorEastAsiaScripts: scriptTypefaces(major),
+    minorEastAsiaScripts: scriptTypefaces(minor),
   };
+};
+
+const kana = /\p{Script=Hiragana}|\p{Script=Katakana}/u;
+const hangul = /\p{Script=Hangul}/u;
+
+/** Infers the East Asian script a run uses, preferring unambiguous text over language metadata. */
+export const eastAsianScript = (
+  language: string | undefined,
+  text: string,
+): EastAsianScript | undefined => {
+  if (kana.test(text)) return "Jpan";
+  if (hangul.test(text)) return "Hang";
+  if (!language) return undefined;
+  try {
+    const script = new Intl.Locale(language).maximize().script;
+    if (script === "Jpan") return "Jpan";
+    if (script === "Kore") return "Hang";
+    if (script === "Hans" || script === "Hant") return script;
+  } catch {
+    // Invalid language tags simply provide no script hint.
+  }
+  return undefined;
+};
+
+/** Resolves an empty `ea` theme slot through the script supplement matching the run. */
+export const themeEastAsiaFont = (
+  fonts: ThemeFonts,
+  major: boolean,
+  language: string | undefined,
+  text: string,
+): string | undefined => {
+  const explicit = major ? fonts.majorEastAsia : fonts.minorEastAsia;
+  if (explicit) return explicit;
+  const script = eastAsianScript(language, text);
+  const scripts = major ? fonts.majorEastAsiaScripts : fonts.minorEastAsiaScripts;
+  return script ? scripts?.[script] : undefined;
 };
 
 export interface ThemeFormats {

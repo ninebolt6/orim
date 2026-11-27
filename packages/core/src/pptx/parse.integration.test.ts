@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { unzipSync, zipSync } from "fflate";
-import { buildPptx, shape } from "../../test/pptx";
+import { buildPptx, defaultTheme, shape } from "../../test/pptx";
 import { buildXlsx } from "../../test/xlsx";
 import type { GroupElement, PictureElement, ShapeElement, TableElement } from "./model";
 import { parsePptx } from "./parse";
@@ -81,6 +81,90 @@ describe("PPTX package parsing", () => {
     expect(body!.text!.paragraphs.map((paragraph) => paragraph.bullet?.text)).toEqual(["•", "–"]);
     expect(body!.text!.paragraphs[1]).toMatchObject({ level: 1, marginLeft: 58.5, indent: -22.5 });
     expect(deck.slides[0]!.background).toEqual({ type: "solid", color: "#eeece1" });
+  });
+
+  it("falls back to an inherited bullet font when an East Asian theme reference cannot resolve", async () => {
+    const deck = await parsePptx(
+      buildPptx({
+        defaultTextStyle:
+          '<p:defaultTextStyle><a:lvl1pPr><a:buFont typeface="Wingdings"/><a:buChar char="ü"/></a:lvl1pPr></p:defaultTextStyle>',
+        slides: [
+          {
+            shapes: shape({
+              id: 2,
+              xfrm: [0, 0, 400 * EMU, 100 * EMU],
+              body: '<a:p><a:pPr><a:buFont typeface="+mn-ea"/></a:pPr><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r></a:p>',
+            }),
+          },
+        ],
+      }),
+    );
+
+    expect(deck.slides[0]!.elements[0]).toMatchObject({
+      text: {
+        paragraphs: [{ bullet: { text: "✓" } }],
+      },
+    });
+  });
+
+  it("does not fall through a bullet font that follows the text", async () => {
+    const deck = await parsePptx(
+      buildPptx({
+        defaultTextStyle:
+          '<p:defaultTextStyle><a:defPPr><a:buFont typeface="Wingdings"/><a:buChar char="ü"/></a:defPPr><a:lvl1pPr><a:buFontTx/></a:lvl1pPr></p:defaultTextStyle>',
+        slides: [
+          {
+            shapes: shape({
+              id: 2,
+              xfrm: [0, 0, 400 * EMU, 100 * EMU],
+              body: '<a:p><a:pPr><a:buFont typeface="+mn-ea"/></a:pPr><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r></a:p>',
+            }),
+          },
+        ],
+      }),
+    );
+
+    expect(deck.slides[0]!.elements[0]).toMatchObject({
+      text: {
+        paragraphs: [{ bullet: { text: "ü" } }],
+      },
+    });
+  });
+
+  it("resolves an empty East Asian theme typeface through matching script fonts", async () => {
+    const scriptTheme = defaultTheme.replace(
+      '<a:minorFont><a:latin typeface="Minor Sans"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>',
+      '<a:minorFont><a:latin typeface="Minor Sans"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="MS 明朝"/><a:font script="Hang" typeface="Malgun Gothic"/><a:font script="Hans" typeface="宋体"/></a:minorFont>',
+    );
+    const deck = await parsePptx(
+      buildPptx({
+        theme: scriptTheme,
+        slides: [
+          {
+            shapes: shape({
+              id: 2,
+              xfrm: [0, 0, 400 * EMU, 100 * EMU],
+              body: '<a:p><a:pPr><a:buFont typeface="+mn-ea"/><a:buChar char="・"/></a:pPr><a:r><a:rPr lang="ja-JP"><a:ea typeface="+mn-ea"/></a:rPr><a:t>日本語</a:t></a:r><a:r><a:rPr lang="zh-CN"><a:ea typeface="+mn-ea"/></a:rPr><a:t>汉字文本</a:t></a:r><a:r><a:rPr><a:ea typeface="+mn-ea"/></a:rPr><a:t>한국어</a:t></a:r></a:p>',
+            }),
+          },
+        ],
+      }),
+    );
+
+    expect(deck.slides[0]!.elements[0]).toMatchObject({
+      text: {
+        paragraphs: [
+          {
+            bullet: { font: "MS 明朝" },
+            runs: [
+              { text: "日本語", style: { eastAsianFont: "MS 明朝" } },
+              { text: "汉字文本", style: { eastAsianFont: "宋体" } },
+              { text: "한국어", style: { eastAsianFont: "Malgun Gothic" } },
+            ],
+          },
+        ],
+      },
+    });
   });
 
   it("honours hidden slides, showMasterSp and color map overrides", async () => {

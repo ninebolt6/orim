@@ -81,6 +81,34 @@ describe("DOCX package parsing", () => {
     expect(doc.comments[1]).toMatchObject({ parentId: "0" });
   });
 
+  it("resolves an empty East Asian theme typeface through matching script fonts", async () => {
+    const doc = await parseDocx(
+      buildDocx({
+        document:
+          '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>日本語のテキスト</w:t></w:r></w:p><w:p><w:r><w:rPr><w:lang w:eastAsia="zh-CN"/></w:rPr><w:t>汉字文本</w:t></w:r></w:p><w:p><w:r><w:t>한국어 텍스트</w:t></w:r></w:p><w:sectPr/></w:body></w:document>',
+        styles:
+          '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:eastAsiaTheme="minorEastAsia"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>',
+        theme:
+          '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:themeElements><a:fontScheme><a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="MS 明朝"/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="MS 明朝"/><a:font script="Hang" typeface="Malgun Gothic"/><a:font script="Hans" typeface="宋体"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>',
+      }),
+    );
+
+    expect(doc.sections[0].blocks[0]).toMatchObject({
+      type: "paragraph",
+      runs: [{ type: "text", text: "日本語のテキスト", style: { fontFamily: "Calibri,MS 明朝" } }],
+    });
+    expect(doc.sections[0].blocks[1]).toMatchObject({
+      type: "paragraph",
+      runs: [{ type: "text", text: "汉字文本", style: { fontFamily: "Calibri,宋体" } }],
+    });
+    expect(doc.sections[0].blocks[2]).toMatchObject({
+      type: "paragraph",
+      runs: [
+        { type: "text", text: "한국어 텍스트", style: { fontFamily: "Calibri,Malgun Gothic" } },
+      ],
+    });
+  });
+
   it("keeps the document readable when a referenced media part is missing", async () => {
     const doc = await parseDocx(
       buildDocx({

@@ -44,6 +44,18 @@ describe("DOCX styles", () => {
     ).toBe("Noto Sans JP");
   });
 
+  it("resolves non-East-Asian theme references used in the East Asian slot", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="character" w:styleId="EastAsia"><w:rPr><w:rFonts w:eastAsiaTheme="minorHAnsi"/></w:rPr></w:style></w:styles>`,
+      "application/xml",
+    );
+
+    expect(
+      parseStyles(doc, { minor: "Aptos", minorEastAsia: "Noto Sans JP" }).run(undefined, "EastAsia")
+        .fontFamily,
+    ).toBe("Aptos");
+  });
+
   it("cascades Latin and East Asian fonts independently", () => {
     const doc = new DOMParser().parseFromString(
       `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">

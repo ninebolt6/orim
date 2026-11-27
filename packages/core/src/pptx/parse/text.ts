@@ -2,6 +2,7 @@ import { safeHref } from "../../common/sanitize";
 import { alphabetic, roman } from "../../common/numbering";
 import { attr, children, elements, first, R, xmlBoolean } from "../../common/xml";
 import { parseColor } from "../../drawingml/color";
+import { themeEastAsiaFont } from "../../drawingml/theme";
 import { emu, fraction } from "../../drawingml/units";
 import type {
   Bullet,
@@ -28,8 +29,8 @@ export interface ParagraphProps {
   readonly bulletChar?: string;
   readonly bulletScheme?: string;
   readonly bulletStart?: number;
-  /** Bullet typeface; an empty string follows the text. */
-  readonly bulletFont?: string;
+  /** Bullet typefaces in inheritance order; an empty string follows the text. */
+  readonly bulletFonts?: readonly string[];
   /** Bullet color; an empty string follows the text. */
   readonly bulletColor?: string;
   readonly bulletSize?: BulletSize;
@@ -58,7 +59,11 @@ const hundredths = (value: string | undefined): number | undefined => {
   return value !== undefined && Number.isFinite(parsed) ? parsed / 100 : undefined;
 };
 
-const typeface = (element: Element | undefined, context: SlideContext): string | undefined => {
+const typeface = (
+  element: Element | undefined,
+  context: SlideContext,
+  preserveEastAsianTheme = false,
+): string | undefined => {
   const value = attr(element, "typeface");
   switch (value) {
     case undefined:
@@ -69,9 +74,9 @@ const typeface = (element: Element | undefined, context: SlideContext): string |
     case "+mn-lt":
       return context.fonts.minor;
     case "+mj-ea":
-      return context.fonts.majorEastAsia;
+      return preserveEastAsianTheme ? value : context.fonts.majorEastAsia;
     case "+mn-ea":
-      return context.fonts.minorEastAsia;
+      return preserveEastAsianTheme ? value : context.fonts.minorEastAsia;
   }
   return value.startsWith("+") ? undefined : value;
 };
@@ -100,7 +105,8 @@ export const parseRunProps = (
     color: textColor(properties, context),
     highlight: parseColor(first(properties, "highlight"), context.scheme),
     font: typeface(first(properties, "latin"), context),
-    eastAsianFont: typeface(first(properties, "ea"), context),
+    eastAsianFont: typeface(first(properties, "ea"), context, true),
+    language: attr(properties, "lang"),
     baseline: fraction(attr(properties, "baseline")),
     caps: caps === "all" || caps === "small" ? caps : undefined,
     spacing: hundredths(attr(properties, "spc")),
@@ -132,6 +138,7 @@ export const parseParagraphProps = (
   const sizePercent = fraction(attr(first(properties, "buSzPct"), "val"));
   const sizePoints = hundredths(attr(first(properties, "buSzPts"), "val"));
   const start = Number(attr(autoNumber, "startAt"));
+  const bulletFont = typeface(first(properties, "buFont"), context, true);
   return defined({
     align: alignments[attr(properties, "algn") ?? ""],
     marginLeft: emu(attr(properties, "marL")),
@@ -149,7 +156,7 @@ export const parseParagraphProps = (
     bulletChar: has("buBlip") ? "•" : attr(first(properties, "buChar"), "char"),
     bulletScheme: attr(autoNumber, "type"),
     bulletStart: autoNumber ? (Number.isInteger(start) && start > 0 ? start : 1) : undefined,
-    bulletFont: has("buFontTx") ? "" : typeface(first(properties, "buFont"), context),
+    bulletFonts: has("buFontTx") ? [""] : bulletFont !== undefined ? [bulletFont] : undefined,
     bulletColor: has("buClrTx") ? "" : parseColor(first(properties, "buClr"), context.scheme),
     bulletSize: has("buSzTx")
       ? { scale: 1 }
@@ -167,6 +174,9 @@ const mergeParagraph = (
   override: ParagraphProps | undefined,
 ): ParagraphProps => ({
   ...layer<ParagraphProps>(base, override),
+  bulletFonts: override?.bulletFonts
+    ? [...override.bulletFonts, ...(base?.bulletFonts ?? [])]
+    : base?.bulletFonts,
   run: layer<RunStyle>(base?.run, override?.run),
 });
 
@@ -261,11 +271,21 @@ const bulletFor = (
   props: ParagraphProps,
   number: number,
   firstStyle: RunStyle,
+  context: SlideContext,
 ): Bullet | undefined => {
   if (props.bullet !== "char" && props.bullet !== "auto") return undefined;
-  const font = props.bulletFont || undefined;
   const raw = props.bullet === "auto" ? numberText(props.bulletScheme, number) : props.bulletChar;
   if (!raw) return undefined;
+  const resolveBulletFont = (candidates: readonly string[]): string | undefined => {
+    const [candidate, ...rest] = candidates;
+    if (candidate === undefined || candidate === "") return undefined;
+    if (candidate !== "+mj-ea" && candidate !== "+mn-ea") return candidate;
+    return (
+      themeEastAsiaFont(context.fonts, candidate === "+mj-ea", firstStyle.language, raw) ??
+      resolveBulletFont(rest)
+    );
+  };
+  const font = resolveBulletFont(props.bulletFonts ?? []);
   const symbol = props.bullet === "char" && isSymbolFont(font) ? symbolBullets[raw] : undefined;
   return defined({
     text: symbol ?? raw,
@@ -290,11 +310,21 @@ export const linkTarget = (
   return slide === undefined ? undefined : `#slide-${slide}`;
 };
 
+const resolveEastAsianFont = (style: RunStyle, text: string, context: SlideContext): RunStyle => {
+  const value = style.eastAsianFont;
+  if (value !== "+mj-ea" && value !== "+mn-ea") return style;
+  const resolved = themeEastAsiaFont(context.fonts, value === "+mj-ea", style.language, text);
+  if (resolved) return { ...style, eastAsianFont: resolved };
+  const { eastAsianFont: _unused, ...rest } = style;
+  return rest;
+};
+
 const runs = (paragraph: Element, base: RunStyle, context: ShapeContext): (TextRun | LineBreak)[] =>
   children(paragraph).flatMap((child): (TextRun | LineBreak)[] => {
     const properties = first(child, "rPr");
-    const style = { ...base, ...parseRunProps(properties, context) };
-    if (child.localName === "br") return [{ type: "break", style }];
+    const baseStyle = { ...base, ...parseRunProps(properties, context) };
+    if (child.localName === "br")
+      return [{ type: "break", style: resolveEastAsianFont(baseStyle, "", context) }];
     if (child.localName !== "r" && child.localName !== "fld") return [];
     const text =
       child.localName === "fld" && attr(child, "type") === "slidenum"
@@ -303,6 +333,7 @@ const runs = (paragraph: Element, base: RunStyle, context: ShapeContext): (TextR
             .map((item) => item.textContent ?? "")
             .join("");
     if (!text) return [];
+    const style = resolveEastAsianFont(baseStyle, text, context);
     const href = linkTarget(properties, context);
     return [
       href
@@ -352,9 +383,13 @@ export const parseTextBody = (
       lineSpacing: props.lineSpacing,
       spaceBefore: props.spaceBefore,
       spaceAfter: props.spaceAfter,
-      bullet: firstRun ? bulletFor(props, number ?? 1, firstRun.style) : undefined,
+      bullet: firstRun ? bulletFor(props, number ?? 1, firstRun.style, context) : undefined,
       runs: content,
-      endStyle: { ...base, ...parseRunProps(first(paragraph, "endParaRPr"), context) },
+      endStyle: resolveEastAsianFont(
+        { ...base, ...parseRunProps(first(paragraph, "endParaRPr"), context) },
+        "",
+        context,
+      ),
     }) as TextParagraph;
   });
   const vertical = bodyProps.vertical === "horizontal" ? undefined : bodyProps.vertical;

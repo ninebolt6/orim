@@ -128,6 +128,7 @@ const collectNode = (
       context.config.paragraphStyle,
       attr(first(rPr, "rStyle"), "val"),
       parseRunProperties(rPr, context.config.theme),
+      node.textContent ?? "",
     );
     const rChange = first(rPr, "rPrChange");
     const runFormatting = rChange ? revisionInfoFrom(rChange) : undefined;
