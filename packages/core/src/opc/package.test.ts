@@ -78,14 +78,17 @@ describe("OPC relationships", () => {
     expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("1");
   });
 
-  it("keeps UTF-8 parts readable when csUTF8 is declared", async () => {
-    const opc = openOpc(
-      zipSync({
-        "part.xml": strToU8('<?xml version="1.0" encoding="csUTF8"?><root ok="é"/>'),
-      }),
-    );
-    expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("é");
-  });
+  it.each(["utf8", "unicode-1-1-utf-8", "csUTF8"])(
+    "keeps UTF-8 parts readable when %s is declared",
+    async (encoding) => {
+      const opc = openOpc(
+        zipSync({
+          "part.xml": strToU8(`<?xml version="1.0" encoding="${encoding}"?><root ok="é"/>`),
+        }),
+      );
+      expect((await opc.xml("part.xml")).documentElement.getAttribute("ok")).toBe("é");
+    },
+  );
 
   it("rejects non-Unicode encoding declarations", async () => {
     const opc = openOpc(

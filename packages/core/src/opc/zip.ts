@@ -20,11 +20,16 @@ const decodeText = (bytes: Uint8Array): string => {
   const text = new TextDecoder(sniffed).decode(bytes);
   const declared = /^<\?xml\s[^?]*?\bencoding\s*=\s*["']([^"']+)["']/i.exec(text)?.[1];
   if (!declared) return text;
-  const normalized = declared.toLowerCase().replace(/^csutf/, "utf-");
+  const label = declared.toLowerCase().replace(/^csutf/, "utf-");
+  let encoding: string;
+  try {
+    encoding = new TextDecoder(label).encoding;
+  } catch {
+    throw new Error(`Unsupported XML encoding: ${declared}`);
+  }
   if (
-    (normalized === "utf-8" && sniffed === "utf-8") ||
-    (normalized === "utf-16" && sniffed.startsWith("utf-16")) ||
-    normalized === sniffed
+    (encoding === "utf-8" && sniffed === "utf-8") ||
+    (encoding.startsWith("utf-16") && sniffed.startsWith("utf-16"))
   )
     return text;
   throw new Error(`Unsupported XML encoding: ${declared}`);
