@@ -135,8 +135,18 @@ describe("Excel number formats", () => {
       { length: 20 },
       (_, index) => `${"0".repeat(2000)}.${"0".repeat(1950)}E+00${";".repeat(index)}`,
     );
-    const start = performance.now();
-    for (const format of formats) formatCellValue(number(12345), format, false);
-    expect(performance.now() - start).toBeLessThan(100);
+    const originalSlice = String.prototype.slice;
+    let copiedCharacters = 0;
+    String.prototype.slice = function (this: string, start?: number, end?: number): string {
+      const sliced = originalSlice.call(this, start, end);
+      copiedCharacters += sliced.length;
+      return sliced;
+    };
+    try {
+      for (const format of formats) formatCellValue(number(12345), format, false);
+    } finally {
+      String.prototype.slice = originalSlice;
+    }
+    expect(copiedCharacters).toBeLessThan(1_000_000);
   });
 });
