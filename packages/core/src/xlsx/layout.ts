@@ -84,8 +84,6 @@ const projectVisibleRange = (
     : undefined;
 };
 
-const lowestBitIndex = (bit: bigint): number => bit.toString(2).length - 1;
-
 const hasStyledExtent = (style: CellStyle | undefined): boolean =>
   Boolean(style?.fill || (style && Object.keys(style.border).length));
 
@@ -189,11 +187,11 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
   const merges: LayoutMerge[] = [];
   const mergeAt = new Map<string, LayoutMerge>();
   const covered = new Set<string>();
-  const coveredPositions: [row: number, column: number][] = [];
-  const rowTreeSize = 1 << Math.ceil(Math.log2(Math.max(1, rows.length)));
+  let rowTreeSize = 1;
+  while (rowTreeSize < rows.length) rowTreeSize *= 2;
   const columnMask = (from: number, to: number): bigint =>
     ((1n << BigInt(to - from)) - 1n) << BigInt(from);
-  const occupiedTree = Array.from({ length: rowTreeSize * 2 }, () => 0n);
+  const occupiedTree = Array(rowTreeSize * 2).fill(0n);
   const hasOccupied = (projection: VisibleRangeProjection, mask: bigint): boolean => {
     let left = projection.rowFrom + rowTreeSize;
     let right = projection.rowTo + rowTreeSize;
@@ -215,7 +213,7 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
     const bit = 1n << BigInt(columnPosition);
     let node = rowPosition + rowTreeSize;
     while (node > 0) {
-      occupiedTree[node] = (occupiedTree[node] ?? 0n) | bit;
+      occupiedTree[node] = occupiedTree[node] | bit;
       node >>= 1;
     }
   };
@@ -246,52 +244,46 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
         occupy(rowPosition, columnPosition);
         if (rowPosition !== projection.rowFrom || columnPosition !== projection.columnFrom) {
           covered.add(key(rowIndex, columns[columnPosition]!.index));
-          coveredPositions.push([rowPosition, columnPosition]);
         }
       }
     }
   }
   const hyperlinks = new Map<string, string>();
   const allColumns = columnMask(0, columns.length);
-  const unassignedTree = Array.from({ length: rowTreeSize * 2 }, () => 0n);
+  const unassignedTree = Array(rowTreeSize * 2).fill(0n);
   for (let rowPosition = 0; rowPosition < rows.length; rowPosition++)
     unassignedTree[rowPosition + rowTreeSize] = allColumns;
-  for (const [rowPosition, columnPosition] of coveredPositions)
-    unassignedTree[rowPosition + rowTreeSize] =
-      (unassignedTree[rowPosition + rowTreeSize] ?? 0n) & ~(1n << BigInt(columnPosition));
   for (let node = rowTreeSize - 1; node > 0; node--)
-    unassignedTree[node] = (unassignedTree[node * 2] ?? 0n) | (unassignedTree[node * 2 + 1] ?? 0n);
+    unassignedTree[node] = unassignedTree[node * 2] | unassignedTree[node * 2 + 1];
   const assignHyperlinks = (projection: VisibleRangeProjection, href: string): void => {
     const mask = columnMask(projection.columnFrom, projection.columnTo);
     const visit = (node: number, start: number, end: number): void => {
       if (
         start >= projection.rowTo ||
         end <= projection.rowFrom ||
-        ((unassignedTree[node] ?? 0n) & mask) === 0n
+        (unassignedTree[node] & mask) === 0n
       )
         return;
       if (start + 1 === end) {
-        let bits = (unassignedTree[node] ?? 0n) & mask;
+        let bits = unassignedTree[node] & mask;
         while (bits !== 0n) {
           const lowest = bits & -bits;
-          const columnPosition = lowestBitIndex(lowest);
-          hyperlinks.set(key(rows[start]!.index, columns[columnPosition]!.index), href);
+          const columnPosition = lowest.toString(2).length - 1;
+          const cellKey = key(rows[start]!.index, columns[columnPosition]!.index);
+          if (!covered.has(cellKey)) hyperlinks.set(cellKey, href);
           bits ^= lowest;
         }
-        unassignedTree[node] = (unassignedTree[node] ?? 0n) & ~mask;
+        unassignedTree[node] = unassignedTree[node] & ~mask;
         return;
       }
       const middle = (start + end) >> 1;
       visit(node * 2, start, middle);
       visit(node * 2 + 1, middle, end);
-      unassignedTree[node] =
-        (unassignedTree[node * 2] ?? 0n) | (unassignedTree[node * 2 + 1] ?? 0n);
+      unassignedTree[node] = unassignedTree[node * 2] | unassignedTree[node * 2 + 1];
     };
     visit(1, 0, rowTreeSize);
   };
-  const linkableCells = rows.length * columns.length - covered.size;
   for (const link of worksheet.hyperlinks) {
-    if (hyperlinks.size >= linkableCells) break;
     const href = safeHref(link.href);
     if (!href) continue;
     const projection = projectVisibleRange(rows, columns, link.range);
