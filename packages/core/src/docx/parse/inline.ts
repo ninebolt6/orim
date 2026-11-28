@@ -3,7 +3,14 @@ import type { ChangeKind, ChangeMark, Inline, RevisionInfo, TextStyle } from "..
 import { blipPart } from "../../drawingml/blip";
 import { emu } from "../../drawingml/units";
 import type { ParseContext } from "./context";
-import { fieldHref, fieldName, isPageField, type FieldState } from "./fields";
+import {
+  fieldHref,
+  fieldName,
+  fieldStateHref,
+  fieldStateName,
+  isPageField,
+  type FieldState,
+} from "./fields";
 import { parseRunProperties } from "../styles";
 
 export const revisionInfoFrom = (element: Element): RevisionInfo => {
@@ -88,7 +95,7 @@ const collectNode = (
     else if (type === "end") {
       const field = context.state.fields.end();
       if (field && liveField(field))
-        emit({ type: "field", name: fieldName(field.instruction), style: field.style });
+        emit({ type: "field", name: fieldStateName(field), style: field.style });
     }
   };
   const name = node.localName;
@@ -209,9 +216,9 @@ export const collectInline = (
     )
       return;
     const hyperlink = context.state.fields.findLast(
-      (field) => field.stage === "result" && fieldName(field.instruction) === "HYPERLINK",
+      (field) => field.stage === "result" && fieldStateName(field) === "HYPERLINK",
     );
-    const href = hyperlink && fieldHref(hyperlink.instruction);
+    const href = hyperlink && fieldStateHref(hyperlink);
     out.push(href && inline.type === "text" ? { ...inline, href } : inline);
   };
   for (const node of children(parent)) collectNode(node, context, inheritedChange, emit);

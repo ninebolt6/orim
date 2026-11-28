@@ -26,6 +26,22 @@ export interface Numbering {
   marker(numId: string, level: number, counters?: readonly number[]): NumberMarker;
 }
 
+const integerValue = (value: unknown): number => {
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && /^[+-]?\d+$/.test(value.trim())) return Number(value);
+  return NaN;
+};
+
+export const safeListLevel = (value: unknown): number => {
+  const level = integerValue(value);
+  return Number.isInteger(level) ? Math.min(8, Math.max(0, level)) : 0;
+};
+
+export const safeListStart = (value: unknown): number => {
+  const start = integerValue(value);
+  return Number.isSafeInteger(start) ? start : 1;
+};
+
 const readLevel = (node: Element): NumberLevel => {
   const pPr = first(node, "pPr");
   const ind = first(pPr, "ind");
@@ -36,7 +52,7 @@ const readLevel = (node: Element): NumberLevel => {
   return {
     format: attr(first(node, "numFmt"), "val") ?? "decimal",
     text: attr(first(node, "lvlText"), "val") ?? "%1.",
-    start: Number(attr(first(node, "start"), "val") ?? 1),
+    start: safeListStart(attr(first(node, "start"), "val") ?? 1),
     left: left === undefined ? undefined : Number(left) / 20,
     hanging: hanging === undefined ? undefined : Number(hanging) / 20,
     font: attr(rFonts, "ascii") ?? attr(rFonts, "hAnsi"),
@@ -77,7 +93,7 @@ export const parseNumbering = (doc: Document | undefined): Numbering => {
       if (!id) continue;
       const levels = new Map<number, NumberLevel>();
       for (const level of elements(node, "lvl"))
-        levels.set(Number(attr(level, "ilvl") ?? 0), readLevel(level));
+        levels.set(safeListLevel(attr(level, "ilvl") ?? 0), readLevel(level));
       abstract.set(id, levels);
     }
     for (const node of descendants(doc, "num")) {
@@ -87,24 +103,28 @@ export const parseNumbering = (doc: Document | undefined): Numbering => {
         nums.set(id, abstractId);
         const levels = new Map<number, NumberLevel>();
         for (const override of elements(node, "lvlOverride")) {
-          const index = Number(attr(override, "ilvl") ?? 0);
+          const index = safeListLevel(attr(override, "ilvl") ?? 0);
           const level = first(override, "lvl");
           const start = first(override, "startOverride");
           const value = level ? readLevel(level) : abstract.get(abstractId)?.get(index);
           if (value)
-            levels.set(index, { ...value, start: Number(attr(start, "val") ?? value.start) });
+            levels.set(index, {
+              ...value,
+              start: safeListStart(attr(start, "val") ?? value.start),
+            });
         }
         overrides.set(id, levels);
       }
     }
   }
   const level = (numId: string, levelIndex: number): NumberLevel => {
+    const index = safeListLevel(levelIndex);
     const abstractId = nums.get(numId);
     return (
-      overrides.get(numId)?.get(levelIndex) ??
-      abstract.get(abstractId ?? "")?.get(levelIndex) ?? {
+      overrides.get(numId)?.get(index) ??
+      abstract.get(abstractId ?? "")?.get(index) ?? {
         format: "decimal",
-        text: `%${levelIndex + 1}.`,
+        text: `%${index + 1}.`,
         start: 1,
       }
     );
@@ -112,11 +132,12 @@ export const parseNumbering = (doc: Document | undefined): Numbering => {
   return {
     level,
     marker(numId, levelIndex, counters = []) {
-      const currentLevel = level(numId, levelIndex);
+      const index = safeListLevel(levelIndex);
+      const currentLevel = level(numId, index);
       const values = [...counters];
-      if (values[levelIndex] === undefined) values[levelIndex] = currentLevel.start - 1;
-      values[levelIndex]++;
-      values.length = levelIndex + 1;
+      if (values[index] === undefined) values[index] = currentLevel.start - 1;
+      values[index]++;
+      values.length = index + 1;
       const label = currentLevel.text.replace(/%([1-9])/g, (_match, index: string) => {
         const which = Number(index) - 1;
         const referencedLevel = level(numId, which);

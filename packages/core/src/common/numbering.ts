@@ -1,4 +1,5 @@
 export const alphabetic = (number: number, upper: boolean): string => {
+  if (!Number.isSafeInteger(number)) return String(number);
   let result = "";
   for (let n = Math.max(1, number); n > 0; n = Math.floor((n - 1) / 26)) {
     result = String.fromCharCode((upper ? 65 : 97) + ((n - 1) % 26)) + result;

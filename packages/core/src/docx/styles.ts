@@ -2,6 +2,7 @@ import { attr, boolValue, descendants, first, value as xmlValue } from "./xml";
 import { border } from "./borders";
 import { halfPoints, points, twips } from "./units";
 import { themeEastAsiaFont, type ThemeFonts } from "../drawingml/theme";
+import { safeListLevel } from "./numbering";
 import type { ParagraphProperties, TextStyle } from "./model";
 
 type BorderSides = Partial<
@@ -250,51 +251,94 @@ export const parseStyles = (doc: Document | undefined, theme: Theme = {}): Style
           const level = attr(first(numPr, "ilvl"), "val");
           return {
             numId: id,
-            level: level === undefined ? undefined : Number(level),
+            level: level === undefined ? undefined : safeListLevel(level),
           };
         })(),
       });
     }
   }
 
-  const chainCache = new Map<string, readonly Style[]>();
-  const chain = (id?: string): readonly Style[] => {
-    const key = id ?? "";
-    const cached = chainCache.get(key);
-    if (cached) return cached;
-    const reversed: Style[] = [];
-    const visited = new Set<string>();
-    let current = id;
-    while (current && !visited.has(current)) {
-      visited.add(current);
-      const style = styles.get(current);
-      if (!style) break;
-      reversed.push(style);
-      current = style.basedOn;
-    }
-    const result = reversed.reverse();
-    chainCache.set(key, result);
-    return result;
+  const chainValues = <S, T extends object>(
+    lookup: (id: string) => S | undefined,
+    basedOn: (style: S) => string | undefined,
+    properties: (style: S) => Partial<T>,
+    nestedKeys: readonly (keyof T)[],
+  ): ((id?: string) => Partial<T>) => {
+    const cache = new Map<string, Partial<T>>();
+    return (id?: string) => {
+      const key = id ?? "";
+      const cached = cache.get(key);
+      if (cached) return cached;
+      const path: string[] = [];
+      const seen = new Set<string>();
+      let current = id;
+      let merged: Partial<T> = {};
+      while (current) {
+        const cachedValue = cache.get(current);
+        if (cachedValue) {
+          merged = cachedValue;
+          break;
+        }
+        if (seen.has(current)) break;
+        seen.add(current);
+        const style = lookup(current);
+        if (!style) break;
+        path.push(current);
+        current = basedOn(style);
+      }
+      for (let index = path.length - 1; index >= 0; index--) {
+        const styleId = path[index];
+        const style = lookup(styleId);
+        if (style) merged = mergeLayers<T>([merged, properties(style)], nestedKeys);
+        cache.set(styleId, merged);
+      }
+      cache.set(key, merged);
+      return merged;
+    };
   };
 
+  const styleChain = <T extends object>(
+    properties: (style: Style) => Partial<T>,
+    nestedKeys: readonly (keyof T)[],
+  ) =>
+    chainValues<Style, T>(
+      (id) => styles.get(id),
+      (style) => style.basedOn,
+      properties,
+      nestedKeys,
+    );
+  const paragraphChain = styleChain<ParagraphProperties>(
+    (style) => style.paragraph,
+    ["borders", "borderSpacing"],
+  );
+  const runChain = styleChain<RawRunProperties>((style) => style.run, []);
+  const numberingChain = styleChain<{ numId?: string; level?: number }>(
+    (style) => style.numbering,
+    [],
+  );
+  const tableChainValues = chainValues<
+    { basedOn?: string; properties: TableStyleProperties },
+    TableStyleProperties
+  >(
+    (id) => tableStyles.get(id),
+    (style) => style.basedOn,
+    (style) => style.properties,
+    ["borders", "margins"],
+  );
+
+  const tableCache = new Map<string, TableStyleProperties>();
   const tableChain = (id?: string): TableStyleProperties => {
-    const resolved: TableStyleProperties = { borders: {}, margins: {} };
-    const visited = new Set<string>();
-    let current = id ?? defaultTableStyle;
-    while (current && !visited.has(current)) {
-      visited.add(current);
-      const style = tableStyles.get(current);
-      if (!style) break;
-      for (const [side, value] of Object.entries(style.properties.borders))
-        if (resolved.borders[side as keyof BorderSides] === undefined)
-          Reflect.set(resolved.borders, side, value);
-      for (const [side, value] of Object.entries(style.properties.margins))
-        if (resolved.margins[side as keyof CellMargins] === undefined)
-          Reflect.set(resolved.margins, side, value);
-      resolved.cellShading ??= style.properties.cellShading;
-      current = style.basedOn;
-    }
-    return resolved;
+    const key = id ?? "";
+    const cached = tableCache.get(key);
+    if (cached) return cached;
+    const inherited = tableChainValues(id ?? defaultTableStyle);
+    const result: TableStyleProperties = {
+      borders: inherited.borders ?? {},
+      margins: inherited.margins ?? {},
+      ...(inherited.cellShading ? { cellShading: inherited.cellShading } : {}),
+    };
+    tableCache.set(key, result);
+    return result;
   };
 
   const paragraphCache = new Map<string, Partial<ParagraphProperties>>();
@@ -304,7 +348,7 @@ export const parseStyles = (doc: Document | undefined, theme: Theme = {}): Style
     const cached = paragraphCache.get(key);
     if (cached) return cached;
     const result = mergeLayers<ParagraphProperties>(
-      [defaultParagraph, ...chain(styleId).map((item) => item.paragraph)],
+      [defaultParagraph, paragraphChain(styleId)],
       ["borders", "borderSpacing"],
     );
     paragraphCache.set(key, result);
@@ -315,11 +359,7 @@ export const parseStyles = (doc: Document | undefined, theme: Theme = {}): Style
     const cached = runCache.get(key);
     if (cached) return cached;
     const result = mergeLayers<RawRunProperties>(
-      [
-        defaultRun,
-        ...chain(paragraphStyle).map((item) => item.run),
-        ...chain(runStyle).map((item) => item.run),
-      ],
+      [defaultRun, runChain(paragraphStyle), runChain(runStyle)],
       [],
     );
     runCache.set(key, result);
@@ -348,12 +388,7 @@ export const parseStyles = (doc: Document | undefined, theme: Theme = {}): Style
       );
     },
     numbering(styleId) {
-      const resolved: { numId?: string; level?: number } = {};
-      for (const style of chain(styleId)) {
-        resolved.numId = style.numbering.numId ?? resolved.numId;
-        resolved.level = style.numbering.level ?? resolved.level;
-      }
-      return resolved;
+      return numberingChain(styleId);
     },
     table(styleId) {
       return tableChain(styleId);

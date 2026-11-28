@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { parseContext, wordElement } from "../../../test/docx-context";
 import { collectInline } from "./inline";
+import { createCommentRangeState, MAX_OPEN_COMMENT_RANGES } from "./context";
 
 describe("inline parser", () => {
   it("parses text atoms, comment ranges, bookmarks, and hyperlink targets", () => {
@@ -88,5 +89,15 @@ describe("inline parser", () => {
     expect(result.some((inline) => inline.type === "text" && inline.text === "choice")).toBe(false);
     expect(result.some((inline) => inline.type === "text" && inline.text === "cached")).toBe(true);
     expect(result.some((inline) => inline.type === "field")).toBe(false);
+  });
+
+  it("bounds simultaneously open comment ranges", () => {
+    const ranges = createCommentRangeState();
+    for (let index = 0; index < MAX_OPEN_COMMENT_RANGES + 8; index++) ranges.start(String(index));
+
+    expect(ranges.snapshot()).toHaveLength(MAX_OPEN_COMMENT_RANGES);
+    ranges.end("0");
+    ranges.start("later");
+    expect(ranges.snapshot()).toContain("later");
   });
 });

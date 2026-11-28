@@ -97,6 +97,32 @@ describe("DOCX renderer", () => {
     expect(container.childElementCount).toBe(0);
   });
 
+  it("namespaces bookmark ids and rewrites internal links", () => {
+    const source = model("bookmark");
+    const doc: DocxDocument = {
+      ...source,
+      sections: source.sections.map((section) => ({
+        ...section,
+        blocks: [
+          {
+            type: "paragraph",
+            properties: {},
+            runs: [
+              { type: "bookmark", name: "constructor" },
+              { type: "text", text: "jump", href: "#constructor" },
+            ],
+          },
+        ],
+      })),
+    };
+    const container = document.createElement("div");
+    renderDocument(doc, container);
+
+    expect(container.querySelector("#constructor")).toBeNull();
+    expect(container.querySelector("#orim-bookmark-constructor")).not.toBeNull();
+    expect(container.querySelector("a")?.getAttribute("href")).toBe("#orim-bookmark-constructor");
+  });
+
   it("keeps revision decoration visible when a run removes underline", () => {
     const source = model("text");
     const doc: DocxDocument = {

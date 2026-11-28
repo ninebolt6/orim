@@ -4,13 +4,18 @@ import { safeHref } from "../../common/sanitize";
 import { applyTextStyle, changeColor } from "./text-style";
 import { revisionVisibility } from "./revisions";
 
+const bookmarkId = (name: string): string | undefined => {
+  return /^[\w.-]+$/.test(name) ? `orim-bookmark-${name}` : undefined;
+};
+
 export const renderInline = (inline: Inline, context: RenderContext): Node => {
   if (inline.type === "break") {
     return inline.page ? document.createTextNode("") : document.createElement("br");
   }
   if (inline.type === "bookmark") {
     const anchor = document.createElement("span");
-    if (/^[\w.-]+$/.test(inline.name)) anchor.id = inline.name;
+    const id = bookmarkId(inline.name);
+    if (id) anchor.id = id;
     return anchor;
   }
   if (inline.type === "comment-reference") {
@@ -65,11 +70,12 @@ export const renderInline = (inline: Inline, context: RenderContext): Node => {
   if (visibility === "hidden") return document.createTextNode("");
   let textNode: HTMLElement;
   const href = safeHref(inline.href);
-  if (href) {
+  const target = href?.startsWith("#") ? `#${bookmarkId(href.slice(1)) ?? ""}` : href;
+  if (target) {
     const link = document.createElement("a");
     link.className = "orim-link";
-    link.href = href;
-    link.target = href.startsWith("#") ? "" : "_blank";
+    link.href = target;
+    link.target = target.startsWith("#") ? "" : "_blank";
     if (link.target) link.rel = "noopener noreferrer";
     textNode = link;
   } else textNode = document.createElement("span");
