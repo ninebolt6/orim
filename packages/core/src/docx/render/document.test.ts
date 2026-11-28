@@ -97,6 +97,42 @@ describe("DOCX renderer", () => {
     expect(container.childElementCount).toBe(0);
   });
 
+  it("keeps revision decoration visible when a run removes underline", () => {
+    const source = model("text");
+    const doc: DocxDocument = {
+      ...source,
+      sections: source.sections.map((section) => ({
+        ...section,
+        blocks: [
+          {
+            type: "paragraph",
+            properties: {},
+            runs: [
+              {
+                type: "text",
+                text: "inserted without underline",
+                style: { underline: "none" },
+                change: { kind: "ins", author: "Aiko", date: "" },
+              },
+            ],
+          },
+        ],
+      })),
+    };
+    const container = document.createElement("div");
+    const rendered = renderDocument(doc, container);
+
+    expect(
+      container.querySelector<HTMLElement>(".orim-change--ins")?.style.textDecorationLine,
+    ).toBe("");
+    rendered.update({ changes: "final" });
+    const plain = Array.from(container.querySelectorAll<HTMLElement>(".orim-text")).find(
+      (element) => element.textContent === "inserted without underline",
+    );
+    expect(plain?.style.textDecorationLine).toBe("none");
+    rendered.destroy();
+  });
+
   it("renders document text as text rather than HTML", async () => {
     const container = document.createElement("div");
     renderDocument(model("<img src=x onerror=alert(1)>"), container);

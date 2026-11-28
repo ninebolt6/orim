@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { border } from "./borders";
-import { mergeLayers, paragraphProperties, parseStyles } from "./styles";
+import { mergeLayers, paragraphProperties, parseRunProperties, parseStyles } from "./styles";
 
 describe("DOCX styles", () => {
   it("applies doc defaults, basedOn, and direct run overrides in order", () => {
@@ -18,6 +18,21 @@ describe("DOCX styles", () => {
       bold: false,
       fontSize: 14,
     });
+  });
+
+  it("lets w:u none cancel an inherited underline", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Underlined"><w:rPr><w:u w:val="single"/></w:rPr></w:style></w:styles>`,
+      "application/xml",
+    );
+    const direct = new DOMParser().parseFromString(
+      `<w:rPr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:u w:val="none"/></w:rPr>`,
+      "application/xml",
+    ).documentElement;
+
+    expect(
+      parseStyles(doc).run("Underlined", undefined, parseRunProperties(direct)).underline,
+    ).toBe("none");
   });
 
   it("resolves theme font references", () => {

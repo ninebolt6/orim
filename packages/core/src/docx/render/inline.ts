@@ -75,7 +75,7 @@ export const renderInline = (inline: Inline, context: RenderContext): Node => {
   } else textNode = document.createElement("span");
   textNode.classList.add("orim-text");
   textNode.textContent = inline.text;
-  applyTextStyle(textNode, inline.style);
+  applyTextStyle(textNode, inline.style, visibility === "marked");
   const titles: string[] = [];
   if (inline.change) {
     const { kind, author, date } = inline.change;

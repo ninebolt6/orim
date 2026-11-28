@@ -63,6 +63,14 @@ describe("font fallbacks", () => {
     applyTextStyle(underline, { underline: "dotted" });
     expect(underline.style.textDecorationStyle).toBe("dotted");
 
+    const noUnderline = document.createElement("span");
+    applyTextStyle(noUnderline, { underline: "none" });
+    expect(noUnderline.style.textDecorationLine).toBe("none");
+
+    const strikeWithoutUnderline = document.createElement("span");
+    applyTextStyle(strikeWithoutUnderline, { underline: "none", strike: true });
+    expect(strikeWithoutUnderline.style.textDecorationLine).toBe("line-through");
+
     const colors = new Map<string, string>();
     const change = { kind: "ins" as const, author: "Aiko", date: "" };
     expect(changeColor(change, colors)).toBe("#137333");
