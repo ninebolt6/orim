@@ -35,13 +35,13 @@ describe("DOCX styles", () => {
     ).toBe("none");
   });
 
-  it("clamps an out-of-range style list level", () => {
+  it("falls back to level zero for an out-of-range style list level", () => {
     const doc = new DOMParser().parseFromString(
       `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="List"><w:pPr><w:numPr><w:ilvl w:val="999999999999"/><w:numId w:val="4"/></w:numPr></w:pPr></w:style></w:styles>`,
       "application/xml",
     );
 
-    expect(parseStyles(doc).numbering("List")).toEqual({ numId: "4", level: 8 });
+    expect(parseStyles(doc).numbering("List")).toEqual({ numId: "4", level: 0 });
   });
 
   it("resolves theme font references", () => {

@@ -32,10 +32,12 @@ const integerValue = (value: unknown): number => {
   return NaN;
 };
 
-export const safeListLevel = (value: unknown): number => {
+const validListLevel = (value: unknown): number | undefined => {
   const level = integerValue(value);
-  return Number.isInteger(level) ? Math.min(8, Math.max(0, level)) : 0;
+  return Number.isInteger(level) && level >= 0 && level <= 8 ? level : undefined;
 };
+
+export const safeListLevel = (value: unknown): number => validListLevel(value) ?? 0;
 
 export const safeListStart = (value: unknown): number => {
   const start = integerValue(value);
@@ -92,8 +94,10 @@ export const parseNumbering = (doc: Document | undefined): Numbering => {
       const id = attr(node, "abstractNumId");
       if (!id) continue;
       const levels = new Map<number, NumberLevel>();
-      for (const level of elements(node, "lvl"))
-        levels.set(safeListLevel(attr(level, "ilvl") ?? 0), readLevel(level));
+      for (const level of elements(node, "lvl")) {
+        const index = validListLevel(attr(level, "ilvl") ?? 0);
+        if (index !== undefined) levels.set(index, readLevel(level));
+      }
       abstract.set(id, levels);
     }
     for (const node of descendants(doc, "num")) {
@@ -103,7 +107,8 @@ export const parseNumbering = (doc: Document | undefined): Numbering => {
         nums.set(id, abstractId);
         const levels = new Map<number, NumberLevel>();
         for (const override of elements(node, "lvlOverride")) {
-          const index = safeListLevel(attr(override, "ilvl") ?? 0);
+          const index = validListLevel(attr(override, "ilvl") ?? 0);
+          if (index === undefined) continue;
           const level = first(override, "lvl");
           const start = first(override, "startOverride");
           const value = level ? readLevel(level) : abstract.get(abstractId)?.get(index);

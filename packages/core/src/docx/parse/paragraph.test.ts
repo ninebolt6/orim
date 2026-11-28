@@ -90,7 +90,7 @@ describe("paragraph parser", () => {
     expect(paragraph.runs).toEqual([{ type: "comment-reference", id: "0" }]);
   });
 
-  it("clamps an out-of-range paragraph list level", () => {
+  it("falls back to level zero for an out-of-range paragraph list level", () => {
     const paragraph = parseParagraph(
       wordElement(
         '<w:p><w:pPr><w:numPr><w:ilvl w:val="999999999999"/><w:numId w:val="1"/></w:numPr></w:pPr></w:p>',
@@ -98,7 +98,7 @@ describe("paragraph parser", () => {
       parseContext(),
     );
 
-    expect(paragraph.list?.level).toBe(8);
+    expect(paragraph.list?.level).toBe(0);
   });
 
   it("emits a PAGE field from a simple field instruction", () => {
