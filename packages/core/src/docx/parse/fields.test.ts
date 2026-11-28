@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
-import { createFieldStack, fieldHref, fieldName, isPageField } from "./fields";
+import {
+  createFieldStack,
+  fieldHref,
+  fieldName,
+  fieldStateHref,
+  isPageField,
+  MAX_FIELD_DEPTH,
+} from "./fields";
 
 describe("complex field state", () => {
   it("keeps nested fields and instructions across paragraph boundaries", () => {
@@ -28,5 +35,28 @@ describe("complex field state", () => {
     fields.begin();
     fields.append(" NUMPAGES ");
     expect(isPageField(fields.current()!)).toBe(true);
+  });
+
+  it("caches result field parsing when the instruction ends", () => {
+    const fields = createFieldStack();
+    fields.begin();
+    fields.append(' HYPERLINK \\l "target" ');
+    fields.separate();
+
+    const field = fields.current()!;
+    expect(field.name).toBe("HYPERLINK");
+    expect(fieldStateHref(field)).toBe("#target");
+  });
+
+  it("bounds unclosed nested fields without losing the outermost field", () => {
+    const fields = createFieldStack();
+    fields.begin();
+    fields.append(" PAGE ");
+
+    for (let index = 0; index < MAX_FIELD_DEPTH; index++) fields.begin();
+    expect(fields.current()).toBeUndefined();
+    for (let index = 0; index < MAX_FIELD_DEPTH; index++) fields.end();
+
+    expect(fieldName(fields.current()!.instruction)).toBe("PAGE");
   });
 });

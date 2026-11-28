@@ -35,6 +35,15 @@ describe("DOCX styles", () => {
     ).toBe("none");
   });
 
+  it("falls back to level zero for an out-of-range style list level", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="List"><w:pPr><w:numPr><w:ilvl w:val="999999999999"/><w:numId w:val="4"/></w:numPr></w:pPr></w:style></w:styles>`,
+      "application/xml",
+    );
+
+    expect(parseStyles(doc).numbering("List")).toEqual({ numId: "4", level: 0 });
+  });
+
   it("resolves theme font references", () => {
     const doc = new DOMParser().parseFromString(
       `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="character" w:styleId="Theme"><w:rPr><w:rFonts w:asciiTheme="majorHAnsi"/></w:rPr></w:style></w:styles>`,
@@ -136,12 +145,51 @@ describe("DOCX styles", () => {
     });
   });
 
+  it("resolves every style in a deep inheritance chain without repeated ancestor walks", () => {
+    const count = 1500;
+    const styleNodes = [
+      `<w:style w:type="paragraph" w:styleId="S0"><w:rPr><w:sz w:val="20"/></w:rPr></w:style>`,
+      ...Array.from({ length: count - 1 }, (_value, index) => {
+        const id = index + 1;
+        return `<w:style w:type="paragraph" w:styleId="S${id}"><w:basedOn w:val="S${id - 1}"/><w:rPr><w:b w:val="${id % 2}"/></w:rPr></w:style>`;
+      }),
+    ].join("");
+    const doc = new DOMParser().parseFromString(
+      `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">${styleNodes}</w:styles>`,
+      "application/xml",
+    );
+    const styles = parseStyles(doc);
+
+    for (let index = 0; index < count; index++) expect(styles.run(`S${index}`).fontSize).toBe(10);
+    expect(styles.run(`S${count - 1}`).bold).toBe(Boolean((count - 1) % 2));
+  });
+
+  it("resolves malformed cyclic style inheritance deterministically", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="A"><w:basedOn w:val="B"/><w:rPr><w:b/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="B"><w:basedOn w:val="A"/><w:rPr><w:i/></w:rPr></w:style></w:styles>`,
+      "application/xml",
+    );
+    const first = parseStyles(doc);
+    const firstA = first.run("A");
+    const firstB = first.run("B");
+    const second = parseStyles(doc);
+    const secondB = second.run("B");
+    const secondA = second.run("A");
+
+    expect(firstA).toMatchObject({ bold: true });
+    expect(secondA).toEqual(firstA);
+    expect(secondB).toEqual(firstB);
+  });
+
   it("resolves shared borders and table-style inheritance", () => {
     const doc = new DOMParser().parseFromString(
       `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="table" w:styleId="Base"><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:color="auto"/><w:right w:val="double" w:sz="8"/></w:tblBorders><w:tblCellMar><w:left w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tcPr><w:shd w:fill="ABCDEF"/></w:tcPr></w:style><w:style w:type="table" w:default="1" w:styleId="TableGrid"><w:basedOn w:val="Base"/><w:tblPr><w:tblBorders><w:top w:val="nil"/></w:tblBorders></w:tblPr></w:style></w:styles>`,
       "application/xml",
     );
-    const table = parseStyles(doc).table();
+    const styles = parseStyles(doc);
+    expect(styles.table("").borders).toEqual({});
+    expect(styles.table("").margins).toEqual({});
+    const table = styles.table();
     expect(table.borders).toMatchObject({
       top: "none",
       right: expect.stringContaining("double"),

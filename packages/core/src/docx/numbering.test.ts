@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { assignListMarkers, parseNumbering } from "./numbering";
+import { assignListMarkers, parseNumbering, safeListLevel, safeListStart } from "./numbering";
+import { alphabetic } from "../common/numbering";
 import type { Block } from "./model";
 
 describe("DOCX numbering", () => {
@@ -50,10 +51,10 @@ describe("DOCX numbering", () => {
     ["upperRoman", -1, "-1."],
     ["upperRoman", 4000, "4000."],
     ["upperRoman", 2000000000, "2000000000."],
-    ["upperRoman", 1.5, "1.5."],
-    ["upperRoman", Infinity, "Infinity."],
-    ["upperRoman", -Infinity, "-Infinity."],
-    ["upperRoman", NaN, "NaN."],
+    ["upperRoman", 1.5, "I."],
+    ["upperRoman", Infinity, "I."],
+    ["upperRoman", -Infinity, "I."],
+    ["upperRoman", NaN, "I."],
     ["upperLetter", 27, "AA."],
     ["lowerLetter", 26, "z."],
     ["decimalFullWidth", 12, "１２."],
@@ -115,5 +116,29 @@ describe("DOCX numbering", () => {
         block.type === "paragraph" ? block.list?.marker : undefined,
       ),
     ).toEqual(["1.", "2."]);
+  });
+
+  it("bounds list levels to the OOXML range even when marker is called directly", () => {
+    expect(safeListLevel("8")).toBe(8);
+    expect(safeListLevel("9")).toBe(0);
+    expect(safeListLevel("1.5")).toBe(0);
+    expect(safeListLevel(Number.MAX_SAFE_INTEGER)).toBe(0);
+    expect(safeListStart("")).toBe(1);
+    expect(safeListStart("1e100")).toBe(1);
+    expect(safeListStart("-2")).toBe(-2);
+    expect(alphabetic(Infinity, true)).toBe("Infinity");
+
+    const marker = parseNumbering(undefined).marker("missing", Number.MAX_SAFE_INTEGER);
+    expect(marker.counters).toHaveLength(1);
+    expect(marker.text).toBe("1.");
+  });
+
+  it("ignores out-of-range numbering definitions instead of overwriting level eight", () => {
+    const doc = new DOMParser().parseFromString(
+      `<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="8"><w:start w:val="5"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%9."/></w:lvl><w:lvl w:ilvl="999999999999"><w:start w:val="7"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%9."/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`,
+      "application/xml",
+    );
+
+    expect(parseNumbering(doc).marker("1", 8).text).toBe("5.");
   });
 });

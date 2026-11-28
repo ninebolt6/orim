@@ -37,11 +37,13 @@ export const createParseState = (): ParseState => {
   };
 };
 
+export const MAX_OPEN_COMMENT_RANGES = 32;
+
 export const createCommentRangeState = (): CommentRangeState => {
   const open = new Set<string>();
   return {
     start(id) {
-      open.add(id);
+      if (open.size < MAX_OPEN_COMMENT_RANGES) open.add(id);
     },
     end(id) {
       open.delete(id);

@@ -1,6 +1,7 @@
 import { attr, first } from "../xml";
 import type { Paragraph, ParagraphProperties } from "../model";
 import { parseRunProperties, paragraphProperties } from "../styles";
+import { safeListLevel } from "../numbering";
 import type { ParseContext } from "./context";
 import { changeFrom, collectInline, revisionInfoFrom } from "./inline";
 
@@ -20,7 +21,7 @@ export const parseParagraph = (node: Element, context: ParseContext): Paragraph 
   const numPr = first(pPr, "numPr");
   const inheritedNumbering = styles.numbering(pStyle);
   const numId = attr(first(numPr, "numId"), "val") ?? inheritedNumbering.numId;
-  const level = Number(attr(first(numPr, "ilvl"), "val") ?? inheritedNumbering.level ?? 0);
+  const level = safeListLevel(attr(first(numPr, "ilvl"), "val") ?? inheritedNumbering.level ?? 0);
   const runs = collectInline(node, {
     ...context,
     config: { ...context.config, paragraphStyle: pStyle },
