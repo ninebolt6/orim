@@ -102,10 +102,14 @@ export const parsePptxModel = async (input: PackageInput): Promise<PptxPresentat
     throw new Error("Not a PPTX package: presentation part is not a presentation.");
   const presentationRels = await opc.relationships(presentationPath);
   const size = first(presentation, "sldSz");
-  const slidePaths = elements(first(presentation, "sldIdLst"), "sldId").flatMap((slide) => {
+  const slideEntries = elements(first(presentation, "sldIdLst"), "sldId");
+  if (slideEntries.length > 1000) throw new Error("Too many slides.");
+  const slidePaths = slideEntries.flatMap((slide) => {
     const relation = presentationRels.get(attr(slide, "id", R) ?? "");
     return relation && !relation.external ? [opc.resolve(presentationPath, relation.target)] : [];
   });
+  const slideNumbers = new Map(slidePaths.map((path, index) => [path, index + 1]));
+  if (slideNumbers.size !== slidePaths.length) throw new Error("Duplicate slide part.");
   const tableStyles = parseTableStyles(
     await optionalXml(opc, await relatedPart(opc, presentationPath, "tableStyles")),
   );
@@ -127,7 +131,6 @@ export const parsePptxModel = async (input: PackageInput): Promise<PptxPresentat
     }
     return theme;
   };
-  const slideNumbers = new Map(slidePaths.map((path, index) => [path, index + 1]));
   const slides = await Promise.all(
     slidePaths.map(async (path, index): Promise<Slide> => {
       const slide = await loadPart(path);

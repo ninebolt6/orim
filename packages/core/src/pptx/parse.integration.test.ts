@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { unzipSync, zipSync } from "fflate";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { buildPptx, defaultTheme, shape } from "../../test/pptx";
 import { buildXlsx } from "../../test/xlsx";
 import type { GroupElement, PictureElement, ShapeElement, TableElement } from "./model";
@@ -263,6 +263,35 @@ describe("PPTX package parsing", () => {
     expect(table.rows[0]!.cells[1]).toMatchObject({ merged: true });
     expect(table.rows[1]!.cells[0]).toMatchObject({ fill: { type: "solid", color: "#eeeeee" } });
     expect(table.rows[1]!.cells[1]).toMatchObject({ fill: { type: "solid", color: "#ff0000" } });
+  });
+
+  it("rejects duplicate slide targets", async () => {
+    const entries = unzipSync(buildPptx({ slides: [{}, {}] }));
+    const relsPath = "ppt/_rels/presentation.xml.rels";
+    entries[relsPath] = strToU8(
+      strFromU8(entries[relsPath]!).replace(
+        'Target="slides/slide2.xml"',
+        'Target="slides/slide1.xml"',
+      ),
+    );
+
+    await expect(parsePptx(zipSync(entries, { level: 0 }))).rejects.toThrow("Duplicate slide part");
+  });
+
+  it("rejects slide lists over the parser limit before expanding them", async () => {
+    const entries = unzipSync(buildPptx({ slides: [{}] }));
+    const extraSlides = Array.from(
+      { length: 1000 },
+      (_, index) => `<p:sldId r:id="rSlide1" id="${512 + index}"/>`,
+    ).join("");
+    entries["ppt/presentation.xml"] = strToU8(
+      strFromU8(entries["ppt/presentation.xml"]!).replace(
+        "</p:sldIdLst>",
+        `${extraSlides}</p:sldIdLst>`,
+      ),
+    );
+
+    await expect(parsePptx(zipSync(entries, { level: 0 }))).rejects.toThrow("Too many slides");
   });
 
   it("rejects packages without a presentation part", async () => {
