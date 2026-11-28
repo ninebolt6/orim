@@ -66,10 +66,10 @@ export const visibleSpan = (
 const key = (row: number, column: number): string => `${row}:${column}`;
 
 interface VisibleRangeProjection {
-  readonly rowFrom: number;
-  readonly rowTo: number;
-  readonly columnFrom: number;
-  readonly columnTo: number;
+  readonly top: number;
+  readonly bottom: number;
+  readonly left: number;
+  readonly right: number;
 }
 
 const projectVisibleRange = (
@@ -77,11 +77,9 @@ const projectVisibleRange = (
   columns: readonly LayoutColumn[],
   range: CellRange,
 ): VisibleRangeProjection | undefined => {
-  const [rowFrom, rowTo] = visibleSpan(rows, range.top, range.bottom);
-  const [columnFrom, columnTo] = visibleSpan(columns, range.left, range.right);
-  return rowFrom < rowTo && columnFrom < columnTo
-    ? { rowFrom, rowTo, columnFrom, columnTo }
-    : undefined;
+  const [top, bottom] = visibleSpan(rows, range.top, range.bottom);
+  const [left, right] = visibleSpan(columns, range.left, range.right);
+  return top < bottom && left < right ? { top, bottom, left, right } : undefined;
 };
 
 const hasStyledExtent = (style: CellStyle | undefined): boolean =>
@@ -193,8 +191,8 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
     ((1n << BigInt(to - from)) - 1n) << BigInt(from);
   const occupiedTree = Array(rowTreeSize * 2).fill(0n);
   const hasOccupied = (projection: VisibleRangeProjection, mask: bigint): boolean => {
-    let left = projection.rowFrom + rowTreeSize;
-    let right = projection.rowTo + rowTreeSize;
+    let left = projection.top + rowTreeSize;
+    let right = projection.bottom + rowTreeSize;
     while (left < right) {
       if (left & 1) {
         if ((occupiedTree[left]! & mask) !== 0n) return true;
@@ -220,29 +218,29 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
   for (const range of worksheet.merges) {
     const projection = projectVisibleRange(rows, columns, range);
     if (!projection) continue;
-    const mask = columnMask(projection.columnFrom, projection.columnTo);
+    const mask = columnMask(projection.left, projection.right);
     if (hasOccupied(projection, mask)) continue;
-    const anchorRow = rows[projection.rowFrom]!.index;
-    const anchorColumn = columns[projection.columnFrom]!.index;
+    const anchorRow = rows[projection.top]!.index;
+    const anchorColumn = columns[projection.left]!.index;
     const merge: LayoutMerge = {
       range,
       anchorRow,
       anchorColumn,
-      rowSpan: projection.rowTo - projection.rowFrom,
-      columnSpan: projection.columnTo - projection.columnFrom,
+      rowSpan: projection.bottom - projection.top,
+      columnSpan: projection.right - projection.left,
       cell: cells.get(key(range.top, range.left)),
     };
     merges.push(merge);
     mergeAt.set(key(anchorRow, anchorColumn), merge);
-    for (let rowPosition = projection.rowFrom; rowPosition < projection.rowTo; rowPosition++) {
+    for (let rowPosition = projection.top; rowPosition < projection.bottom; rowPosition++) {
       const rowIndex = rows[rowPosition]!.index;
       for (
-        let columnPosition = projection.columnFrom;
-        columnPosition < projection.columnTo;
+        let columnPosition = projection.left;
+        columnPosition < projection.right;
         columnPosition++
       ) {
         occupy(rowPosition, columnPosition);
-        if (rowPosition !== projection.rowFrom || columnPosition !== projection.columnFrom) {
+        if (rowPosition !== projection.top || columnPosition !== projection.left) {
           covered.add(key(rowIndex, columns[columnPosition]!.index));
         }
       }
@@ -256,11 +254,11 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
   for (let node = rowTreeSize - 1; node > 0; node--)
     unassignedTree[node] = unassignedTree[node * 2] | unassignedTree[node * 2 + 1];
   const assignHyperlinks = (projection: VisibleRangeProjection, href: string): void => {
-    const mask = columnMask(projection.columnFrom, projection.columnTo);
+    const mask = columnMask(projection.left, projection.right);
     const visit = (node: number, start: number, end: number): void => {
       if (
-        start >= projection.rowTo ||
-        end <= projection.rowFrom ||
+        start >= projection.bottom ||
+        end <= projection.top ||
         (unassignedTree[node] & mask) === 0n
       )
         return;
@@ -284,6 +282,7 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
     visit(1, 0, rowTreeSize);
   };
   for (const link of worksheet.hyperlinks) {
+    if (hyperlinks.size >= rows.length * columns.length - covered.size) break;
     const href = safeHref(link.href);
     if (!href) continue;
     const projection = projectVisibleRange(rows, columns, link.range);
