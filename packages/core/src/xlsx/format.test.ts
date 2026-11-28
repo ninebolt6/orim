@@ -129,4 +129,14 @@ describe("Excel number formats", () => {
     expect(formatCellValue(number(12345), decimal, false).text).toHaveLength(4001);
     expect(typeof formatCellValue(number(45000.5), date, false).text).toBe("string");
   });
+
+  it("bounds scan work across distinct maximum-length formats", () => {
+    const formats = Array.from(
+      { length: 20 },
+      (_, index) => `${"0".repeat(2000)}.${"0".repeat(1950)}E+00${";".repeat(index)}`,
+    );
+    const start = performance.now();
+    for (const format of formats) formatCellValue(number(12345), format, false);
+    expect(performance.now() - start).toBeLessThan(100);
+  });
 });
