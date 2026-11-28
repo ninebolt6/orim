@@ -11,7 +11,7 @@ import type {
   Worksheet,
 } from "../model";
 import { parseCellRef, parseRange } from "../ref";
-import { MAX_COLUMNS, MAX_ROWS } from "../layout";
+import { MAX_CELLS, MAX_COLUMNS, MAX_ROWS } from "../layout";
 import type { StyleTable } from "./styles";
 
 const EMPTY: CellValue = { type: "empty" };
@@ -193,29 +193,31 @@ export const parseWorksheet = (root: Element, context: WorksheetContext): Worksh
     Number.isFinite(rawDefaultRow) && rawDefaultRow >= 0
       ? Math.min(maxRowHeight, rawDefaultRow)
       : 15;
-  const columns = elements(first(root, "cols"), "col").flatMap((column) => {
-    const min = Number(attr(column, "min")) - 1;
-    const max = Number(attr(column, "max")) - 1;
-    if (
-      !Number.isInteger(min) ||
-      !Number.isInteger(max) ||
-      min < 0 ||
-      max < min ||
-      max >= maxColumns
-    )
-      return [];
-    const rawWidth = Number(attr(column, "width"));
-    const styleId = integerAttribute(column, "style");
-    return [
-      {
-        min,
-        max,
-        ...(Number.isFinite(rawWidth) && rawWidth >= 0 ? { width: widthInPixels(rawWidth) } : {}),
-        hidden: boolAttribute(column, "hidden", false),
-        ...(styleId !== undefined ? { style: styles.resolve(styleId) } : {}),
-      },
-    ];
-  });
+  const columns = elements(first(root, "cols"), "col")
+    .slice(0, MAX_CELLS)
+    .flatMap((column) => {
+      const min = Number(attr(column, "min")) - 1;
+      const max = Number(attr(column, "max")) - 1;
+      if (
+        !Number.isInteger(min) ||
+        !Number.isInteger(max) ||
+        min < 0 ||
+        max < min ||
+        max >= maxColumns
+      )
+        return [];
+      const rawWidth = Number(attr(column, "width"));
+      const styleId = integerAttribute(column, "style");
+      return [
+        {
+          min,
+          max,
+          ...(Number.isFinite(rawWidth) && rawWidth >= 0 ? { width: widthInPixels(rawWidth) } : {}),
+          hidden: boolAttribute(column, "hidden", false),
+          ...(styleId !== undefined ? { style: styles.resolve(styleId) } : {}),
+        },
+      ];
+    });
   const rows = new Map<
     number,
     {
@@ -262,7 +264,7 @@ export const parseWorksheet = (root: Element, context: WorksheetContext): Worksh
     }
   }
   const hyperlinks: Hyperlink[] = [];
-  for (const link of elements(first(root, "hyperlinks"), "hyperlink")) {
+  for (const link of elements(first(root, "hyperlinks"), "hyperlink").slice(0, MAX_CELLS)) {
     const range = parseRange(attr(link, "ref") ?? "");
     const relId = relationshipId(link);
     const rel = relId ? relationships.get(relId) : undefined;
@@ -281,10 +283,12 @@ export const parseWorksheet = (root: Element, context: WorksheetContext): Worksh
     frozen && Number.isFinite(Number(attr(pane, "xSplit")))
       ? Math.min(MAX_COLUMNS, Math.max(0, Math.trunc(Number(attr(pane, "xSplit")))))
       : 0;
-  const merges = elements(first(root, "mergeCells"), "mergeCell").flatMap((merge) => {
-    const range = parseRange(attr(merge, "ref") ?? "");
-    return range ? [range] : [];
-  });
+  const merges = elements(first(root, "mergeCells"), "mergeCell")
+    .slice(0, MAX_CELLS)
+    .flatMap((merge) => {
+      const range = parseRange(attr(merge, "ref") ?? "");
+      return range ? [range] : [];
+    });
   return {
     name,
     state,

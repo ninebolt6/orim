@@ -119,4 +119,34 @@ describe("Excel number formats", () => {
     expect(formatCellValue(number(1e10), "[h]:mm", false).text).toBe("10000000000");
     expect(formatCellValue(number(1e100), "yyyy-mm-dd", false).text).toBe("########");
   });
+
+  it("keeps maximum-length scientific, decimal, and date-token scans linear", () => {
+    const scientific = `${"0".repeat(2000)}.${"0".repeat(2000)}E+00`;
+    const decimal = `${"0".repeat(2000)}.${"0".repeat(2000)}`;
+    const date = `h${"m.".repeat(1500)}s`;
+
+    expect(formatCellValue(number(12345), scientific, false).text).toContain("E+");
+    expect(formatCellValue(number(12345), decimal, false).text).toHaveLength(4001);
+    expect(typeof formatCellValue(number(45000.5), date, false).text).toBe("string");
+  });
+
+  it("bounds scan work across distinct maximum-length formats", () => {
+    const formats = Array.from(
+      { length: 20 },
+      (_, index) => `${"0".repeat(2000)}.${"0".repeat(1950)}E+00${";".repeat(index)}`,
+    );
+    const originalSlice = String.prototype.slice;
+    let copiedCharacters = 0;
+    String.prototype.slice = function (this: string, start?: number, end?: number): string {
+      const sliced = originalSlice.call(this, start, end);
+      copiedCharacters += sliced.length;
+      return sliced;
+    };
+    try {
+      for (const format of formats) formatCellValue(number(12345), format, false);
+    } finally {
+      String.prototype.slice = originalSlice;
+    }
+    expect(copiedCharacters).toBeLessThan(1_000_000);
+  });
 });

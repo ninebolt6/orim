@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { xmlDocument, xmlRoot } from "../../../test/xml";
 import { parseStyles } from "./styles";
+import { MAX_CELLS } from "../layout";
 import { parseSharedStrings, parseWorksheet } from "./worksheet";
 
 const parse = (xml: string, overrides: Partial<Parameters<typeof parseWorksheet>[1]> = {}) => {
@@ -172,5 +173,28 @@ describe("XLSX worksheet parser", () => {
     expect(sheet.rows).toHaveLength(2);
     expect(sheet.columns).toHaveLength(3);
     expect(sheet.frozen).toEqual({ rows: 0, columns: 200 });
+  });
+
+  it("caps column, hyperlink, and merge definitions at the cell budget", () => {
+    const count = MAX_CELLS + 1;
+    const definitions = Array.from({ length: count }, () => '<col min="1" max="1"/>').join("");
+    const links = Array.from({ length: count }, () => '<hyperlink ref="A1" r:id="safe"/>').join("");
+    const merges = Array.from({ length: count }, () => '<mergeCell ref="A1"/>').join("");
+    const relationships = new Map([
+      [
+        "safe",
+        { id: "safe", type: "rel/hyperlink", target: "https://example.com", external: true },
+      ],
+    ]);
+    const sheet = parse(
+      `<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+        <cols>${definitions}</cols><hyperlinks>${links}</hyperlinks><mergeCells>${merges}</mergeCells>
+      </worksheet>`,
+      { relationships },
+    );
+
+    expect(sheet.columns).toHaveLength(MAX_CELLS);
+    expect(sheet.hyperlinks).toHaveLength(MAX_CELLS);
+    expect(sheet.merges).toHaveLength(MAX_CELLS);
   });
 });

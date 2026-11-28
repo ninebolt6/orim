@@ -1,4 +1,4 @@
-import { safeHref, validColor } from "../../common/sanitize";
+import { validColor } from "../../common/sanitize";
 import { hasValue, type Cell, type CellStyle, type CellValue, type XlsxWorkbook } from "../model";
 import { columnName } from "../ref";
 import { computeLayout, HEADER_WIDTH, layoutKey, visibleSpan } from "../layout";
@@ -250,22 +250,9 @@ export const renderWorksheet = (
       table.append(head);
     }
     const body = document.createElement("tbody");
-    const hyperlinks = new Map<string, string>();
     const rowHeightPrefix: number[] = [0];
     for (const row of layout.rows)
       rowHeightPrefix.push(rowHeightPrefix[rowHeightPrefix.length - 1]! + row.height);
-    for (const link of worksheet.hyperlinks) {
-      const href = safeHref(link.href);
-      if (!href) continue;
-      const [rowFrom, rowTo] = visibleSpan(layout.rows, link.range.top, link.range.bottom);
-      const [columnFrom, columnTo] = visibleSpan(layout.columns, link.range.left, link.range.right);
-      for (const row of layout.rows.slice(rowFrom, rowTo)) {
-        for (const column of layout.columns.slice(columnFrom, columnTo)) {
-          const key = layoutKey(row.index, column.index);
-          if (!layout.covered.has(key) && !hyperlinks.has(key)) hyperlinks.set(key, href);
-        }
-      }
-    }
     for (const rowLayout of layout.rows) {
       const rowElement = document.createElement("tr");
       rowElement.className = "orim-xlsx-row";
@@ -329,7 +316,7 @@ export const renderWorksheet = (
         }
         content.style.height = `${spanHeight}pt`;
         content.style.overflow = "visible clip";
-        const hyperlink = hyperlinks.get(key);
+        const hyperlink = layout.hyperlinks.get(key);
         if (hyperlink) {
           const anchor = document.createElement("a");
           anchor.href = hyperlink;

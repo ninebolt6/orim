@@ -1,3 +1,4 @@
+import { safeHref } from "../common/sanitize";
 import { hasValue, type Cell, type CellRange, type CellStyle, type Worksheet } from "./model";
 
 export const MAX_ROWS = 5000;
@@ -37,6 +38,7 @@ export interface WorksheetLayout {
   readonly columnAt: ReadonlyMap<number, LayoutColumn>;
   readonly mergeAt: ReadonlyMap<string, LayoutMerge>;
   readonly covered: ReadonlySet<string>;
+  readonly hyperlinks: ReadonlyMap<string, string>;
 }
 
 export const visibleSpan = (
@@ -62,6 +64,23 @@ export const visibleSpan = (
 };
 
 const key = (row: number, column: number): string => `${row}:${column}`;
+
+interface VisibleRangeProjection {
+  readonly top: number;
+  readonly bottom: number;
+  readonly left: number;
+  readonly right: number;
+}
+
+const projectVisibleRange = (
+  rows: readonly LayoutRow[],
+  columns: readonly LayoutColumn[],
+  range: CellRange,
+): VisibleRangeProjection | undefined => {
+  const [top, bottom] = visibleSpan(rows, range.top, range.bottom);
+  const [left, right] = visibleSpan(columns, range.left, range.right);
+  return top < bottom && left < right ? { top, bottom, left, right } : undefined;
+};
 
 const hasStyledExtent = (style: CellStyle | undefined): boolean =>
   Boolean(style?.fill || (style && Object.keys(style.border).length));
@@ -112,12 +131,12 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
   let truncated = false;
   const columns: LayoutColumn[] = [];
   for (let index = 0; index <= right; index++) {
-    const source = columnRange(worksheet, index);
-    if (source?.hidden) continue;
-    if (columns.length >= MAX_COLUMNS) {
+    if (index >= MAX_COLUMNS) {
       truncated = true;
       break;
     }
+    const source = columnRange(worksheet, index);
+    if (source?.hidden) continue;
     columns.push({
       index,
       width: source?.width ?? worksheet.defaultColumnWidth,
@@ -166,45 +185,110 @@ export const computeLayout = (worksheet: Worksheet): WorksheetLayout => {
   const merges: LayoutMerge[] = [];
   const mergeAt = new Map<string, LayoutMerge>();
   const covered = new Set<string>();
-  const occupied = new Set<string>();
-  for (const range of worksheet.merges) {
-    const rowIndexes = rows
-      .slice(...visibleSpan(rows, range.top, range.bottom))
-      .map((row) => row.index);
-    const columnIndexes = columns
-      .slice(...visibleSpan(columns, range.left, range.right))
-      .map((column) => column.index);
-    const anchorRow = rowIndexes[0];
-    const anchorColumn = columnIndexes[0];
-    if (anchorRow === undefined || anchorColumn === undefined) continue;
-    let overlaps = false;
-    for (const row of rowIndexes) {
-      for (const column of columnIndexes) {
-        if (occupied.has(key(row, column))) {
-          overlaps = true;
-          break;
-        }
+  let rowTreeSize = 1;
+  while (rowTreeSize < rows.length) rowTreeSize *= 2;
+  const columnMask = (from: number, to: number): bigint =>
+    ((1n << BigInt(to - from)) - 1n) << BigInt(from);
+  const occupiedTree = Array(rowTreeSize * 2).fill(0n);
+  const hasOccupied = (projection: VisibleRangeProjection, mask: bigint): boolean => {
+    let left = projection.top + rowTreeSize;
+    let right = projection.bottom + rowTreeSize;
+    while (left < right) {
+      if (left & 1) {
+        if ((occupiedTree[left]! & mask) !== 0n) return true;
+        left++;
       }
-      if (overlaps) break;
+      if (right & 1) {
+        right--;
+        if ((occupiedTree[right]! & mask) !== 0n) return true;
+      }
+      left >>= 1;
+      right >>= 1;
     }
-    if (overlaps) continue;
+    return false;
+  };
+  const occupy = (rowPosition: number, columnPosition: number): void => {
+    const bit = 1n << BigInt(columnPosition);
+    let node = rowPosition + rowTreeSize;
+    while (node > 0) {
+      occupiedTree[node] = occupiedTree[node] | bit;
+      node >>= 1;
+    }
+  };
+  for (const range of worksheet.merges) {
+    const projection = projectVisibleRange(rows, columns, range);
+    if (!projection) continue;
+    const mask = columnMask(projection.left, projection.right);
+    if (hasOccupied(projection, mask)) continue;
+    const anchorRow = rows[projection.top]!.index;
+    const anchorColumn = columns[projection.left]!.index;
     const merge: LayoutMerge = {
       range,
       anchorRow,
       anchorColumn,
-      rowSpan: rowIndexes.length,
-      columnSpan: columnIndexes.length,
+      rowSpan: projection.bottom - projection.top,
+      columnSpan: projection.right - projection.left,
       cell: cells.get(key(range.top, range.left)),
     };
     merges.push(merge);
     mergeAt.set(key(anchorRow, anchorColumn), merge);
-    for (const row of rowIndexes)
-      for (const column of columnIndexes)
-        if (row !== anchorRow || column !== anchorColumn) covered.add(key(row, column));
-    for (const row of rowIndexes)
-      for (const column of columnIndexes) occupied.add(key(row, column));
+    for (let rowPosition = projection.top; rowPosition < projection.bottom; rowPosition++) {
+      const rowIndex = rows[rowPosition]!.index;
+      for (
+        let columnPosition = projection.left;
+        columnPosition < projection.right;
+        columnPosition++
+      ) {
+        occupy(rowPosition, columnPosition);
+        if (rowPosition !== projection.top || columnPosition !== projection.left) {
+          covered.add(key(rowIndex, columns[columnPosition]!.index));
+        }
+      }
+    }
   }
-  return { rows, columns, merges, truncated, rowAt, columnAt, mergeAt, covered };
+  const hyperlinks = new Map<string, string>();
+  const allColumns = columnMask(0, columns.length);
+  const unassignedTree = Array(rowTreeSize * 2).fill(0n);
+  for (let rowPosition = 0; rowPosition < rows.length; rowPosition++)
+    unassignedTree[rowPosition + rowTreeSize] = allColumns;
+  for (let node = rowTreeSize - 1; node > 0; node--)
+    unassignedTree[node] = unassignedTree[node * 2] | unassignedTree[node * 2 + 1];
+  const assignHyperlinks = (projection: VisibleRangeProjection, href: string): void => {
+    const mask = columnMask(projection.left, projection.right);
+    const visit = (node: number, start: number, end: number): void => {
+      if (
+        start >= projection.bottom ||
+        end <= projection.top ||
+        (unassignedTree[node] & mask) === 0n
+      )
+        return;
+      if (start + 1 === end) {
+        let bits = unassignedTree[node] & mask;
+        while (bits !== 0n) {
+          const lowest = bits & -bits;
+          const columnPosition = lowest.toString(2).length - 1;
+          const cellKey = key(rows[start]!.index, columns[columnPosition]!.index);
+          if (!covered.has(cellKey)) hyperlinks.set(cellKey, href);
+          bits ^= lowest;
+        }
+        unassignedTree[node] = unassignedTree[node] & ~mask;
+        return;
+      }
+      const middle = (start + end) >> 1;
+      visit(node * 2, start, middle);
+      visit(node * 2 + 1, middle, end);
+      unassignedTree[node] = unassignedTree[node * 2] | unassignedTree[node * 2 + 1];
+    };
+    visit(1, 0, rowTreeSize);
+  };
+  for (const link of worksheet.hyperlinks) {
+    if (hyperlinks.size >= rows.length * columns.length - covered.size) break;
+    const href = safeHref(link.href);
+    if (!href) continue;
+    const projection = projectVisibleRange(rows, columns, link.range);
+    if (projection) assignHyperlinks(projection, href);
+  }
+  return { rows, columns, merges, truncated, rowAt, columnAt, mergeAt, covered, hyperlinks };
 };
 
 export const layoutKey = key;
