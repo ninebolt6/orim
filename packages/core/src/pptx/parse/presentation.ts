@@ -21,6 +21,8 @@ interface Part extends PartContext {
   readonly root: Element;
 }
 
+const MAX_SLIDES = 1000;
+
 const masterType = (type: string): string =>
   type === "ctrTitle"
     ? "title"
@@ -102,10 +104,19 @@ export const parsePptxModel = async (input: PackageInput): Promise<PptxPresentat
     throw new Error("Not a PPTX package: presentation part is not a presentation.");
   const presentationRels = await opc.relationships(presentationPath);
   const size = first(presentation, "sldSz");
-  const slidePaths = elements(first(presentation, "sldIdLst"), "sldId").flatMap((slide) => {
+  const slideEntries = elements(first(presentation, "sldIdLst"), "sldId");
+  if (slideEntries.length > MAX_SLIDES)
+    throw new Error(`Invalid PPTX presentation: slide count exceeds ${MAX_SLIDES}.`);
+  const slidePaths = slideEntries.flatMap((slide) => {
     const relation = presentationRels.get(attr(slide, "id", R) ?? "");
     return relation && !relation.external ? [opc.resolve(presentationPath, relation.target)] : [];
   });
+  const uniqueSlidePaths = new Set<string>();
+  for (const path of slidePaths) {
+    if (uniqueSlidePaths.has(path))
+      throw new Error(`Invalid PPTX presentation: duplicate slide part: ${path}`);
+    uniqueSlidePaths.add(path);
+  }
   const tableStyles = parseTableStyles(
     await optionalXml(opc, await relatedPart(opc, presentationPath, "tableStyles")),
   );
