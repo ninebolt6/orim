@@ -58,7 +58,6 @@ const tokenize = (format: string): readonly FormatSection[] => {
     section.tokens.push({ kind, value });
   };
   for (let index = 0; index < format.length;) {
-    const rest = format.slice(index);
     const character = format[index]!;
     if (character === ";") {
       section = { tokens: [], valid: true };
@@ -67,24 +66,29 @@ const tokenize = (format: string): readonly FormatSection[] => {
       continue;
     }
     if (character === '"') {
-      let literal = "";
+      const parts: string[] = [];
       let closed = false;
       index++;
+      let literalStart = index;
       while (index < format.length) {
         if (format[index] === '"' && format[index + 1] === '"') {
-          literal += '"';
+          parts.push(format.slice(literalStart, index), '"');
           index += 2;
+          literalStart = index;
         } else if (format[index] === '"') {
+          parts.push(format.slice(literalStart, index));
           index++;
           closed = true;
           break;
         } else {
-          literal += format[index]!;
           index++;
         }
       }
-      if (!closed) section.valid = false;
-      push("literal", literal);
+      if (!closed) {
+        parts.push(format.slice(literalStart, index));
+        section.valid = false;
+      }
+      push("literal", parts.join(""));
       continue;
     }
     if (character === "\\") {
@@ -136,29 +140,48 @@ const tokenize = (format: string): readonly FormatSection[] => {
       index = closing + 1;
       continue;
     }
-    const period = /^(AM\/PM|A\/P)/i.exec(rest);
-    if (period) {
-      push("period", period[1]!);
-      index += period[1]!.length;
+    const periodText = format.slice(index, index + 5).toUpperCase();
+    if (periodText.startsWith("AM/PM")) {
+      push("period", format.slice(index, index + 5));
+      index += 5;
       continue;
     }
-    const scientific = /^([Ee])([+-])([0#?]+)/.exec(rest);
-    if (scientific) {
-      section.tokens.push({
-        kind: "scientific",
-        value: scientific[0],
-        exponentMarker: scientific[1]!,
-        exponentSign: scientific[2]!,
-        exponentPadding: (scientific[3]!.match(/0/g) ?? []).length,
-      });
-      index += scientific[0].length;
+    if (periodText.startsWith("A/P")) {
+      push("period", format.slice(index, index + 3));
+      index += 3;
       continue;
     }
-    const japaneseDay = /^a{3,4}/i.exec(rest);
-    if (japaneseDay) {
-      push("japaneseDay", japaneseDay[0]);
-      index += japaneseDay[0].length;
-      continue;
+    if (
+      (character === "E" || character === "e") &&
+      format[index + 1] !== undefined &&
+      "+-".includes(format[index + 1]!)
+    ) {
+      let end = index + 2;
+      while (format[end] !== undefined && "0#?".includes(format[end]!)) end++;
+      if (end > index + 2) {
+        let exponentPadding = 0;
+        for (let position = index + 2; position < end; position++)
+          if (format[position] === "0") exponentPadding++;
+        section.tokens.push({
+          kind: "scientific",
+          value: format.slice(index, end),
+          exponentMarker: character,
+          exponentSign: format[index + 1]!,
+          exponentPadding,
+        });
+        index = end;
+        continue;
+      }
+    }
+    if (character.toLowerCase() === "a") {
+      const limit = Math.min(index + 4, format.length);
+      let end = index + 1;
+      while (end < limit && format[end]?.toLowerCase() === "a") end++;
+      if (end - index >= 3) {
+        push("japaneseDay", format.slice(index, end));
+        index = end;
+        continue;
+      }
     }
     if ("0#?".includes(character)) {
       push("placeholder", character);
@@ -403,14 +426,23 @@ const dateValue = (tokens: readonly FormatToken[], serial: number, date1904: boo
   }
   const details = dateDetails(serial, date1904, subSecondDigits);
   const hasPeriod = tokens.some((token) => token.kind === "period");
-  const nearestDateType = (index: number, direction: -1 | 1): string | undefined => {
-    for (let cursor = index + direction; tokens[cursor]; cursor += direction) {
-      const token = tokens[cursor]!;
-      if (/^(?:y|m|d|h|sec)/.test(token.kind)) return token.kind;
-      if (/^(?:un|pe|j)/.test(token.kind)) return undefined;
-    }
-    return undefined;
-  };
+  const isDateType = (token: FormatToken): boolean => /^(?:y|m|d|h|sec)/.test(token.kind);
+  const isDateBarrier = (token: FormatToken): boolean => /^(?:un|pe|j)/.test(token.kind);
+  const previousDateTypes: (string | undefined)[] = [];
+  let previousDateType: string | undefined;
+  tokens.forEach((token, index) => {
+    previousDateTypes[index] = previousDateType;
+    if (isDateType(token)) previousDateType = token.kind;
+    else if (isDateBarrier(token)) previousDateType = undefined;
+  });
+  const nextDateTypes: (string | undefined)[] = [];
+  let nextDateType: string | undefined;
+  for (let index = tokens.length - 1; index >= 0; index--) {
+    const token = tokens[index]!;
+    nextDateTypes[index] = nextDateType;
+    if (isDateType(token)) nextDateType = token.kind;
+    else if (isDateBarrier(token)) nextDateType = undefined;
+  }
   return tokens
     .map((token, index) => {
       if (fractionalSeconds >= 0 && index === fractionalSeconds) return `.${details.fraction}`;
@@ -424,8 +456,8 @@ const dateValue = (tokens: readonly FormatToken[], serial: number, date1904: boo
       if (token.kind === "year")
         return token.value.length <= 2 ? pad(details.year % 100, 2) : pad(details.year, 4);
       if (token.kind === "month") {
-        const previous = nearestDateType(index, -1);
-        const next = nearestDateType(index, 1);
+        const previous = previousDateTypes[index];
+        const next = nextDateTypes[index];
         const isMinute = previous === "hour" || next === "second";
         if (isMinute)
           return token.value.length === 1 ? String(details.minute) : pad(details.minute, 2);
@@ -591,9 +623,12 @@ const decimalFormat = (
   if (scientificIndex >= 0) {
     const scientific = tokens[scientificIndex]!;
     const mantissaTokens = tokens.slice(0, scientificIndex);
-    const integerDigits = placeholders(mantissaTokens).filter(
-      (index) => !mantissaTokens.slice(0, index).some((token) => token.value === "."),
-    ).length;
+    let integerDigits = 0;
+    let decimalSeen = false;
+    for (const token of mantissaTokens) {
+      if (token.value === ".") decimalSeen = true;
+      else if (!decimalSeen && token.kind === "placeholder") integerDigits++;
+    }
     const absolute = Math.abs(value) * 100 ** percentCount;
     const exponent =
       absolute === 0
@@ -623,12 +658,14 @@ const decimalFormat = (
   const slashFormat = fractionFormat(tokens, value);
   if (slashFormat !== undefined) return { text: slashFormat, valid: true };
 
-  const decimalIndex = tokens.findIndex(
-    (token, index) =>
-      token.kind === "symbol" &&
-      token.value === "." &&
-      tokens.slice(index + 1).some((following) => following.kind === "placeholder"),
-  );
+  let decimalIndex = -1;
+  let followingPlaceholder = false;
+  for (let index = tokens.length - 1; index >= 0; index--) {
+    const token = tokens[index]!;
+    if (token.kind === "placeholder") followingPlaceholder = true;
+    else if (token.kind === "symbol" && token.value === "." && followingPlaceholder)
+      decimalIndex = index;
+  }
   const beforeDecimal = decimalIndex < 0 ? tokens : tokens.slice(0, decimalIndex);
   const integerPlaces = placeholders(beforeDecimal);
   const firstPlace = integerPlaces[0]!;

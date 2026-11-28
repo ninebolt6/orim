@@ -157,6 +157,94 @@ describe("XLSX layout", () => {
     expect(performance.now() - start).toBeLessThan(2000);
   }, 2000);
 
+  it("counts hidden columns toward the column budget", () => {
+    const layout = computeLayout(
+      worksheet({
+        rows: [
+          {
+            index: 0,
+            hidden: false,
+            cells: [{ column: 200, value: { type: "number", value: 1 }, style: style() }],
+          },
+        ],
+        columns: [
+          { min: 0, max: 199, hidden: true },
+          { min: 200, max: 200, hidden: false },
+        ],
+      }),
+    );
+
+    expect(layout.columns).toHaveLength(0);
+    expect(layout.truncated).toBe(true);
+  });
+
+  it("precomputes hyperlink assignments within the visible-cell budget", () => {
+    const hyperlink = {
+      range: { top: 0, left: 0, bottom: 4999, right: 199 },
+      href: "https://example.com",
+    };
+    const start = performance.now();
+    const layout = computeLayout(
+      worksheet({
+        rows: [
+          {
+            index: 4999,
+            hidden: false,
+            cells: [{ column: 199, value: { type: "number", value: 1 }, style: style() }],
+          },
+        ],
+        hyperlinks: Array.from({ length: 10_000 }, () => hyperlink),
+      }),
+    );
+
+    expect(layout.hyperlinks.size).toBe(MAX_CELLS);
+    expect(layout.hyperlinks.get("0:0")).toBe("https://example.com");
+    expect(performance.now() - start).toBeLessThan(2000);
+  }, 2000);
+
+  it("keeps the first hyperlink assigned to overlapping cells", () => {
+    const layout = computeLayout(
+      worksheet({
+        rows: [
+          {
+            index: 0,
+            hidden: false,
+            cells: [{ column: 0, value: { type: "string", value: "link" }, style: style() }],
+          },
+        ],
+        hyperlinks: [
+          { range: { top: 0, left: 0, bottom: 0, right: 0 }, href: "https://first.example.com" },
+          { range: { top: 0, left: 0, bottom: 0, right: 0 }, href: "https://second.example.com" },
+        ],
+      }),
+    );
+
+    expect(layout.hyperlinks.get("0:0")).toBe("https://first.example.com");
+  });
+
+  it("applies hyperlinks to merge anchors but not covered cells", () => {
+    const layout = computeLayout(
+      worksheet({
+        rows: [
+          {
+            index: 0,
+            hidden: false,
+            cells: [{ column: 0, value: { type: "string", value: "anchor" }, style: style() }],
+          },
+        ],
+        merges: [{ top: 0, left: 0, bottom: 1, right: 1 }],
+        hyperlinks: [
+          { range: { top: 0, left: 0, bottom: 1, right: 1 }, href: "https://example.com" },
+        ],
+      }),
+    );
+
+    expect(layout.hyperlinks.get("0:0")).toBe("https://example.com");
+    expect(layout.hyperlinks.has("0:1")).toBe(false);
+    expect(layout.hyperlinks.has("1:0")).toBe(false);
+    expect(layout.hyperlinks.has("1:1")).toBe(false);
+  });
+
   it("anchors frozen cells at the origin when headers are hidden", () => {
     const layout = computeLayout(
       worksheet({

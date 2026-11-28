@@ -119,4 +119,14 @@ describe("Excel number formats", () => {
     expect(formatCellValue(number(1e10), "[h]:mm", false).text).toBe("10000000000");
     expect(formatCellValue(number(1e100), "yyyy-mm-dd", false).text).toBe("########");
   });
+
+  it("keeps maximum-length scientific, decimal, and date-token scans linear", () => {
+    const scientific = `${"0".repeat(2000)}.${"0".repeat(2000)}E+00`;
+    const decimal = `${"0".repeat(2000)}.${"0".repeat(2000)}`;
+    const date = `h${"m.".repeat(1500)}s`;
+
+    expect(formatCellValue(number(12345), scientific, false).text).toContain("E+");
+    expect(formatCellValue(number(12345), decimal, false).text).toHaveLength(4001);
+    expect(typeof formatCellValue(number(45000.5), date, false).text).toBe("string");
+  });
 });
