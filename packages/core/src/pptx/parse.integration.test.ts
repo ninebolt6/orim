@@ -275,9 +275,7 @@ describe("PPTX package parsing", () => {
       ),
     );
 
-    await expect(parsePptx(zipSync(entries, { level: 0 }))).rejects.toThrow(
-      "duplicate slide part: ppt/slides/slide1.xml",
-    );
+    await expect(parsePptx(zipSync(entries, { level: 0 }))).rejects.toThrow("Duplicate slide part");
   });
 
   it("rejects slide lists over the parser limit before expanding them", async () => {
@@ -293,9 +291,7 @@ describe("PPTX package parsing", () => {
       ),
     );
 
-    await expect(parsePptx(zipSync(entries, { level: 0 }))).rejects.toThrow(
-      "slide count exceeds 1000",
-    );
+    await expect(parsePptx(zipSync(entries, { level: 0 }))).rejects.toThrow("Too many slides");
   });
 
   it("rejects packages without a presentation part", async () => {

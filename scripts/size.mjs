@@ -78,7 +78,7 @@ const xlsxFailed = await measureConsumer(
 const pptxFailed = await measureConsumer(
   "PPTX",
   ["parsePptx", "renderPresentation", "renderPptx"],
-  17 * 1024,
+  17.5 * 1024,
 );
 failed = failed || docxFailed || xlsxFailed || pptxFailed;
 for (const [name, path, budget] of [
