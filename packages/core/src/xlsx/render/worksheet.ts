@@ -154,12 +154,22 @@ export const renderWorksheet = (
     }
     table.append(colgroup);
     const stickyCellsByColumn = layout.columns.map((): HTMLElement[] => []);
+    type BoundedSpill = { content: HTMLElement; from: number; to: number; inset: number };
+    const boundedSpillsByColumn = layout.columns.map((): BoundedSpill[] => []);
+    const spillWidth = (from: number, to: number, inset: number): number => {
+      let width = -inset;
+      for (let index = from; index <= to; index++) width += widths[index]!;
+      return Math.max(0, width);
+    };
     const resizeColumn = (columnIndex: number, width: number): void => {
       const resizedWidth = Math.max(MIN_COLUMN_WIDTH, width);
       widths[columnIndex] = resizedWidth;
       columnElements[columnIndex]!.style.width = `${resizedWidth}px`;
       resizeHandles[columnIndex]?.setAttribute("aria-valuenow", String(Math.round(resizedWidth)));
       table.style.width = `${headerWidth + widths.reduce((total, current) => total + current, 0)}px`;
+      for (const spill of boundedSpillsByColumn[columnIndex]!) {
+        spill.content.style.maxWidth = `${spillWidth(spill.from, spill.to, spill.inset)}px`;
+      }
       if (layout.columns[columnIndex]!.stickyLeft === undefined) return;
       let left = headerWidth;
       for (let stickyIndex = 0; stickyIndex < layout.columns.length; stickyIndex++) {
@@ -353,22 +363,42 @@ export const renderWorksheet = (
           td.style.backgroundColor = fill ?? "#ffffff";
           applyStickyZIndex(td, false, rowSticky !== undefined, columnSticky !== undefined);
         }
-        const nextColumn = layout.columns[columnIndex + 1];
-        const spill =
+        const canSpill =
           value.type === "string" &&
           value.value.length > 0 &&
           !style.alignment.wrap &&
           alignment === "left" &&
-          !merge &&
-          nextColumn !== undefined &&
-          !layout.covered.has(layoutKey(rowLayout.index, nextColumn.index)) &&
-          !layout.mergeAt.has(layoutKey(rowLayout.index, nextColumn.index)) &&
-          !hasValue(
-            worksheetCells.get(layoutKey(rowLayout.index, nextColumn.index))?.value ?? {
-              type: "empty",
-            },
-          );
-        if (spill) td.classList.add("orim-xlsx-spill");
+          !merge;
+        if (canSpill) {
+          let spillTo = columnIndex;
+          let bounded = false;
+          while (spillTo + 1 < layout.columns.length) {
+            const nextColumn = layout.columns[spillTo + 1]!;
+            const nextKey = layoutKey(rowLayout.index, nextColumn.index);
+            if (
+              layout.covered.has(nextKey) ||
+              layout.mergeAt.has(nextKey) ||
+              hasValue(worksheetCells.get(nextKey)?.value ?? { type: "empty" })
+            ) {
+              bounded = true;
+              break;
+            }
+            spillTo += 1;
+          }
+          if (spillTo > columnIndex) {
+            td.classList.add("orim-xlsx-spill");
+            if (bounded) {
+              const inset = style.alignment.indent * 9;
+              content.style.maxWidth = `${spillWidth(columnIndex, spillTo, inset)}px`;
+              content.style.minWidth = "0";
+              content.style.overflowX = "hidden";
+              const spill = { content, from: columnIndex, to: spillTo, inset };
+              for (let index = columnIndex; index <= spillTo; index++) {
+                boundedSpillsByColumn[index]!.push(spill);
+              }
+            }
+          }
+        }
         rowElement.append(td);
       }
       body.append(rowElement);
