@@ -223,6 +223,35 @@ export const mergeLayers = <T extends object>(
   return merged;
 };
 
+const breakBasedOnCycles = <T extends { basedOn?: string }>(items: Map<string, T>): void => {
+  const state = new Map<string, 1 | 2>();
+  for (const id of items.keys()) {
+    if (state.has(id)) continue;
+    const path: string[] = [];
+    let current: string | undefined = id;
+    while (current) {
+      const item = items.get(current);
+      if (!item) break;
+      const itemState = state.get(current);
+      if (itemState === 1) {
+        const cycleStart = path.indexOf(current);
+        if (cycleStart >= 0) {
+          const cycle = path.slice(cycleStart);
+          const cut = cycle.reduce((larger, value) => (value > larger ? value : larger));
+          const target = items.get(cut);
+          if (target) target.basedOn = undefined;
+        }
+        break;
+      }
+      if (itemState === 2) break;
+      state.set(current, 1);
+      path.push(current);
+      current = item.basedOn;
+    }
+    for (const node of path) state.set(node, 2);
+  }
+};
+
 export const parseStyles = (doc: Document | undefined, theme: Theme = {}): StyleSheet => {
   const styles = new Map<string, Style>();
   const tableStyles = new Map<string, { basedOn?: string; properties: TableStyleProperties }>();
@@ -257,6 +286,8 @@ export const parseStyles = (doc: Document | undefined, theme: Theme = {}): Style
       });
     }
   }
+  breakBasedOnCycles(styles);
+  breakBasedOnCycles(tableStyles);
 
   const chainValues = <S, T extends object>(
     lookup: (id: string) => S | undefined,
@@ -326,10 +357,9 @@ export const parseStyles = (doc: Document | undefined, theme: Theme = {}): Style
     ["borders", "margins"],
   );
 
-  const tableCache = new Map<string, TableStyleProperties>();
+  const tableCache = new Map<string | undefined, TableStyleProperties>();
   const tableChain = (id?: string): TableStyleProperties => {
-    const key = id ?? "";
-    const cached = tableCache.get(key);
+    const cached = tableCache.get(id);
     if (cached) return cached;
     const inherited = tableChainValues(id ?? defaultTableStyle);
     const result: TableStyleProperties = {
@@ -337,7 +367,7 @@ export const parseStyles = (doc: Document | undefined, theme: Theme = {}): Style
       margins: inherited.margins ?? {},
       ...(inherited.cellShading ? { cellShading: inherited.cellShading } : {}),
     };
-    tableCache.set(key, result);
+    tableCache.set(id, result);
     return result;
   };
 

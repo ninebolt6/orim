@@ -164,13 +164,21 @@ describe("DOCX styles", () => {
     expect(styles.run(`S${count - 1}`).bold).toBe(Boolean((count - 1) % 2));
   });
 
-  it("terminates malformed cyclic style inheritance", () => {
+  it("resolves malformed cyclic style inheritance deterministically", () => {
     const doc = new DOMParser().parseFromString(
       `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="A"><w:basedOn w:val="B"/><w:rPr><w:b/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="B"><w:basedOn w:val="A"/><w:rPr><w:i/></w:rPr></w:style></w:styles>`,
       "application/xml",
     );
+    const first = parseStyles(doc);
+    const firstA = first.run("A");
+    const firstB = first.run("B");
+    const second = parseStyles(doc);
+    const secondB = second.run("B");
+    const secondA = second.run("A");
 
-    expect(parseStyles(doc).run("A")).toMatchObject({ bold: true });
+    expect(firstA).toMatchObject({ bold: true });
+    expect(secondA).toEqual(firstA);
+    expect(secondB).toEqual(firstB);
   });
 
   it("resolves shared borders and table-style inheritance", () => {
@@ -178,7 +186,10 @@ describe("DOCX styles", () => {
       `<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="table" w:styleId="Base"><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:color="auto"/><w:right w:val="double" w:sz="8"/></w:tblBorders><w:tblCellMar><w:left w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tcPr><w:shd w:fill="ABCDEF"/></w:tcPr></w:style><w:style w:type="table" w:default="1" w:styleId="TableGrid"><w:basedOn w:val="Base"/><w:tblPr><w:tblBorders><w:top w:val="nil"/></w:tblBorders></w:tblPr></w:style></w:styles>`,
       "application/xml",
     );
-    const table = parseStyles(doc).table();
+    const styles = parseStyles(doc);
+    expect(styles.table("").borders).toEqual({});
+    expect(styles.table("").margins).toEqual({});
+    const table = styles.table();
     expect(table.borders).toMatchObject({
       top: "none",
       right: expect.stringContaining("double"),
