@@ -128,7 +128,7 @@ const open = async (file: File) => {
 };
 ```
 
-Pass `{ hiddenSlides: true }` to also render slides marked hidden. `parsePptx` returns the immutable `PptxPresentation` model, which `renderPresentation(presentation, container)` renders without re-parsing. Links to other slides scroll to the target slide.
+Pass `{ hiddenSlides: true }` to also render slides marked hidden. `parsePptx` returns the immutable `PptxPresentation` model, which `renderPresentation(presentation, container)` renders without re-parsing. Links to other slides scroll to the target slide. Presentations are limited to 1,000 slide-list entries, including hidden slides, and duplicate references to the same slide part are rejected.
 
 ## React
 
